@@ -7,8 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- compile assets are included because this project hosts the design-time
+         DbContext factory and the EF Core migrations themselves. PrivateAssets
+         keeps the design tooling out of the API's dependency graph. -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12">
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.12" />
