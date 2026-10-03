@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { CategoriesPage } from './categories/CategoriesPage.tsx'
+import { CustomersPage } from './customers/CustomersPage.tsx'
 import { ServicesPage } from './services/ServicesPage.tsx'
 import { StaffPage } from './staff/StaffPage.tsx'
 
-type Section = 'services' | 'categories' | 'staff'
+type Section = 'services' | 'categories' | 'staff' | 'customers'
 
 function App() {
   const [section, setSection] = useState<Section>('services')
@@ -40,12 +41,21 @@ function App() {
           >
             Staff
           </button>
+          <button
+            type="button"
+            className="nav-button"
+            aria-current={section === 'customers' ? 'page' : undefined}
+            onClick={() => setSection('customers')}
+          >
+            Customers
+          </button>
         </nav>
       </header>
 
       {section === 'services' && <ServicesPage />}
       {section === 'categories' && <CategoriesPage />}
       {section === 'staff' && <StaffPage />}
+      {section === 'customers' && <CustomersPage />}
     </div>
   )
 }

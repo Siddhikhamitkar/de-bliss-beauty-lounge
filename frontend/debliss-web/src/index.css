@@ -282,6 +282,31 @@ textarea {
   letter-spacing: normal;
 }
 
+.note-list,
+.note-entry {
+  display: flex;
+  flex-direction: column;
+}
+
+.note-list {
+  gap: 0.75rem;
+}
+
+.note-entry {
+  gap: 0.15rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.5rem;
+}
+
+.note-entry p {
+  margin: 0;
+}
+
+.note-meta {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
 .pill {
   display: inline-block;
   font-size: 0.75rem;

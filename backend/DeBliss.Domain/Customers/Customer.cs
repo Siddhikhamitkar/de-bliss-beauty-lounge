@@ -28,6 +28,13 @@ public class Customer : AuditableEntity
     public bool MarketingConsent { get; set; }
 
     /// <summary>
+    /// Inactive customers stay in the database so appointment history keeps its
+    /// references, but drop out of the default pick lists the appointment
+    /// calendar and front desk search use.
+    /// </summary>
+    public bool IsActive { get; set; } = true;
+
+    /// <summary>
     /// Optional link to a portal login, reserved for the future customer-facing
     /// website so it can reuse the same customer records.
     /// </summary>

@@ -3,18 +3,22 @@
 Salon management and customer experience platform.
 
 This repository currently contains **the project foundation, the core database
-layer and the first two business modules — Services & Pricing** (service
-categories, services, prices and eligible-staff assignment) **and Staff
+layer and the first three business modules — Services & Pricing** (service
+categories, services, prices and eligible-staff assignment), **Staff
 Management & Availability** (staff profiles, service capabilities, working
-schedules, breaks/time-off and the availability check), each with its HTTP
-API, React admin UI and tests. Authentication, the remaining business modules
-(appointments, customers, billing) and the customer-facing website are
+schedules, breaks/time-off and the availability check) **and Customers /
+CRM** (customer profiles, duplicate-aware quick create, reception notes and
+the visit summary drawn from the scheduling tables), each with its HTTP
+API, React admin UI and tests. Authentication, the remaining business
+modules (appointments, billing) and the customer-facing website are
 deliberately not implemented yet.
 
 The authoritative description of the Services & Pricing module is
 [docs/SERVICES-MODULE-SPECIFICATION.md](docs/SERVICES-MODULE-SPECIFICATION.md);
 the Staff Management & Availability module is described in
-[docs/STAFF-MANAGEMENT-SPECIFICATION.md](docs/STAFF-MANAGEMENT-SPECIFICATION.md).
+[docs/STAFF-MANAGEMENT-SPECIFICATION.md](docs/STAFF-MANAGEMENT-SPECIFICATION.md);
+the Customers / CRM module is described in
+[docs/CUSTOMERS-CRM-SPECIFICATION.md](docs/CUSTOMERS-CRM-SPECIFICATION.md).
 
 The system is built as a **modular monolith**: a single deployable backend
 composed of independent, cleanly separated modules, with a layered architecture
@@ -86,9 +90,12 @@ References **Domain** only, so application logic stays free of infrastructure
 concerns.
 
 Besides the persistence-facing ports (`IUnitOfWork`, repository contracts in
-`ServiceCatalogue/Ports`), this layer hosts the first module:
+`ServiceCatalogue/Ports`), this layer hosts the business modules:
 `ServiceCatalogue` — the use cases for managing the service menu
-(`ServiceCatalogueService`, `ServiceCategoryService`), their DTOs, and the
+(`ServiceCatalogueService`, `ServiceCategoryService`); `Staffing` — staff
+profiles, service assignment, working hours, time off and the availability
+check; and `Customers` — customer profiles, duplicate-aware creation, notes
+and the appointment-history queries. Each carries its DTOs and the
 validation rules and limits the module enforces.
 
 ### DeBliss.Infrastructure
@@ -134,6 +141,10 @@ Currently exposes:
   assignment, working hours, time off and the availability check (see
   [docs/STAFF-MANAGEMENT-SPECIFICATION.md](docs/STAFF-MANAGEMENT-SPECIFICATION.md)).
   `/api/staff-members` remains the read-only lookup the service form uses
+- `/api/customers` — the Customers / CRM module: paged search, profiles,
+  the soft status toggle, reception notes and the appointment history and
+  visit summary the profile page renders (see
+  [docs/CUSTOMERS-CRM-SPECIFICATION.md](docs/CUSTOMERS-CRM-SPECIFICATION.md))
 
 Endpoints are deliberately open: each carries a `<remarks>` naming the
 permission it will require once authorisation exists.
@@ -191,8 +202,14 @@ It also implements the Staff Management & Availability admin screens: the
 paged staff list (search, status filter, activate/deactivate), the staff
 profile editor, the member profile page with service assignment,
 working-hours editor (multiple intervals per day, breaks as gaps) and time
-off. The Vite dev server proxies `/api` to the backend's HTTPS URL so the
-browser sees a single origin.
+off.
+
+And the Customers / CRM admin screens: the paged customer list (search,
+status filter, activate/deactivate), the create/edit form with per-field
+server errors and the duplicate-mobile confirm step, and the customer
+profile page with contact details, the visit summary, reception notes and
+the appointment history. The Vite dev server proxies `/api` to the
+backend's HTTPS URL so the browser sees a single origin.
 
 | Tool       | Version |
 | ---------- | ------- |
@@ -265,14 +282,19 @@ projects. It covers:
 - the ServiceCatalogue application services, run against SQLite;
 - the Staffing application services (staff profiles, service assignment,
   working hours, time off and the availability check), run against SQLite;
+- the Customers application services (paged search, profile CRUD, the
+  duplicate-phone conflict, notes and the appointment-history queries), run
+  against SQLite;
 - API integration tests over an in-memory TestServer, covering the endpoints,
   the RFC 9457 error contract, and permission-surface drift.
 
 The frontend has its own suite (vitest + Testing Library, `npm test` in
 `frontend/debliss-web`) covering the API client, formatters, pagination, the
-`useAsync` hook, the service form's error handling, and the staff module
+`useAsync` hook, the service form's error handling, the staff module
 (list, profile form, service assignment, working-hours editor, time off and
-the profile page).
+the profile page), and the customers module (list, filters, pagination,
+create/edit, the duplicate confirm flow, the profile page, notes and the
+empty and failure states).
 
 ---
 
@@ -321,8 +343,8 @@ should be introduced only when the corresponding work begins:
 
 - Authentication and authorisation (`User.PasswordHash` exists but is unused);
   every endpoint carries a `<remarks>` naming the permission it will require
-- Business modules other than Services & Pricing and Staff Management &
-  Availability: appointments, customers and billing
+- Business modules other than Services & Pricing, Staff Management &
+  Availability and Customers / CRM: appointments and billing
 - The public customer-facing website (a separate future phase)
 - Microservices — the system stays a modular monolith
 

@@ -264,6 +264,11 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
                     b.Property<bool>("IsWalkIn")
                         .HasColumnType("bit");
 
@@ -288,6 +293,8 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("Email");
+
+                    b.HasIndex("IsActive");
 
                     b.HasIndex("PhoneNumber");
 

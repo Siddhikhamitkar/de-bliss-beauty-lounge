@@ -218,6 +218,95 @@ export interface StaffAvailabilityCheck {
   isAvailable: boolean
 }
 
+/** How a customer list is narrowed by record state. Sent by name, as the API binds it. */
+export type CustomerStatusFilter = 'All' | 'Active' | 'Inactive'
+
+/** A row in the customer list: enough to recognise and triage a customer. */
+export interface CustomerSummary {
+  id: string
+  firstName: string
+  lastName: string
+  phoneNumber: string | null
+  email: string | null
+  isActive: boolean
+  createdAt: string
+  updatedAt: string | null
+}
+
+/**
+ * Appointment counts read straight from the scheduling tables. Every count is
+ * zero until the appointment module starts writing bookings, at which point
+ * the same query simply starts returning real data.
+ */
+export interface CustomerAppointmentSummary {
+  totalAppointments: number
+  completedAppointments: number
+  cancelledAppointments: number
+  lastVisitAt: string | null
+}
+
+/** The full customer profile as the profile page renders it. */
+export interface CustomerProfile {
+  id: string
+  firstName: string
+  lastName: string
+  email: string | null
+  phoneNumber: string | null
+  dateOfBirth: string | null
+  gender: string | null
+  address: string | null
+  isActive: boolean
+  appointmentSummary: CustomerAppointmentSummary
+  createdAt: string
+  updatedAt: string | null
+}
+
+/** One note on a customer profile, newest first. */
+export interface CustomerNote {
+  id: string
+  customerId: string
+  note: string
+  createdAt: string
+  updatedAt: string | null
+}
+
+/**
+ * One past or upcoming appointment on the customer profile. Service names and
+ * staff come from booking-time snapshots, so the history never changes when
+ * the catalogue or staff list is edited later.
+ */
+export interface CustomerAppointmentItem {
+  id: string
+  startsAt: string
+  endsAt: string
+  status: string
+  serviceNames: string[]
+  staffNames: string[]
+}
+
+/**
+ * Payload for creating and editing a customer. `isActive` is omitted (null) by
+ * the compact "+ New Customer" form the future appointment screen will post.
+ * `allowDuplicatePhone` is the second step of the duplicate warning: the first
+ * save without it comes back 409, and the client asks the user before retrying.
+ */
+export interface SaveCustomerRequest {
+  firstName: string | null
+  lastName: string | null
+  phoneNumber: string | null
+  email: string | null
+  dateOfBirth: string | null
+  gender: string | null
+  address: string | null
+  isActive: boolean | null
+  allowDuplicatePhone: boolean
+}
+
+/** Payload for adding to or editing a customer note. Notes are never deleted. */
+export interface SaveCustomerNoteRequest {
+  note: string | null
+}
+
 /**
  * An RFC 9457 problem document. `errors` appears only on a 400 from a save
  * endpoint and is keyed by the request field each message belongs to.

@@ -2,6 +2,7 @@ using DeBliss.Infrastructure;
 using DeBliss.Infrastructure.Persistence;
 using DeBliss.Infrastructure.Persistence.Interceptors;
 using DeBliss.UnitTests.TestDoubles;
+using DeBliss.Domain.Scheduling;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -78,6 +79,26 @@ internal sealed class DeBlissApiFactory : WebApplicationFactory<Program>
         int sortOrder = 0) =>
         WithNewContextAsync(context => CatalogueSeed.ServiceAsync(
             context, categoryId, name, price, durationMinutes, isActive, description, staffIds, sortOrder));
+
+    public Task<Guid> SeedCustomerAsync(
+        string firstName,
+        string lastName,
+        string? phoneNumber = null,
+        string? email = null,
+        bool isActive = true) =>
+        WithNewContextAsync(context =>
+            CustomerSeed.CustomerAsync(context, firstName, lastName, phoneNumber, email, isActive));
+
+    public Task<Guid> SeedCustomerNoteAsync(Guid customerId, string note) =>
+        WithNewContextAsync(context => CustomerSeed.NoteAsync(context, customerId, note));
+
+    public Task<Guid> SeedCustomerAppointmentAsync(
+        Guid customerId,
+        DateTimeOffset startsAt,
+        AppointmentStatus status = AppointmentStatus.Completed,
+        IReadOnlyList<(Guid ServiceId, Guid? StaffId, string SnapshotName)>? lines = null) =>
+        WithNewContextAsync(context =>
+            CustomerSeed.AppointmentAsync(context, customerId, startsAt, status, lines));
 
     private async Task<Guid> WithNewContextAsync(Func<DeBlissDbContext, Task<Guid>> seed)
     {

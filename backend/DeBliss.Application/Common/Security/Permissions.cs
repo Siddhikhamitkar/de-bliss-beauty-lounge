@@ -30,4 +30,13 @@ public static class Permissions
         public const string ManageTimeOff = "staff.time-off";
         public const string CheckAvailability = "staff.availability";
     }
+
+    public static class Customers
+    {
+        public const string ViewCustomers = "customers.read";
+        public const string CreateCustomer = "customers.create";
+        public const string EditCustomer = "customers.update";
+        public const string ChangeCustomerStatus = "customers.status";
+        public const string ManageCustomerNotes = "customers.notes";
+    }
 }

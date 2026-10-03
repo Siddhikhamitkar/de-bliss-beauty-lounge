@@ -24,6 +24,10 @@ public class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         builder.HasIndex(customer => customer.PhoneNumber);
         builder.HasIndex(customer => new { customer.LastName, customer.FirstName });
 
+        builder.HasIndex(customer => customer.IsActive);
+
+        builder.Property(customer => customer.IsActive).HasDefaultValue(true);
+
         builder.HasOne(customer => customer.User)
             .WithMany()
             .HasForeignKey(customer => customer.UserId)

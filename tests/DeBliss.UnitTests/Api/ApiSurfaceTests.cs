@@ -49,7 +49,16 @@ public sealed class ApiSurfaceTests : ApiTestBase
         ["GET api/staff/{staffId:guid}/time-off"] = [Permissions.Staffing.ViewStaff],
         ["POST api/staff/{staffId:guid}/time-off"] = [Permissions.Staffing.ManageTimeOff],
         ["PUT api/staff/{staffId:guid}/time-off/{timeOffId:guid}"] = [Permissions.Staffing.ManageTimeOff],
-        ["DELETE api/staff/{staffId:guid}/time-off/{timeOffId:guid}"] = [Permissions.Staffing.ManageTimeOff]
+        ["DELETE api/staff/{staffId:guid}/time-off/{timeOffId:guid}"] = [Permissions.Staffing.ManageTimeOff],
+        ["GET api/customers"] = [Permissions.Customers.ViewCustomers],
+        ["POST api/customers"] = [Permissions.Customers.CreateCustomer],
+        ["GET api/customers/{id:guid}"] = [Permissions.Customers.ViewCustomers],
+        ["PUT api/customers/{id:guid}"] = [Permissions.Customers.EditCustomer],
+        ["PATCH api/customers/{id:guid}/status"] = [Permissions.Customers.ChangeCustomerStatus],
+        ["GET api/customers/{id:guid}/appointments"] = [Permissions.Customers.ViewCustomers],
+        ["GET api/customers/{id:guid}/notes"] = [Permissions.Customers.ViewCustomers],
+        ["POST api/customers/{id:guid}/notes"] = [Permissions.Customers.ManageCustomerNotes],
+        ["PUT api/customers/{id:guid}/notes/{noteId:guid}"] = [Permissions.Customers.ManageCustomerNotes]
     };
 
     [Fact]
