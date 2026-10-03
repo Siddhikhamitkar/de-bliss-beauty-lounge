@@ -1,0 +1,163 @@
+# ---------------------------------------------------------------------------
+# .NET / Build output
+# ---------------------------------------------------------------------------
+bin/
+obj/
+out/
+[Dd]ebug/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]uilds/
+[Ll]og/
+[Ll]ogs/
+*.binlog
+*.dll
+*.exe
+*.pdb
+*.obj
+*.o
+*.so
+*.a
+*.lib
+*.cache
+*.tlog
+*.lastbuildstate
+*.unsuccessfulbuild
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/
+packages/
+!packages/build/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Test & coverage results
+[Tt]est[Rr]esult*/
+[Cc]overage*/
+coverage*.json
+coverage*.xml
+coverage*.info
+*.coverage
+*.coveragexml
+TestResults/
+
+# Publish / packaging output
+publish/
+PublishProfiles/
+*.publishsettings
+*.deployproj
+BundleArtifacts/
+
+# ---------------------------------------------------------------------------
+# Visual Studio / Rider / VS Code
+# ---------------------------------------------------------------------------
+.vs/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
+.idea/
+*.suo
+*.user
+*.userosscache
+*.userprefs
+*.sln.docstates
+*.sdf
+*.opensdf
+*.VC.db
+*.VC.opendb
+*.psess
+*.vsp
+*.vspx
+*.sap
+*.DotSettings.user
+UpgradeLog*.htm
+UpgradeLog*.XML
+
+# ---------------------------------------------------------------------------
+# Node / React / Vite
+# ---------------------------------------------------------------------------
+node_modules/
+dist/
+dist-ssr/
+build/
+.next/
+.nuxt/
+.cache/
+.parcel-cache/
+.vite/
+*.local
+.npm/
+.yarn/
+.pnp.*
+.eslintcache
+.stylelintcache
+*.tsbuildinfo
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+pnpm-lock.yaml.bak
+
+# ---------------------------------------------------------------------------
+# Secrets, environment & local configuration
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.env
+appsettings.*.Local.json
+appsettings.Local.json
+secrets.json
+*.secret
+*.secrets
+credentials.json
+secrets/
+*.pfx
+*.p12
+*.snk
+*.key
+*.pem
+*.cer
+*.crt
+*.jks
+*.keystore
+azure-pipelines-variables.yml
+local.settings.json
+
+# ---------------------------------------------------------------------------
+# OS / editor noise
+# ---------------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.swp
+*.swo
+*~
+
+# ---------------------------------------------------------------------------
+# SQL Server local DB artifacts
+# ---------------------------------------------------------------------------
+*.mdf
+*.ldf
+*.ndf
+*.bak
