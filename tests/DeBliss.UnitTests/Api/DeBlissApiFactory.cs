@@ -50,8 +50,14 @@ internal sealed class DeBlissApiFactory : WebApplicationFactory<Program>
             .AddInterceptors(provider.GetRequiredService<AuditableEntityInterceptor>()));
     }
 
-    public Task<Guid> SeedStaffAsync(string firstName, string lastName, bool isActive = true) =>
-        WithNewContextAsync(context => CatalogueSeed.StaffAsync(context, firstName, lastName, isActive));
+    public Task<Guid> SeedStaffAsync(
+        string firstName,
+        string lastName,
+        bool isActive = true,
+        string? jobTitle = null,
+        string? email = null) =>
+        WithNewContextAsync(context =>
+            CatalogueSeed.StaffAsync(context, firstName, lastName, isActive, jobTitle, email));
 
     public Task<Guid> SeedCategoryAsync(
         string name,

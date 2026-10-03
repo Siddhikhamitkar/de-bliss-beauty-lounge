@@ -17,6 +17,7 @@ export interface ServiceSearch {
   status?: ServiceStatusFilter
   bookableOnly?: boolean
   page?: number
+  pageSize?: number
 }
 
 export function searchServices(search: ServiceSearch): Promise<PagedResult<ServiceSummary>> {
@@ -28,6 +29,7 @@ export function searchServices(search: ServiceSearch): Promise<PagedResult<Servi
       status: search.status,
       bookableOnly: search.bookableOnly,
       page: search.page,
+      pageSize: search.pageSize,
     })}`,
   )
 }

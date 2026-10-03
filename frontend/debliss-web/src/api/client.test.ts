@@ -82,6 +82,13 @@ describe('request', () => {
     })
   })
 
+  it('resolves with undefined when a success has no body, as a 204 delete does', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(request('DELETE', '/staff/s1/time-off/t1')).resolves.toBeUndefined()
+  })
+
   it('sends a JSON body when one is given', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response('{}', { status: 200 }),

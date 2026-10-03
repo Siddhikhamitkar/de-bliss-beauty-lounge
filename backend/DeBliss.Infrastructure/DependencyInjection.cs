@@ -1,5 +1,6 @@
 using DeBliss.Application.Common.Interfaces;
 using DeBliss.Application.ServiceCatalogue.Ports;
+using DeBliss.Application.Staffing.Ports;
 using DeBliss.Infrastructure.Persistence;
 using DeBliss.Infrastructure.Persistence.Interceptors;
 using DeBliss.Infrastructure.Persistence.Repositories;
@@ -34,6 +35,8 @@ public static class DependencyInjection
         services.AddScoped<IServiceCategoryRepository, ServiceCategoryRepository>();
         services.AddScoped<IServiceRepository, ServiceRepository>();
         services.AddScoped<IStaffDirectory, StaffDirectory>();
+        services.AddScoped<IStaffRepository, StaffRepository>();
+        services.AddScoped<IScheduleRepository, ScheduleRepository>();
 
         return services;
     }

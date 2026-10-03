@@ -18,4 +18,16 @@ public static class Permissions
         public const string ManageCategories = "service-categories.manage";
         public const string AssignStaffToServices = "services.assign-staff";
     }
+
+    public static class Staffing
+    {
+        public const string ViewStaff = "staff.read";
+        public const string CreateStaff = "staff.create";
+        public const string EditStaff = "staff.update";
+        public const string ChangeStaffStatus = "staff.status";
+        public const string ManageStaffServices = "staff.assign-services";
+        public const string ManageWorkingHours = "staff.working-hours";
+        public const string ManageTimeOff = "staff.time-off";
+        public const string CheckAvailability = "staff.availability";
+    }
 }

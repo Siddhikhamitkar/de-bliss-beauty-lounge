@@ -76,6 +76,23 @@ public sealed class ServiceRepository(DeBlissDbContext context) : IServiceReposi
 
     public void Add(Service service) => context.Services.Add(service);
 
+    public async Task<IReadOnlyList<Service>> GetByIdsAsync(
+        IReadOnlyList<Guid> ids,
+        CancellationToken cancellationToken = default)
+    {
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        // Tracked with categories, because the staffing module attaches these
+        // instances to the StaffService rows it saves.
+        return await context.Services
+            .Include(service => service.ServiceCategory)
+            .Where(service => ids.Contains(service.Id))
+            .ToListAsync(cancellationToken);
+    }
+
     private static IQueryable<Service> WithNavigations(IQueryable<Service> query) => query
         .Include(service => service.ServiceCategory)
         .Include(service => service.StaffServices)

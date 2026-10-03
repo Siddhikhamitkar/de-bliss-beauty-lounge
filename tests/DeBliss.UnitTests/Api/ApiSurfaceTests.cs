@@ -35,7 +35,21 @@ public sealed class ApiSurfaceTests : ApiTestBase
             Permissions.ServiceCatalogue.AssignStaffToServices
         ],
         ["PATCH api/services/{id:guid}/status"] = [Permissions.ServiceCatalogue.ChangeServiceStatus],
-        ["GET api/staff-members"] = [Permissions.ServiceCatalogue.AssignStaffToServices]
+        ["GET api/staff-members"] = [Permissions.ServiceCatalogue.AssignStaffToServices],
+        ["GET api/staff"] = [Permissions.Staffing.ViewStaff],
+        ["POST api/staff"] = [Permissions.Staffing.CreateStaff],
+        ["GET api/staff/availability"] = [Permissions.Staffing.CheckAvailability],
+        ["GET api/staff/{id:guid}"] = [Permissions.Staffing.ViewStaff],
+        ["PUT api/staff/{id:guid}"] = [Permissions.Staffing.EditStaff],
+        ["PATCH api/staff/{id:guid}/status"] = [Permissions.Staffing.ChangeStaffStatus],
+        ["GET api/staff/{staffId:guid}/services"] = [Permissions.Staffing.ViewStaff],
+        ["PUT api/staff/{staffId:guid}/services"] = [Permissions.Staffing.ManageStaffServices],
+        ["GET api/staff/{staffId:guid}/working-hours"] = [Permissions.Staffing.ViewStaff],
+        ["PUT api/staff/{staffId:guid}/working-hours"] = [Permissions.Staffing.ManageWorkingHours],
+        ["GET api/staff/{staffId:guid}/time-off"] = [Permissions.Staffing.ViewStaff],
+        ["POST api/staff/{staffId:guid}/time-off"] = [Permissions.Staffing.ManageTimeOff],
+        ["PUT api/staff/{staffId:guid}/time-off/{timeOffId:guid}"] = [Permissions.Staffing.ManageTimeOff],
+        ["DELETE api/staff/{staffId:guid}/time-off/{timeOffId:guid}"] = [Permissions.Staffing.ManageTimeOff]
     };
 
     [Fact]
@@ -58,8 +72,9 @@ public sealed class ApiSurfaceTests : ApiTestBase
     {
         var bound = ExpectedPermissions.Values.SelectMany(permissions => permissions).ToHashSet(StringComparer.Ordinal);
 
-        var unused = typeof(Permissions.ServiceCatalogue)
-            .GetFields(BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy)
+        var unused = typeof(Permissions)
+            .GetNestedTypes(BindingFlags.Public)
+            .SelectMany(type => type.GetFields(BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy))
             .Where(field => field.IsLiteral)
             .Select(field => (string)field.GetRawConstantValue()!)
             .Where(permission => !bound.Contains(permission))

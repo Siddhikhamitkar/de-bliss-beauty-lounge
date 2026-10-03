@@ -33,5 +33,13 @@ public interface IServiceRepository
         Guid? excludingId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Tracked services with their categories loaded, so an assignment batch
+    /// can be validated and mapped in one round trip.
+    /// </summary>
+    Task<IReadOnlyList<Service>> GetByIdsAsync(
+        IReadOnlyList<Guid> ids,
+        CancellationToken cancellationToken = default);
+
     void Add(Service service);
 }

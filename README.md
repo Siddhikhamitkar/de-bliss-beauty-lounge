@@ -3,14 +3,18 @@
 Salon management and customer experience platform.
 
 This repository currently contains **the project foundation, the core database
-layer and the first business module — Services & Pricing** (service categories,
-services, prices and eligible-staff assignment), with its HTTP API, React
-admin UI and tests. Authentication, the remaining business modules
+layer and the first two business modules — Services & Pricing** (service
+categories, services, prices and eligible-staff assignment) **and Staff
+Management & Availability** (staff profiles, service capabilities, working
+schedules, breaks/time-off and the availability check), each with its HTTP
+API, React admin UI and tests. Authentication, the remaining business modules
 (appointments, customers, billing) and the customer-facing website are
 deliberately not implemented yet.
 
 The authoritative description of the Services & Pricing module is
-[docs/SERVICES-MODULE-SPECIFICATION.md](docs/SERVICES-MODULE-SPECIFICATION.md).
+[docs/SERVICES-MODULE-SPECIFICATION.md](docs/SERVICES-MODULE-SPECIFICATION.md);
+the Staff Management & Availability module is described in
+[docs/STAFF-MANAGEMENT-SPECIFICATION.md](docs/STAFF-MANAGEMENT-SPECIFICATION.md).
 
 The system is built as a **modular monolith**: a single deployable backend
 composed of independent, cleanly separated modules, with a layered architecture
@@ -126,6 +130,10 @@ Currently exposes:
   Services & Pricing module (see
   [docs/SERVICES-MODULE-SPECIFICATION.md](docs/SERVICES-MODULE-SPECIFICATION.md)
   for endpoints, rules and the error contract)
+- `/api/staff` — the Staff Management & Availability module: profiles, service
+  assignment, working hours, time off and the availability check (see
+  [docs/STAFF-MANAGEMENT-SPECIFICATION.md](docs/STAFF-MANAGEMENT-SPECIFICATION.md)).
+  `/api/staff-members` remains the read-only lookup the service form uses
 
 Endpoints are deliberately open: each carries a `<remarks>` naming the
 permission it will require once authorisation exists.
@@ -177,8 +185,14 @@ written in TypeScript with strict mode enabled.
 It implements the Services & Pricing admin screens: the paged, filterable
 service list (search, category/status filters, Bookable-only, pagination),
 the service editor with per-field server errors and the eligible-staff picker,
-and the category list/editor. The Vite dev server proxies `/api` to the
-backend's HTTPS URL so the browser sees a single origin.
+and the category list/editor.
+
+It also implements the Staff Management & Availability admin screens: the
+paged staff list (search, status filter, activate/deactivate), the staff
+profile editor, the member profile page with service assignment,
+working-hours editor (multiple intervals per day, breaks as gaps) and time
+off. The Vite dev server proxies `/api` to the backend's HTTPS URL so the
+browser sees a single origin.
 
 | Tool       | Version |
 | ---------- | ------- |
@@ -249,12 +263,16 @@ projects. It covers:
   never open a database connection;
 - solution architecture rules (layering and reference direction);
 - the ServiceCatalogue application services, run against SQLite;
+- the Staffing application services (staff profiles, service assignment,
+  working hours, time off and the availability check), run against SQLite;
 - API integration tests over an in-memory TestServer, covering the endpoints,
   the RFC 9457 error contract, and permission-surface drift.
 
 The frontend has its own suite (vitest + Testing Library, `npm test` in
 `frontend/debliss-web`) covering the API client, formatters, pagination, the
-`useAsync` hook, and the service form's error handling.
+`useAsync` hook, the service form's error handling, and the staff module
+(list, profile form, service assignment, working-hours editor, time off and
+the profile page).
 
 ---
 
@@ -303,9 +321,8 @@ should be introduced only when the corresponding work begins:
 
 - Authentication and authorisation (`User.PasswordHash` exists but is unused);
   every endpoint carries a `<remarks>` naming the permission it will require
-- Business modules other than Services & Pricing: appointments, customers,
-  billing, and the staff-management screens behind the read-only
-  `/api/staff-members` lookup
+- Business modules other than Services & Pricing and Staff Management &
+  Availability: appointments, customers and billing
 - The public customer-facing website (a separate future phase)
 - Microservices — the system stays a modular monolith
 

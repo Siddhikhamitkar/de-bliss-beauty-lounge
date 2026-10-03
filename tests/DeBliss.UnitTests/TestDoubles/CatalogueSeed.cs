@@ -16,14 +16,24 @@ internal static class CatalogueSeed
         DeBlissDbContext context,
         string firstName,
         string lastName,
-        bool isActive = true)
+        bool isActive = true,
+        string? jobTitle = null,
+        string? email = null,
+        string? phoneNumber = null,
+        string? calendarColor = null,
+        int sortOrder = 0)
     {
         var staff = new Staff
         {
             Id = Guid.NewGuid(),
             FirstName = firstName,
             LastName = lastName,
-            IsActive = isActive
+            IsActive = isActive,
+            JobTitle = jobTitle,
+            Email = email,
+            PhoneNumber = phoneNumber,
+            CalendarColor = calendarColor,
+            SortOrder = sortOrder
         };
 
         context.Staff.Add(staff);

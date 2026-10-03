@@ -27,3 +27,8 @@ export function formatDuration(minutes: number): string {
 
   return `${hours} hr ${remainder} min`
 }
+
+/** A timestamp rendered in the browser's local time, e.g. "6 Oct 2026, 09:00". */
+export function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+}

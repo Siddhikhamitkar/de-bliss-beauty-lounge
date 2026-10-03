@@ -94,7 +94,10 @@ export async function request<T>(method: string, path: string, body?: unknown): 
     throw new ApiError(response.status, await readProblem(response))
   }
 
-  return (await response.json()) as T
+  // A 204 (the time-off delete, for example) has no body to parse.
+  const text = await response.text()
+
+  return (text ? (JSON.parse(text) as T) : undefined) as T
 }
 
 /**
