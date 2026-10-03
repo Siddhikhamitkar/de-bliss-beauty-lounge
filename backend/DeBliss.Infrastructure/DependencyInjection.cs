@@ -1,6 +1,8 @@
 using DeBliss.Application.Common.Interfaces;
+using DeBliss.Application.ServiceCatalogue.Ports;
 using DeBliss.Infrastructure.Persistence;
 using DeBliss.Infrastructure.Persistence.Interceptors;
+using DeBliss.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,6 +30,10 @@ public static class DependencyInjection
             .AddInterceptors(provider.GetRequiredService<AuditableEntityInterceptor>()));
 
         services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<DeBlissDbContext>());
+
+        services.AddScoped<IServiceCategoryRepository, ServiceCategoryRepository>();
+        services.AddScoped<IServiceRepository, ServiceRepository>();
+        services.AddScoped<IStaffDirectory, StaffDirectory>();
 
         return services;
     }

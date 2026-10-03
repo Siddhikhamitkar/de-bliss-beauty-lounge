@@ -2,9 +2,15 @@
 
 Salon management and customer experience platform.
 
-This repository currently contains **the project foundation and the core
-database layer**. No business modules, screens, dashboards and no authentication
-have been implemented yet — the backend exposes a health check and nothing else.
+This repository currently contains **the project foundation, the core database
+layer and the first business module — Services & Pricing** (service categories,
+services, prices and eligible-staff assignment), with its HTTP API, React
+admin UI and tests. Authentication, the remaining business modules
+(appointments, customers, billing) and the customer-facing website are
+deliberately not implemented yet.
+
+The authoritative description of the Services & Pricing module is
+[docs/SERVICES-MODULE-SPECIFICATION.md](docs/SERVICES-MODULE-SPECIFICATION.md).
 
 The system is built as a **modular monolith**: a single deployable backend
 composed of independent, cleanly separated modules, with a layered architecture
@@ -75,8 +81,11 @@ how those ports are implemented.
 References **Domain** only, so application logic stays free of infrastructure
 concerns.
 
-Currently declares one port, `IUnitOfWork`, which the Infrastructure layer
-satisfies with the EF Core `DbContext`.
+Besides the persistence-facing ports (`IUnitOfWork`, repository contracts in
+`ServiceCatalogue/Ports`), this layer hosts the first module:
+`ServiceCatalogue` — the use cases for managing the service menu
+(`ServiceCatalogueService`, `ServiceCategoryService`), their DTOs, and the
+validation rules and limits the module enforces.
 
 ### DeBliss.Infrastructure
 Adapter layer. Implements the ports declared by Application: EF Core
@@ -108,10 +117,18 @@ References **Application** (to dispatch use cases) and **Infrastructure** (to
 register concrete implementations). This is the only place where the outermost
 and innermost layers meet, and the dependency direction still points inward.
 
-Currently exposes only:
+Currently exposes:
+
 - `GET /health` — health check endpoint, including a live check that SQL Server
   is reachable
 - `/openapi/v1.json` — OpenAPI document, development environment only
+- `/api/services`, `/api/service-categories`, `/api/staff-members` — the
+  Services & Pricing module (see
+  [docs/SERVICES-MODULE-SPECIFICATION.md](docs/SERVICES-MODULE-SPECIFICATION.md)
+  for endpoints, rules and the error contract)
+
+Endpoints are deliberately open: each carries a `<remarks>` naming the
+permission it will require once authorisation exists.
 
 Development URLs are configured in `Properties/launchSettings.json`:
 `https://localhost:7019` and `http://localhost:5132`.
@@ -157,15 +174,18 @@ nothing; Application references only Domain.
 `frontend/debliss-web` is a React single-page application built with Vite and
 written in TypeScript with strict mode enabled.
 
-The Vite starter demo (counter, logos, marketing links) has been removed; the
-app renders a minimal placeholder shell. No API client, routing or state
-management has been added yet.
+It implements the Services & Pricing admin screens: the paged, filterable
+service list (search, category/status filters, Bookable-only, pagination),
+the service editor with per-field server errors and the eligible-staff picker,
+and the category list/editor. The Vite dev server proxies `/api` to the
+backend's HTTPS URL so the browser sees a single origin.
 
 | Tool       | Version |
 | ---------- | ------- |
 | React      | 19.2.x  |
 | TypeScript | 6.0.x   |
 | Vite       | 8.3.x   |
+| Tests      | vitest + Testing Library + jsdom |
 | Linter     | oxlint  |
 
 Dev server runs on `http://localhost:5173` by default.
@@ -220,12 +240,21 @@ Modelling conventions worth knowing before touching the schema:
 ## Tests
 
 `tests/DeBliss.UnitTests` is an xUnit project referencing all four backend
-projects. It verifies the structure of the solution and, in most detail, the
-shape of the EF Core model: table and column naming, `Guid` primary keys,
-decimal precision on money, enum-to-string conversion, `DateTimeOffset`
-timestamps, unique business identifiers, cascade versus restrict rules, and the
-relationships the future booking workflow depends on. These are model tests —
-they build the EF model but never open a database connection.
+projects. It covers:
+
+- the shape of the EF Core model (table and column naming, `Guid` primary keys,
+  decimal precision on money, enum-to-string conversion, `DateTimeOffset`
+  timestamps, unique business identifiers, cascade versus restrict rules, and
+  the relationships the future booking workflow depends on) — model tests that
+  never open a database connection;
+- solution architecture rules (layering and reference direction);
+- the ServiceCatalogue application services, run against SQLite;
+- API integration tests over an in-memory TestServer, covering the endpoints,
+  the RFC 9457 error contract, and permission-surface drift.
+
+The frontend has its own suite (vitest + Testing Library, `npm test` in
+`frontend/debliss-web`) covering the API client, formatters, pagination, the
+`useAsync` hook, and the service form's error handling.
 
 ---
 
@@ -260,6 +289,7 @@ cd frontend/debliss-web
 npm install                       # first time only
 npm run dev                       # Vite dev server with HMR
 npm run build                     # type-check (tsc -b) then production build
+npm run test                      # vitest + Testing Library suite
 npm run lint                      # oxlint
 npm run preview                   # serve the production build locally
 ```
@@ -271,10 +301,11 @@ npm run preview                   # serve the production build locally
 To keep the foundation clean, the following are deliberately out of scope and
 should be introduced only when the corresponding work begins:
 
-- Application services, use cases and business endpoints — the API still serves
-  only `/health` and the OpenAPI document
-- Authentication and authorisation (`User.PasswordHash` exists but is unused)
-- React screens — no dashboard, calendar, customer, service or billing UI
+- Authentication and authorisation (`User.PasswordHash` exists but is unused);
+  every endpoint carries a `<remarks>` naming the permission it will require
+- Business modules other than Services & Pricing: appointments, customers,
+  billing, and the staff-management screens behind the read-only
+  `/api/staff-members` lookup
 - The public customer-facing website (a separate future phase)
 - Microservices — the system stays a modular monolith
 

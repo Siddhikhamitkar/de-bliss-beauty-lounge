@@ -33,6 +33,18 @@ public class Service : AuditableEntity
 
     public int SortOrder { get; set; }
 
+    /// <summary>
+    /// A service can only be booked when it is active, its category is active,
+    /// and at least one active staff member is assigned to perform it. Real-time
+    /// availability is a further question the appointment module answers on top
+    /// of this. Requires <see cref="ServiceCategory"/> and
+    /// <see cref="StaffServices"/> to have been loaded.
+    /// </summary>
+    public bool CanBeBooked() =>
+        IsActive
+        && ServiceCategory is { IsActive: true }
+        && StaffServices.Any(staffService => staffService.Staff.IsActive);
+
     public ICollection<StaffService> StaffServices { get; set; } = new List<StaffService>();
 
     public ICollection<AppointmentService> AppointmentServices { get; set; } = new List<AppointmentService>();
