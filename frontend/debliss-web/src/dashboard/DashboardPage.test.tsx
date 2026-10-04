@@ -168,6 +168,20 @@ describe('DashboardPage', () => {
     }
   })
 
+  it('greets with the daypart, brand subline and today’s date', async () => {
+    getDashboard.mockResolvedValue(FULL)
+    renderPage()
+
+    expect(
+      await screen.findByRole('heading', {
+        level: 1,
+        name: /Good (morning|afternoon|evening)/,
+      }),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/happening at De Bliss today/)).toBeInTheDocument()
+    expect(document.querySelector('.dash-hero-eyebrow')?.textContent).toMatch(/2026/)
+  })
+
   it('lists the schedule and opens an appointment on click', async () => {
     const user = userEvent.setup()
     getDashboard.mockResolvedValue(FULL)
