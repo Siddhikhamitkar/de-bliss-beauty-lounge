@@ -1,7 +1,13 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { searchCustomers, setCustomerStatus } from '../api/customers.ts'
+import {
+  getCustomer,
+  listCustomerAppointments,
+  listCustomerNotes,
+  searchCustomers,
+  setCustomerStatus,
+} from '../api/customers.ts'
 import type { CustomerProfile, CustomerSummary, PagedResult } from '../api/contracts.ts'
 import { CustomersPage } from './CustomersPage.tsx'
 
@@ -58,28 +64,38 @@ const profile: CustomerProfile = {
     totalAppointments: 0,
     completedAppointments: 0,
     cancelledAppointments: 0,
+    noShowAppointments: 0,
     lastVisitAt: null,
   },
   createdAt: '2026-10-03T00:00:00Z',
   updatedAt: null,
 }
 
+function renderPage() {
+  const onBookAppointment = vi.fn()
+  render(<CustomersPage onBookAppointment={onBookAppointment} />)
+  return onBookAppointment
+}
+
 describe('CustomersPage', () => {
   beforeEach(() => {
     vi.mocked(searchCustomers).mockResolvedValue(paged([customer()]))
     vi.mocked(setCustomerStatus).mockResolvedValue(profile)
+    vi.mocked(getCustomer).mockResolvedValue(profile)
+    vi.mocked(listCustomerNotes).mockResolvedValue([])
+    vi.mocked(listCustomerAppointments).mockResolvedValue([])
   })
 
   it('shows a loading state before the first answer', () => {
     vi.mocked(searchCustomers).mockReturnValue(new Promise(() => {}))
 
-    render(<CustomersPage />)
+    renderPage()
 
     expect(screen.getByRole('status')).toHaveTextContent('Loading customers…')
   })
 
   it('lists the customers the API returns', async () => {
-    render(<CustomersPage />)
+    renderPage()
 
     expect(await screen.findByText('Lina Mansour')).toBeInTheDocument()
     expect(screen.getByText('+971 50 555 0100')).toBeInTheDocument()
@@ -90,7 +106,7 @@ describe('CustomersPage', () => {
   it('shows the empty state when nothing matches the filters', async () => {
     vi.mocked(searchCustomers).mockResolvedValue(paged([]))
 
-    render(<CustomersPage />)
+    renderPage()
 
     expect(
       await screen.findByText('No customers match these filters.'),
@@ -100,7 +116,7 @@ describe('CustomersPage', () => {
   it('shows the load failure with a working retry', async () => {
     vi.mocked(searchCustomers).mockRejectedValue(new Error('boom'))
 
-    render(<CustomersPage />)
+    renderPage()
 
     expect(await screen.findByRole('alert')).toHaveTextContent('boom')
 
@@ -113,7 +129,7 @@ describe('CustomersPage', () => {
 
   it('applies the typed search, trimmed, as a fresh query', async () => {
     const user = userEvent.setup()
-    render(<CustomersPage />)
+    renderPage()
 
     await screen.findByText('Lina Mansour')
     await user.type(screen.getByLabelText('Search'), '  lina ')
@@ -130,7 +146,7 @@ describe('CustomersPage', () => {
 
   it('narrows the list when the status filter changes', async () => {
     const user = userEvent.setup()
-    render(<CustomersPage />)
+    renderPage()
 
     await screen.findByText('Lina Mansour')
     await user.selectOptions(screen.getByLabelText('Status'), 'Inactive')
@@ -156,7 +172,7 @@ describe('CustomersPage', () => {
       )
       .mockResolvedValueOnce(paged([customer({ id: 'c2', firstName: 'Noor', lastName: 'Haddad' })]))
 
-    render(<CustomersPage />)
+    renderPage()
 
     await screen.findByText('Lina Mansour')
     await user.click(screen.getByRole('button', { name: 'Next' }))
@@ -171,26 +187,99 @@ describe('CustomersPage', () => {
     expect(await screen.findByText('Noor Haddad')).toBeInTheDocument()
   })
 
-  it('deactivates a customer through the API and reloads', async () => {
+  it('opens the record drawer on a row click, leaving the list mounted', async () => {
     const user = userEvent.setup()
-    render(<CustomersPage />)
+    renderPage()
 
     await screen.findByText('Lina Mansour')
-    await user.click(screen.getByRole('button', { name: 'Deactivate' }))
+    await user.click(screen.getByText('Lina Mansour'))
+
+    expect(
+      await screen.findByRole('dialog', { name: 'Customer Lina Mansour' }),
+    ).toBeInTheDocument()
+    // The list and its controls are still there behind the drawer.
+    expect(screen.getByRole('heading', { name: 'Customers' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'New customer' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeInTheDocument()
+  })
+
+  it('toggles status from the row action menu without opening the drawer', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await screen.findByText('Lina Mansour')
+    await user.click(screen.getByRole('button', { name: 'Actions for Lina Mansour' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('menuitem', { name: 'Deactivate' }))
 
     await waitFor(() => expect(setCustomerStatus).toHaveBeenCalledWith('c1', false))
     await waitFor(() => expect(searchCustomers).toHaveBeenCalledTimes(2))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('shows a failed toggle as a banner instead of reloading', async () => {
     const user = userEvent.setup()
     vi.mocked(setCustomerStatus).mockRejectedValue(new Error('boom'))
-    render(<CustomersPage />)
+    renderPage()
 
     await screen.findByText('Lina Mansour')
-    await user.click(screen.getByRole('button', { name: 'Deactivate' }))
+    await user.click(screen.getByRole('button', { name: 'Actions for Lina Mansour' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Deactivate' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('boom')
     expect(searchCustomers).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens the editor from the drawer', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await screen.findByText('Lina Mansour')
+    await user.click(screen.getByText('Lina Mansour'))
+    await screen.findByRole('dialog', { name: 'Customer Lina Mansour' })
+    await user.click(screen.getByRole('button', { name: 'Edit' }))
+
+    expect(await screen.findByRole('heading', { name: 'Edit Lina Mansour' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('books an appointment for the customer from the drawer', async () => {
+    const user = userEvent.setup()
+    const onBookAppointment = renderPage()
+
+    await screen.findByText('Lina Mansour')
+    await user.click(screen.getByText('Lina Mansour'))
+    await screen.findByRole('dialog', { name: 'Customer Lina Mansour' })
+    await user.click(screen.getByRole('button', { name: 'Book appointment' }))
+
+    expect(onBookAppointment).toHaveBeenCalledWith(expect.objectContaining({ id: 'c1' }))
+  })
+
+  it('keeps search and filter state when the drawer closes', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await screen.findByText('Lina Mansour')
+    await user.type(screen.getByLabelText('Search'), 'lina')
+    await user.click(screen.getByRole('button', { name: 'Apply' }))
+    await user.selectOptions(screen.getByLabelText('Status'), 'Inactive')
+    await waitFor(() =>
+      expect(searchCustomers).toHaveBeenLastCalledWith({
+        search: 'lina',
+        status: 'Inactive',
+        page: undefined,
+      }),
+    )
+
+    await user.click(screen.getByText('Lina Mansour'))
+    const drawer = await screen.findByRole('dialog', { name: 'Customer Lina Mansour' })
+    await user.click(within(drawer).getByRole('button', { name: 'Close' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.getByLabelText('Search')).toHaveValue('lina')
+    expect(screen.getByLabelText('Status')).toHaveValue('Inactive')
+    // Closing the drawer reloads nothing: the list keeps its three queries.
+    expect(searchCustomers).toHaveBeenCalledTimes(3)
   })
 })

@@ -12,9 +12,9 @@ interface CustomerNotesProps {
 }
 
 /**
- * Every note a customer has collected, newest first. Notes are corrected in
- * place rather than deleted, so the history of what the front desk knew —
- * including when they learned it — stays readable.
+ * Every note a customer has collected, newest first, one card each. Notes are
+ * corrected in place rather than deleted, so the history of what the front
+ * desk knew — including when they learned it — stays readable.
  */
 export function CustomerNotes({ customerId }: CustomerNotesProps) {
   const notes = useAsync(() => listCustomerNotes(customerId), [customerId])
@@ -22,9 +22,9 @@ export function CustomerNotes({ customerId }: CustomerNotesProps) {
   const [isAdding, setIsAdding] = useState(false)
 
   return (
-    <section className="panel" aria-label="Customer notes">
-      <div className="panel-header">
-        <h2>Notes</h2>
+    <section className="tab-section" aria-label="Customer notes">
+      <div className="tab-section-head">
+        <h4>Notes</h4>
         {!isAdding && editingId === null && (
           <button type="button" className="button" onClick={() => setIsAdding(true)}>
             Add note
@@ -41,33 +41,38 @@ export function CustomerNotes({ customerId }: CustomerNotesProps) {
         <EmptyState>No notes yet.</EmptyState>
       )}
 
-      {notes.data !== undefined &&
-        notes.data.map(note =>
-          editingId === note.id ? (
-            <CustomerNoteForm
-              key={note.id}
-              customerId={customerId}
-              existing={note}
-              onSaved={() => {
-                setEditingId(null)
-                notes.reload()
-              }}
-              onCancel={() => setEditingId(null)}
-            />
-          ) : (
-            <div className="note-entry" key={note.id}>
-              <p>{note.note}</p>
-              <p className="note-meta">
-                {formatDateTime(note.createdAt)}
-                {note.updatedAt !== null && ' · edited'}
-                {' · '}
-                <button type="button" className="button" onClick={() => setEditingId(note.id)}>
-                  Edit
-                </button>
-              </p>
-            </div>
-          ),
-        )}
+      {notes.data !== undefined && notes.data.length > 0 && (
+        <ul className="note-cards">
+          {notes.data.map(note =>
+            editingId === note.id ? (
+              <li className="note-card" key={note.id}>
+                <CustomerNoteForm
+                  customerId={customerId}
+                  existing={note}
+                  onSaved={() => {
+                    setEditingId(null)
+                    notes.reload()
+                  }}
+                  onCancel={() => setEditingId(null)}
+                />
+              </li>
+            ) : (
+              <li className="note-card" key={note.id}>
+                <p className="note-card-text">{note.note}</p>
+                <div className="note-card-meta">
+                  <span>
+                    {formatDateTime(note.createdAt)}
+                    {note.updatedAt !== null && ' · edited'}
+                  </span>
+                  <button type="button" className="button" onClick={() => setEditingId(note.id)}>
+                    Edit
+                  </button>
+                </div>
+              </li>
+            ),
+          )}
+        </ul>
+      )}
 
       {isAdding && (
         <CustomerNoteForm

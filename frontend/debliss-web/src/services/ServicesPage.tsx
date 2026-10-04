@@ -2,11 +2,14 @@ import { useState } from 'react'
 import { listCategories, searchServices, setServiceStatus } from '../api/catalogue.ts'
 import { describeFailure } from '../api/client.ts'
 import type { ServiceStatusFilter, ServiceSummary } from '../api/contracts.ts'
+import { EmptyState } from '../components/EmptyState.tsx'
+import { ErrorState } from '../components/ErrorState.tsx'
+import { LoadingState } from '../components/LoadingState.tsx'
 import { Pagination } from '../components/Pagination.tsx'
-import { StatusPill } from '../components/StatusPill.tsx'
-import { formatDuration, formatPrice } from '../format.ts'
 import { useAsync } from '../useAsync.ts'
+import { ServiceDrawer } from './ServiceDrawer.tsx'
 import { ServiceEditor } from './ServiceForm.tsx'
+import { ServiceList } from './ServiceList.tsx'
 
 /**
  * Which service the editor is open on, or null while the list is showing. A
@@ -24,6 +27,7 @@ export function ServicesPage({ onManageCategories }: { onManageCategories?: () =
   const [bookableOnly, setBookableOnly] = useState(false)
   const [page, setPage] = useState(1)
   const [editor, setEditor] = useState<Editor | null>(null)
+  const [selected, setSelected] = useState<ServiceSummary | null>(null)
   const [actionFailure, setActionFailure] = useState<string>()
 
   const categories = useAsync(() => listCategories(), [])
@@ -148,78 +152,42 @@ export function ServicesPage({ onManageCategories }: { onManageCategories?: () =
       </form>
 
       {services.failure !== undefined && (
-        <p className="banner" role="alert">{services.failure}</p>
+        <ErrorState message={services.failure} onRetry={services.reload} />
       )}
       {actionFailure !== undefined && (
         <p className="banner" role="alert">{actionFailure}</p>
       )}
 
       {services.data === undefined && services.failure === undefined && (
-        <p className="empty">Loading services…</p>
+        <LoadingState label="Loading services…" />
       )}
 
       {services.data !== undefined && services.data.items.length === 0 && (
-        <p className="empty">No services match these filters.</p>
+        <EmptyState>No services match these filters.</EmptyState>
       )}
 
       {services.data !== undefined && services.data.items.length > 0 && (
         <>
-          <table className="grid">
-            <thead>
-              <tr>
-                <th scope="col">Service</th>
-                <th scope="col">Category</th>
-                <th scope="col">Duration</th>
-                <th scope="col" className="numeric">Price</th>
-                <th scope="col" className="numeric">Staff</th>
-                <th scope="col">Status</th>
-                <th scope="col">Online</th>
-                <th scope="col">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {services.data.items.map(service => {
-                // An active service that cannot actually be booked is the case
-                // worth flagging: its category went inactive, or everybody who
-                // could perform it left. An inactive one is simply switched off.
-                const stuck = service.isActive && !service.isBookable
-
-                return (
-                  <tr key={service.id} className={stuck ? 'row-warning' : undefined}>
-                    <th scope="row">
-                      {service.name}
-                      {stuck && <span className="row-note">not bookable</span>}
-                    </th>
-                    <td>{service.categoryName ?? '—'}</td>
-                    <td>{formatDuration(service.durationMinutes)}</td>
-                    <td className="numeric">{formatPrice(service.price)}</td>
-                    <td className="numeric">{service.eligibleStaffCount}</td>
-                    <td><StatusPill isActive={service.isActive} /></td>
-                    <td>{service.isOnlineBookable ? 'Yes' : 'No'}</td>
-                    <td className="actions">
-                      <button
-                        type="button"
-                        className="button"
-                        onClick={() => setEditor({ id: service.id })}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        className="button"
-                        onClick={() => toggleStatus(service)}
-                      >
-                        {service.isActive ? 'Deactivate' : 'Activate'}
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+          <ServiceList
+            services={services.data.items}
+            onOpen={setSelected}
+            onToggleStatus={toggleStatus}
+          />
 
           <Pagination result={services.data} onChange={setPage} />
         </>
+      )}
+
+      {selected !== null && (
+        <ServiceDrawer
+          service={selected}
+          onClose={() => setSelected(null)}
+          onEdit={serviceId => {
+            setSelected(null)
+            setEditor({ id: serviceId })
+          }}
+          onChanged={services.reload}
+        />
       )}
     </section>
   )

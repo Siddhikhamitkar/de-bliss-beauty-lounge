@@ -51,6 +51,7 @@ public sealed record CustomerAppointmentSummaryDto(
     int TotalAppointments,
     int CompletedAppointments,
     int CancelledAppointments,
+    int NoShowAppointments,
     DateTimeOffset? LastVisitAt);
 
 /// <summary>The full customer profile as the profile page renders it.</summary>

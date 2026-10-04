@@ -32,7 +32,7 @@ public interface ICustomerRepository
     Task<IReadOnlyList<DeBliss.Domain.Scheduling.Appointment>> ListAppointmentsAsync(Guid customerId, CancellationToken ct = default);
 
     /// <summary>Appointment counts for the profile summary block.</summary>
-    Task<(int Total, int Completed, int Cancelled, DateTimeOffset? LastVisitAt)> GetAppointmentSummaryAsync(
+    Task<(int Total, int Completed, int Cancelled, int NoShow, DateTimeOffset? LastVisitAt)> GetAppointmentSummaryAsync(
         Guid customerId,
         CancellationToken ct = default);
 

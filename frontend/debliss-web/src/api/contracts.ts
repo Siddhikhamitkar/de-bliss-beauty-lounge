@@ -242,6 +242,7 @@ export interface CustomerAppointmentSummary {
   totalAppointments: number
   completedAppointments: number
   cancelledAppointments: number
+  noShowAppointments: number
   lastVisitAt: string | null
 }
 

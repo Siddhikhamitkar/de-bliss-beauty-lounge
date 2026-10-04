@@ -103,6 +103,7 @@ function customerProfile(summary: CustomerSummary): CustomerProfile {
       totalAppointments: 0,
       completedAppointments: 0,
       cancelledAppointments: 0,
+      noShowAppointments: 0,
       lastVisitAt: null,
     },
   }

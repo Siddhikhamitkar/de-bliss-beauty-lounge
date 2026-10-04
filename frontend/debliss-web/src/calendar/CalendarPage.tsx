@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { describeFailure } from '../api/client.ts'
-import type { Appointment, UpdateScheduleRequest } from '../api/contracts.ts'
+import type { Appointment, CustomerSummary, UpdateScheduleRequest } from '../api/contracts.ts'
 import { getCalendar, updateAppointmentSchedule } from '../api/scheduling.ts'
 import { EmptyState } from '../components/EmptyState.tsx'
 import { ErrorState } from '../components/ErrorState.tsx'
@@ -20,16 +20,32 @@ import type { CalendarView } from './calendarTime.ts'
  * editing an existing booking. One piece of state covers both directions.
  */
 export type BookingState =
-  | { kind: 'create'; day: Date; staffId: string | null; startMinutes: number | null }
+  | {
+      kind: 'create'
+      day: Date
+      staffId: string | null
+      startMinutes: number | null
+      /** Preselected by the "Book appointment" action on a customer record. */
+      customer?: CustomerSummary
+    }
   | { kind: 'edit'; appointment: Appointment }
   | null
+
+interface CalendarPageProps {
+  /** A customer handed over from the Customers section, booked on arrival. */
+  pendingBookingCustomer?: CustomerSummary | null
+  onPendingBookingHandled?: () => void
+}
 
 /**
  * The scheduling workspace: the operational heart of the salon app. The grid
  * fills the viewport, drags revalidate against the backend, and the booking
  * dialog plus details panel stay on this page — nothing navigates away.
  */
-export function CalendarPage() {
+export function CalendarPage({
+  pendingBookingCustomer = null,
+  onPendingBookingHandled,
+}: CalendarPageProps) {
   const [view, setView] = useState<CalendarView>('week')
   const [anchor, setAnchor] = useState(() => new Date())
   const [search, setSearch] = useState('')
@@ -39,7 +55,19 @@ export function CalendarPage() {
   const [serviceFilter, setServiceFilter] = useState('all')
   const [actionFailure, setActionFailure] = useState<string>()
   const [detailsId, setDetailsId] = useState<string | null>(null)
-  const [booking, setBooking] = useState<BookingState>(null)
+  // "Book appointment" from a customer record arrives with a fresh mount, so
+  // the hand-off opens the dialog straight from the initial state.
+  const [booking, setBooking] = useState<BookingState>(() =>
+    pendingBookingCustomer === null
+      ? null
+      : {
+          kind: 'create',
+          day: startOfDay(anchor),
+          staffId: null,
+          startMinutes: null,
+          customer: pendingBookingCustomer,
+        },
+  )
   const [now, setNow] = useState(() => new Date())
 
   const dragBusy = useRef(false)
@@ -55,6 +83,13 @@ export function CalendarPage() {
     const timer = setInterval(() => setNow(new Date()), 60_000)
     return () => clearInterval(timer)
   }, [])
+
+  // Clear the hand-off once it has been picked up by the initializer above.
+  useEffect(() => {
+    if (pendingBookingCustomer !== null) {
+      onPendingBookingHandled?.()
+    }
+  }, [pendingBookingCustomer, onPendingBookingHandled])
 
   function navigate(direction: -1 | 1) {
     setAnchor(current =>

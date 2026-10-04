@@ -32,6 +32,7 @@ const profile: CustomerProfile = {
     totalAppointments: 0,
     completedAppointments: 0,
     cancelledAppointments: 0,
+    noShowAppointments: 0,
     lastVisitAt: null,
   },
   createdAt: '2026-10-03T00:00:00Z',

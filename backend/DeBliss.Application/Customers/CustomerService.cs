@@ -331,6 +331,7 @@ public sealed class CustomerService(
                 summary.Total,
                 summary.Completed,
                 summary.Cancelled,
+                summary.NoShow,
                 summary.LastVisitAt),
             customer.CreatedAt,
             customer.UpdatedAt);

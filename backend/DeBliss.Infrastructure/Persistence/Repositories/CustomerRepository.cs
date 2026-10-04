@@ -99,7 +99,7 @@ public sealed class CustomerRepository(DeBlissDbContext context) : ICustomerRepo
         return appointments.OrderByDescending(appointment => appointment.StartsAt).ToList();
     }
 
-    public async Task<(int Total, int Completed, int Cancelled, DateTimeOffset? LastVisitAt)> GetAppointmentSummaryAsync(
+    public async Task<(int Total, int Completed, int Cancelled, int NoShow, DateTimeOffset? LastVisitAt)> GetAppointmentSummaryAsync(
         Guid customerId,
         CancellationToken ct = default)
     {
@@ -109,6 +109,7 @@ public sealed class CustomerRepository(DeBlissDbContext context) : ICustomerRepo
         var total = await appointments.CountAsync(ct);
         var completed = await appointments.CountAsync(appointment => appointment.Status == AppointmentStatus.Completed, ct);
         var cancelled = await appointments.CountAsync(appointment => appointment.Status == AppointmentStatus.Cancelled, ct);
+        var noShow = await appointments.CountAsync(appointment => appointment.Status == AppointmentStatus.NoShow, ct);
 
         // SQLite cannot aggregate DateTimeOffset columns, so the last completed
         // visit is picked from the (small) projected list in memory.
@@ -122,7 +123,7 @@ public sealed class CustomerRepository(DeBlissDbContext context) : ICustomerRepo
             .DefaultIfEmpty()
             .Max();
 
-        return (total, completed, cancelled, lastVisitAt);
+        return (total, completed, cancelled, noShow, lastVisitAt);
     }
 
     public void Add(Customer customer) => context.Customers.Add(customer);

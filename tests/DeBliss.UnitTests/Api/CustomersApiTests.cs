@@ -109,6 +109,7 @@ public sealed class CustomersApiTests : ApiTestBase
         Assert.Equal("Jumeirah", created.Address);
         Assert.True(created.IsActive);
         Assert.Equal(0, created.AppointmentSummary.TotalAppointments);
+        Assert.Equal(0, created.AppointmentSummary.NoShowAppointments);
         Assert.Null(created.AppointmentSummary.LastVisitAt);
 
         var readBack = await ReadAsync<CustomerDto>(

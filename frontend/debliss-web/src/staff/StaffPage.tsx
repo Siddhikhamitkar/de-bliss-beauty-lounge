@@ -10,23 +10,23 @@ import { ErrorState } from '../components/ErrorState.tsx'
 import { StaffFilters } from './StaffFilters.tsx'
 import { StaffList } from './StaffList.tsx'
 import { StaffEditor } from './StaffForm.tsx'
-import { StaffDetails } from './StaffDetails.tsx'
+import { StaffDrawer } from './StaffDrawer.tsx'
 
 /**
- * What the page is showing. A form with a null `staffId` means "create", so one
- * piece of state covers every direction without a router.
+ * Which member the editor is open on, or null while the list is showing. A
+ * null `staffId` means "create", so one piece of state covers both directions.
  */
-type StaffView =
-  | { kind: 'list' }
-  | { kind: 'profile'; staffId: string }
-  | { kind: 'form'; staffId: string | null }
+interface Editor {
+  staffId: string | null
+}
 
 export function StaffPage() {
   const [search, setSearch] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [status, setStatus] = useState<StaffStatusFilter>('All')
   const [page, setPage] = useState(1)
-  const [view, setView] = useState<StaffView>({ kind: 'list' })
+  const [editor, setEditor] = useState<Editor | null>(null)
+  const [selected, setSelected] = useState<StaffSummary | null>(null)
   const [actionFailure, setActionFailure] = useState<string>()
 
   const staff = useAsync(
@@ -47,27 +47,15 @@ export function StaffPage() {
       .catch((error: unknown) => setActionFailure(describeFailure(error)))
   }
 
-  if (view.kind === 'form') {
+  if (editor !== null) {
     return (
       <StaffEditor
-        staffId={view.staffId}
+        staffId={editor.staffId}
         onSaved={() => {
-          setView({ kind: 'list' })
+          setEditor(null)
           staff.reload()
         }}
-        onCancel={() =>
-          setView(view.staffId === null ? { kind: 'list' } : { kind: 'profile', staffId: view.staffId })
-        }
-      />
-    )
-  }
-
-  if (view.kind === 'profile') {
-    return (
-      <StaffDetails
-        staffId={view.staffId}
-        onBack={() => setView({ kind: 'list' })}
-        onEdit={staffId => setView({ kind: 'form', staffId })}
+        onCancel={() => setEditor(null)}
       />
     )
   }
@@ -79,7 +67,7 @@ export function StaffPage() {
         <button
           type="button"
           className="button button-primary"
-          onClick={() => setView({ kind: 'form', staffId: null })}
+          onClick={() => setEditor({ staffId: null })}
         >
           New staff member
         </button>
@@ -118,12 +106,23 @@ export function StaffPage() {
         <>
           <StaffList
             members={staff.data.items}
-            onView={member => setView({ kind: 'profile', staffId: member.id })}
-            onEdit={member => setView({ kind: 'form', staffId: member.id })}
+            onOpen={setSelected}
             onToggleStatus={toggleStatus}
           />
           <Pagination result={staff.data} onChange={setPage} />
         </>
+      )}
+
+      {selected !== null && (
+        <StaffDrawer
+          member={selected}
+          onClose={() => setSelected(null)}
+          onEdit={staffId => {
+            setSelected(null)
+            setEditor({ staffId })
+          }}
+          onChanged={staff.reload}
+        />
       )}
     </section>
   )

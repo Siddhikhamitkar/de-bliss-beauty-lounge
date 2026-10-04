@@ -1,8 +1,15 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { searchStaff, setStaffStatus } from '../api/staff.ts'
-import type { PagedResult, StaffProfile, StaffSummary } from '../api/contracts.ts'
+import { searchStaff, getStaff, getStaffServices, getWeekSchedule, listTimeOff, setStaffStatus } from '../api/staff.ts'
+import { searchServices } from '../api/catalogue.ts'
+import type {
+  PagedResult,
+  ServiceSummary,
+  StaffProfile,
+  StaffSummary,
+  WeekSchedule,
+} from '../api/contracts.ts'
 import { StaffPage } from './StaffPage.tsx'
 
 vi.mock('../api/staff.ts', () => ({
@@ -20,6 +27,10 @@ vi.mock('../api/staff.ts', () => ({
   updateTimeOff: vi.fn(),
   deleteTimeOff: vi.fn(),
   checkStaffAvailability: vi.fn(),
+}))
+
+vi.mock('../api/catalogue.ts', () => ({
+  searchServices: vi.fn(),
 }))
 
 function paged(items: StaffSummary[]): PagedResult<StaffSummary> {
@@ -68,10 +79,31 @@ function profile(overrides: Partial<StaffProfile> = {}): StaffProfile {
   }
 }
 
+const emptyWeek: WeekSchedule = {
+  days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(
+    day => ({ dayOfWeek: day, isWorkingDay: false, intervals: [] }),
+  ),
+}
+
+const emptyPagedServices: PagedResult<ServiceSummary> = {
+  items: [],
+  totalCount: 0,
+  page: 1,
+  pageSize: 200,
+  totalPages: 1,
+  hasPreviousPage: false,
+  hasNextPage: false,
+}
+
 describe('StaffPage', () => {
   beforeEach(() => {
     vi.mocked(searchStaff).mockResolvedValue(paged([member()]))
     vi.mocked(setStaffStatus).mockResolvedValue(profile())
+    vi.mocked(getStaff).mockResolvedValue(profile())
+    vi.mocked(getStaffServices).mockResolvedValue([])
+    vi.mocked(searchServices).mockResolvedValue(emptyPagedServices)
+    vi.mocked(getWeekSchedule).mockResolvedValue(emptyWeek)
+    vi.mocked(listTimeOff).mockResolvedValue([])
   })
 
   it('shows a loading state before the first answer', () => {
@@ -147,15 +179,19 @@ describe('StaffPage', () => {
     )
   })
 
-  it('deactivates a member through the API and reloads', async () => {
+  it('toggles status from the row action menu without opening the drawer', async () => {
     const user = userEvent.setup()
     render(<StaffPage />)
 
     await screen.findByText('Aisha Khan')
-    await user.click(screen.getByRole('button', { name: 'Deactivate' }))
+    await user.click(screen.getByRole('button', { name: 'Actions for Aisha Khan' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('menuitem', { name: 'Deactivate' }))
 
     await waitFor(() => expect(setStaffStatus).toHaveBeenCalledWith('s1', false))
     await waitFor(() => expect(searchStaff).toHaveBeenCalledTimes(2))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('shows a failed toggle as a banner instead of reloading', async () => {
@@ -164,9 +200,66 @@ describe('StaffPage', () => {
     render(<StaffPage />)
 
     await screen.findByText('Aisha Khan')
-    await user.click(screen.getByRole('button', { name: 'Deactivate' }))
+    await user.click(screen.getByRole('button', { name: 'Actions for Aisha Khan' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Deactivate' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('boom')
     expect(searchStaff).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens the record drawer on a row click, leaving the list mounted', async () => {
+    const user = userEvent.setup()
+    render(<StaffPage />)
+
+    await screen.findByText('Aisha Khan')
+    await user.click(screen.getByText('Aisha Khan'))
+
+    const drawer = await screen.findByRole('dialog', { name: 'Staff Aisha Khan' })
+    expect(await within(drawer).findByText('aisha@debliss.test')).toBeInTheDocument()
+    // The list and its controls are still there behind the drawer.
+    expect(screen.getByRole('heading', { name: 'Staff' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'New staff member' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeInTheDocument()
+  })
+
+  it('opens the editor from the drawer', async () => {
+    const user = userEvent.setup()
+    render(<StaffPage />)
+
+    await screen.findByText('Aisha Khan')
+    await user.click(screen.getByText('Aisha Khan'))
+    const drawer = await screen.findByRole('dialog', { name: 'Staff Aisha Khan' })
+    await within(drawer).findByText('aisha@debliss.test')
+    await user.click(within(drawer).getByRole('button', { name: 'Edit' }))
+
+    expect(await screen.findByRole('heading', { name: 'Edit Aisha Khan' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('keeps search and filter state when the drawer closes', async () => {
+    const user = userEvent.setup()
+    render(<StaffPage />)
+
+    await screen.findByText('Aisha Khan')
+    await user.type(screen.getByLabelText('Search'), 'jasmin')
+    await user.click(screen.getByRole('button', { name: 'Apply' }))
+    await user.selectOptions(screen.getByLabelText('Status'), 'Inactive')
+    await waitFor(() =>
+      expect(searchStaff).toHaveBeenLastCalledWith({
+        search: 'jasmin',
+        status: 'Inactive',
+        page: undefined,
+      }),
+    )
+
+    await user.click(screen.getByText('Aisha Khan'))
+    const drawer = await screen.findByRole('dialog', { name: 'Staff Aisha Khan' })
+    await user.click(within(drawer).getByRole('button', { name: 'Close' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.getByLabelText('Search')).toHaveValue('jasmin')
+    expect(screen.getByLabelText('Status')).toHaveValue('Inactive')
+    // Closing the drawer reloads nothing: the list keeps its three queries.
+    expect(searchStaff).toHaveBeenCalledTimes(3)
   })
 })

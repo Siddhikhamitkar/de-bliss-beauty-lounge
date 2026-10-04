@@ -52,6 +52,7 @@ public class CustomerServiceTests
         Assert.Equal(0, created.AppointmentSummary.TotalAppointments);
         Assert.Equal(0, created.AppointmentSummary.CompletedAppointments);
         Assert.Equal(0, created.AppointmentSummary.CancelledAppointments);
+        Assert.Equal(0, created.AppointmentSummary.NoShowAppointments);
         Assert.Null(created.AppointmentSummary.LastVisitAt);
         Assert.Equal(harness.Database.Clock.Now, created.CreatedAt);
 
@@ -363,22 +364,28 @@ public class CustomerServiceTests
             VisitAfternoon.AddDays(7),
             AppointmentStatus.Cancelled,
             [(serviceId, null, "Colour")]);
+        await harness.SeedAppointmentAsync(
+            id,
+            VisitAfternoon.AddDays(-7),
+            AppointmentStatus.NoShow);
 
         var appointments = await harness.Customers.ListAppointmentsAsync(id);
 
-        Assert.Equal(2, appointments.Count);
+        Assert.Equal(3, appointments.Count);
         Assert.Equal("Cancelled", appointments[0].Status);
         Assert.Equal(["Colour"], appointments[0].ServiceNames);
         Assert.Empty(appointments[0].StaffNames);
         Assert.Equal("Completed", appointments[1].Status);
         Assert.Equal(["Haircut"], appointments[1].ServiceNames);
         Assert.Equal(["Ana Bianchi"], appointments[1].StaffNames);
+        Assert.Equal("NoShow", appointments[2].Status);
 
         var profile = await harness.Customers.GetAsync(id);
 
-        Assert.Equal(2, profile.AppointmentSummary.TotalAppointments);
+        Assert.Equal(3, profile.AppointmentSummary.TotalAppointments);
         Assert.Equal(1, profile.AppointmentSummary.CompletedAppointments);
         Assert.Equal(1, profile.AppointmentSummary.CancelledAppointments);
+        Assert.Equal(1, profile.AppointmentSummary.NoShowAppointments);
         Assert.Equal(VisitAfternoon, profile.AppointmentSummary.LastVisitAt);
     }
 
@@ -401,6 +408,7 @@ public class CustomerServiceTests
 
         Assert.Empty(appointments);
         Assert.Equal(0, profile.AppointmentSummary.TotalAppointments);
+        Assert.Equal(0, profile.AppointmentSummary.NoShowAppointments);
         Assert.Null(profile.AppointmentSummary.LastVisitAt);
     }
 

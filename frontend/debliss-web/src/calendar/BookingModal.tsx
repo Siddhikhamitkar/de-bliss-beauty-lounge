@@ -82,7 +82,9 @@ export function BookingModal({ booking, onClose, onSaved }: BookingModalProps) {
   )
   const [customerQuery, setCustomerQuery] = useState('')
   const [appliedQuery, setAppliedQuery] = useState('')
-  const [selectedCustomer, setSelectedCustomer] = useState<CustomerSummary | null>(null)
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerSummary | null>(() =>
+    booking.kind === 'create' ? booking.customer ?? null : null,
+  )
   const [newCustomer, setNewCustomer] = useState({ firstName: '', lastName: '', phoneNumber: '' })
   const [walkIn, setWalkIn] = useState({
     name: appointment?.customerName ?? '',

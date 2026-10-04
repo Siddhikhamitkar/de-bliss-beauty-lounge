@@ -1,15 +1,15 @@
 import type { CustomerSummary } from '../api/contracts.ts'
 import { Avatar } from '../components/Avatar.tsx'
+import { RowActionMenu } from '../components/RowActionMenu.tsx'
 import { StatusPill } from '../components/StatusPill.tsx'
 
 interface CustomerListProps {
   customers: CustomerSummary[]
-  onView: (customer: CustomerSummary) => void
-  onEdit: (customer: CustomerSummary) => void
+  onOpen: (customer: CustomerSummary) => void
   onToggleStatus: (customer: CustomerSummary) => void
 }
 
-export function CustomerList({ customers, onView, onEdit, onToggleStatus }: CustomerListProps) {
+export function CustomerList({ customers, onOpen, onToggleStatus }: CustomerListProps) {
   return (
     <table className="grid">
       <thead>
@@ -23,34 +23,44 @@ export function CustomerList({ customers, onView, onEdit, onToggleStatus }: Cust
       </thead>
       <tbody>
         {customers.map(customer => (
-          <tr key={customer.id}>
+          <tr
+            key={customer.id}
+            className="row-clickable"
+            onClick={() => onOpen(customer)}
+          >
             <th scope="row">
-              <span className="staff-cell">
-                <Avatar
-                  firstName={customer.firstName}
-                  lastName={customer.lastName}
-                  color={null}
-                />
-                {customer.firstName} {customer.lastName}
-              </span>
+              <button
+                type="button"
+                className="row-link"
+                onClick={event => {
+                  event.stopPropagation()
+                  onOpen(customer)
+                }}
+              >
+                <span className="staff-cell">
+                  <Avatar
+                    firstName={customer.firstName}
+                    lastName={customer.lastName}
+                    color={null}
+                  />
+                  {customer.firstName} {customer.lastName}
+                </span>
+              </button>
             </th>
             <td>{customer.phoneNumber ?? '—'}</td>
             <td>{customer.email ?? '—'}</td>
             <td><StatusPill isActive={customer.isActive} /></td>
             <td className="actions">
-              <button type="button" className="button" onClick={() => onView(customer)}>
-                View
-              </button>
-              <button type="button" className="button" onClick={() => onEdit(customer)}>
-                Edit
-              </button>
-              <button
-                type="button"
-                className="button"
-                onClick={() => onToggleStatus(customer)}
-              >
-                {customer.isActive ? 'Deactivate' : 'Activate'}
-              </button>
+              <RowActionMenu
+                label={`Actions for ${customer.firstName} ${customer.lastName}`}
+                actions={[
+                  {
+                    label: customer.isActive ? 'Deactivate' : 'Activate',
+                    onSelect: () => onToggleStatus(customer),
+                    isDanger: customer.isActive,
+                  },
+                ]}
+              />
             </td>
           </tr>
         ))}
