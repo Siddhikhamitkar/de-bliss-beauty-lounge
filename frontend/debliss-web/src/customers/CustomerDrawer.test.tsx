@@ -10,11 +10,14 @@ import {
   setCustomerStatus,
   updateCustomerNote,
 } from '../api/customers.ts'
+import { searchInvoices } from '../api/billing.ts'
 import type {
   CustomerAppointmentItem,
   CustomerNote,
   CustomerProfile,
   CustomerSummary,
+  InvoiceSummary,
+  PagedResult,
 } from '../api/contracts.ts'
 import { formatDate, formatDateTime } from '../format.ts'
 import { CustomerDrawer } from './CustomerDrawer.tsx'
@@ -29,6 +32,20 @@ vi.mock('../api/customers.ts', () => ({
   createCustomerNote: vi.fn(),
   updateCustomerNote: vi.fn(),
   listCustomerAppointments: vi.fn(),
+}))
+
+vi.mock('../api/billing.ts', () => ({
+  searchInvoices: vi.fn(),
+  getInvoice: vi.fn(),
+  startInvoice: vi.fn(),
+  checkoutInvoice: vi.fn(),
+  getReceipt: vi.fn(),
+  validateCoupon: vi.fn(),
+  searchCoupons: vi.fn(),
+  getCoupon: vi.fn(),
+  createCoupon: vi.fn(),
+  updateCoupon: vi.fn(),
+  setCouponStatus: vi.fn(),
 }))
 
 const dayMs = 86_400_000
@@ -99,6 +116,34 @@ function timeRange(appointment: CustomerAppointmentItem): string {
   return `${time(appointment.startsAt)} – ${time(appointment.endsAt)}`
 }
 
+const sale: InvoiceSummary = {
+  id: 'inv1',
+  invoiceNumber: 'INV-2026-0001',
+  customerId: 'c1',
+  customerName: 'Lina Mansour',
+  appointmentId: 'a1',
+  status: 'Paid',
+  currency: 'AED',
+  subTotal: 200,
+  discountTotal: 20,
+  totalAmount: 180,
+  paymentMethod: 'Cash',
+  issuedAt: '2026-10-04T10:00:00Z',
+  createdAt: '2026-10-04T10:00:00Z',
+}
+
+function paged<T>(items: T[]): PagedResult<T> {
+  return {
+    items,
+    page: 1,
+    pageSize: 50,
+    totalCount: items.length,
+    totalPages: 1,
+    hasPreviousPage: false,
+    hasNextPage: false,
+  }
+}
+
 function renderDrawer(overrides: Partial<ComponentProps<typeof CustomerDrawer>> = {}) {
   const props = {
     customer: summary,
@@ -130,6 +175,7 @@ describe('CustomerDrawer', () => {
       note: 'Allergic to henna-based dyes.',
       updatedAt: '2026-10-03T11:00:00Z',
     })
+    vi.mocked(searchInvoices).mockResolvedValue(paged<InvoiceSummary>([]))
   })
 
   it('renders the header once and opens on the Overview tab', async () => {
@@ -259,14 +305,32 @@ describe('CustomerDrawer', () => {
     expect(within(region).getByText('No appointments yet.')).toBeInTheDocument()
   })
 
+  it('lists this customer\u2019s invoices in the Sales tab', async () => {
+    vi.mocked(searchInvoices).mockResolvedValue(paged([sale]))
+    const user = userEvent.setup()
+    renderDrawer()
+
+    await user.click(screen.getByRole('tab', { name: 'Sales' }))
+
+    const sales = await screen.findByRole('region', { name: 'Sales' })
+    await waitFor(() =>
+      expect(searchInvoices).toHaveBeenCalledExactlyOnceWith({ customerId: 'c1', pageSize: 50 }),
+    )
+    expect(within(sales).getByText('INV-2026-0001')).toBeInTheDocument()
+    expect(within(sales).getByText('Paid')).toBeInTheDocument()
+    expect(within(sales).getByText('AED 180.00')).toBeInTheDocument()
+    expect(within(sales).getByText(formatDate('2026-10-04T10:00:00Z'))).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Customer summary' })).not.toBeInTheDocument()
+  })
+
   it('shows the Sales tab as an empty state without inventing numbers', async () => {
     const user = userEvent.setup()
     renderDrawer()
 
     await user.click(screen.getByRole('tab', { name: 'Sales' }))
 
-    const sales = screen.getByRole('region', { name: 'Sales' })
-    expect(within(sales).getByText('No sales yet.')).toBeInTheDocument()
+    const sales = await screen.findByRole('region', { name: 'Sales' })
+    expect(await within(sales).findByText('No sales yet.')).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Customer summary' })).not.toBeInTheDocument()
   })
 

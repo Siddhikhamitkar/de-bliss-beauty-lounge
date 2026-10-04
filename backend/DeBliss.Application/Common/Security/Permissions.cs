@@ -49,4 +49,18 @@ public static class Permissions
         public const string ChangeAppointmentStatus = "appointments.status";
         public const string ViewCalendar = "calendar.read";
     }
+
+    public static class Billing
+    {
+        public const string ViewInvoices = "invoices.read";
+        public const string CreateCheckout = "invoices.checkout";
+        public const string ApplyManualDiscount = "invoices.manual-discount";
+        public const string ViewPayments = "payments.read";
+        public const string ManageCoupons = "coupons.manage";
+    }
+
+    public static class Dashboard
+    {
+        public const string ViewReceptionistDashboard = "dashboard.receptionist.read";
+    }
 }

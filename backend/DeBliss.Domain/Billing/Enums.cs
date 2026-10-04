@@ -21,6 +21,12 @@ public enum InvoiceItemType
     Other = 99
 }
 
+public enum DiscountType
+{
+    Fixed = 0,
+    Percentage = 1
+}
+
 /// <summary>
 /// GiftCard, Voucher, PackageCredit and LoyaltyPoints are the extension points for
 /// future package redemption and loyalty without redesigning billing.

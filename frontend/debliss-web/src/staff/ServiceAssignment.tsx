@@ -64,9 +64,9 @@ export function ServiceAssignment({ staffId }: { staffId: string }) {
   const reload = assigned.failure !== undefined ? assigned.reload : catalogue.reload
 
   return (
-    <section className="panel" aria-label="Services">
-      <div className="panel-header">
-        <h2>Services</h2>
+    <section className="tab-section" aria-label="Services">
+      <div className="tab-section-head">
+        <h4>Services</h4>
         {!isManaging && (
           <button type="button" className="button" onClick={startManaging}>
             Manage services

@@ -53,6 +53,8 @@ public class DeBlissDbContext(DbContextOptions<DeBlissDbContext> options)
 
     public DbSet<Payment> Payments => Set<Payment>();
 
+    public DbSet<Coupon> Coupons => Set<Coupon>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

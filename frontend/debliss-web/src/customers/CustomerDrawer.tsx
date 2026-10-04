@@ -5,7 +5,6 @@ import { getCustomer, setCustomerStatus } from '../api/customers.ts'
 import type { CustomerProfile, CustomerSummary } from '../api/contracts.ts'
 import { Avatar } from '../components/Avatar.tsx'
 import { DetailDrawer, DrawerHeader } from '../components/DetailDrawer.tsx'
-import { EmptyState } from '../components/EmptyState.tsx'
 import { ErrorState } from '../components/ErrorState.tsx'
 import { LoadingState } from '../components/LoadingState.tsx'
 import { RowActionMenu } from '../components/RowActionMenu.tsx'
@@ -15,6 +14,7 @@ import { CustomerAppointmentHistory } from './CustomerAppointmentHistory.tsx'
 import { CustomerDetails } from './CustomerDetails.tsx'
 import { CustomerNotes } from './CustomerNotes.tsx'
 import { CustomerOverview } from './CustomerOverview.tsx'
+import { CustomerSales } from './CustomerSales.tsx'
 
 type CustomerTabId = 'overview' | 'appointments' | 'sales' | 'details' | 'notes'
 
@@ -97,14 +97,7 @@ export function CustomerDrawer({
       case 'appointments':
         return <CustomerAppointmentHistory customerId={customer.id} />
       case 'sales':
-        return (
-          <section className="tab-section" aria-label="Sales">
-            <div className="tab-section-head">
-              <h4>Sales</h4>
-            </div>
-            <EmptyState>No sales yet.</EmptyState>
-          </section>
-        )
+        return <CustomerSales customerId={customer.id} />
       case 'details':
         return renderProfileTab(profileData => (
           <CustomerDetails profile={profileData} onEdit={() => onEdit(customer.id)} />
@@ -118,7 +111,7 @@ export function CustomerDrawer({
     <DetailDrawer
       label={`Customer ${customer.firstName} ${customer.lastName}`}
       onClose={onClose}
-      panelClassName="drawer-customer"
+      panelClassName="drawer-workspace"
     >
       <DrawerHeader
         title={`${customer.firstName} ${customer.lastName}`}

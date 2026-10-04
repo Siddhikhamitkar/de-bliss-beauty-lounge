@@ -217,7 +217,7 @@ describe('StaffPage', () => {
     const drawer = await screen.findByRole('dialog', { name: 'Staff Aisha Khan' })
     expect(await within(drawer).findByText('aisha@debliss.test')).toBeInTheDocument()
     // The list and its controls are still there behind the drawer.
-    expect(screen.getByRole('heading', { name: 'Staff' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Staff', level: 2 })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'New staff member' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Apply' })).toBeInTheDocument()
   })

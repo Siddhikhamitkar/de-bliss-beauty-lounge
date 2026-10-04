@@ -32,12 +32,13 @@ public class DeBlissDbContextModelTests
         typeof(Invoice),
         typeof(InvoiceItem),
         typeof(Payment),
+        typeof(Coupon),
     };
 
     [Fact]
-    public void The_model_maps_exactly_the_eighteen_core_entities()
+    public void The_model_maps_exactly_the_nineteen_core_entities()
     {
-        Assert.Equal(18, TestModel.Model.GetEntityTypes().Count());
+        Assert.Equal(19, TestModel.Model.GetEntityTypes().Count());
     }
 
     [Theory]
@@ -79,6 +80,7 @@ public class DeBlissDbContextModelTests
     [InlineData(typeof(Invoice), "Invoices")]
     [InlineData(typeof(InvoiceItem), "InvoiceItems")]
     [InlineData(typeof(Payment), "Payments")]
+    [InlineData(typeof(Coupon), "Coupons")]
     public void Tables_are_named_explicitly(Type entityType, string tableName)
     {
         Assert.Equal(tableName, TestModel.Entity(entityType).GetTableName());
@@ -89,6 +91,8 @@ public class DeBlissDbContextModelTests
     [InlineData(typeof(AppointmentService), nameof(AppointmentService.UnitPrice))]
     [InlineData(typeof(Invoice), nameof(Invoice.SubTotal))]
     [InlineData(typeof(Invoice), nameof(Invoice.DiscountTotal))]
+    [InlineData(typeof(Invoice), nameof(Invoice.CouponDiscount))]
+    [InlineData(typeof(Invoice), nameof(Invoice.ManualDiscount))]
     [InlineData(typeof(Invoice), nameof(Invoice.TaxTotal))]
     [InlineData(typeof(Invoice), nameof(Invoice.TotalAmount))]
     [InlineData(typeof(InvoiceItem), nameof(InvoiceItem.UnitPrice))]
@@ -96,6 +100,7 @@ public class DeBlissDbContextModelTests
     [InlineData(typeof(InvoiceItem), nameof(InvoiceItem.TaxAmount))]
     [InlineData(typeof(InvoiceItem), nameof(InvoiceItem.LineTotal))]
     [InlineData(typeof(Payment), nameof(Payment.Amount))]
+    [InlineData(typeof(Coupon), nameof(Coupon.DiscountValue))]
     public void Money_is_stored_as_decimal_with_a_fixed_scale(Type entityType, string propertyName)
     {
         var property = TestModel.Entity(entityType).FindProperty(propertyName)!;
@@ -126,6 +131,7 @@ public class DeBlissDbContextModelTests
     [InlineData(typeof(InvoiceItem), nameof(InvoiceItem.ItemType))]
     [InlineData(typeof(Payment), nameof(Payment.Method))]
     [InlineData(typeof(Payment), nameof(Payment.Status))]
+    [InlineData(typeof(Coupon), nameof(Coupon.DiscountType))]
     public void Enumerations_are_stored_as_readable_strings(Type entityType, string propertyName)
     {
         var property = TestModel.Entity(entityType).FindProperty(propertyName)!;
@@ -240,6 +246,7 @@ public class DeBlissDbContextModelTests
     [InlineData(typeof(Invoice), nameof(Invoice.CustomerId))]
     [InlineData(typeof(InvoiceItem), nameof(InvoiceItem.AppointmentServiceId))]
     [InlineData(typeof(InvoiceItem), nameof(InvoiceItem.ServiceId))]
+    [InlineData(typeof(Invoice), nameof(Invoice.CouponId))]
     [InlineData(typeof(Payment), nameof(Payment.RefundOfPaymentId))]
     public void Deleting_a_referenced_record_never_removes_booking_or_financial_history(
         Type dependentType,
@@ -275,6 +282,7 @@ public class DeBlissDbContextModelTests
     [InlineData(typeof(Invoice), nameof(Invoice.InvoiceNumber))]
     [InlineData(typeof(User), nameof(User.Email))]
     [InlineData(typeof(Role), nameof(Role.Name))]
+    [InlineData(typeof(Coupon), nameof(Coupon.Code))]
     public void Business_identifiers_are_unique(Type entityType, string propertyName)
     {
         var index = TestModel.Entity(entityType).GetIndexes()

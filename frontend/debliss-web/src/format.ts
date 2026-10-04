@@ -12,6 +12,11 @@ export function formatPrice(value: number): string {
   return price.format(value)
 }
 
+/** Money with the invoice's own currency, e.g. "AED 120.00". */
+export function formatMoney(currency: string, value: number): string {
+  return `${currency} ${price.format(value)}`
+}
+
 /** Reads better on a salon menu than "90 min". */
 export function formatDuration(minutes: number): string {
   const hours = Math.floor(minutes / 60)
@@ -38,4 +43,9 @@ export function formatDate(iso: string): string {
   return new Date(`${iso.slice(0, 10)}T00:00:00`).toLocaleDateString(undefined, {
     dateStyle: 'medium',
   })
+}
+
+/** Just the clock time, e.g. "09:00" — right for schedule rows and gaps. */
+export function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 }

@@ -59,9 +59,9 @@ export function TimeOffSection({ staffId }: { staffId: string }) {
   }
 
   return (
-    <section className="panel" aria-label="Time off">
-      <div className="panel-header">
-        <h2>Time off</h2>
+    <section className="tab-section" aria-label="Time off">
+      <div className="tab-section-head">
+        <h4>Time off</h4>
         {form === null && (
           <button
             type="button"

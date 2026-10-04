@@ -1,4 +1,6 @@
+using DeBliss.Application.Billing;
 using DeBliss.Application.Customers;
+using DeBliss.Application.Dashboard;
 using DeBliss.Application.Scheduling;
 using DeBliss.Application.ServiceCatalogue;
 using DeBliss.Application.Staffing;
@@ -18,6 +20,9 @@ public static class DependencyInjection
         services.AddScoped<ICustomerService, CustomerService>();
         services.AddScoped<IAppointmentService, AppointmentService>();
         services.AddScoped<ICalendarService, CalendarService>();
+        services.AddScoped<IInvoiceService, InvoiceService>();
+        services.AddScoped<ICouponService, CouponService>();
+        services.AddScoped<IReceptionistDashboardService, ReceptionistDashboardService>();
 
         return services;
     }

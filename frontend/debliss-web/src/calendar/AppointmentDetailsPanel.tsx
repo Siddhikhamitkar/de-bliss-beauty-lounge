@@ -15,6 +15,8 @@ interface AppointmentDetailsPanelProps {
   onChanged: () => void
   /** Edit (change services/staff/time in full) opens the booking dialog. */
   onEdit: (appointment: Appointment) => void
+  /** Checkout opens the billing screen for a completed visit. */
+  onCheckout: (appointment: Appointment) => void
 }
 
 /** Target status → the verb a receptionist would say. */
@@ -46,6 +48,7 @@ export function AppointmentDetailsPanel({
   onClose,
   onChanged,
   onEdit,
+  onCheckout,
 }: AppointmentDetailsPanelProps) {
   const appointment = useAsync(() => getAppointment(appointmentId), [appointmentId])
   const [actionFailure, setActionFailure] = useState<string>()
@@ -197,6 +200,17 @@ export function AppointmentDetailsPanel({
                     {STATUS_ACTION_LABELS[target]}
                   </button>
                 ),
+              )}
+
+              {current.status === 'Completed' && (
+                <button
+                  type="button"
+                  className="button button-primary"
+                  disabled={busy}
+                  onClick={() => onCheckout(current)}
+                >
+                  Checkout
+                </button>
               )}
 
               <button type="button" className="button" disabled={busy} onClick={() => onEdit(current)}>

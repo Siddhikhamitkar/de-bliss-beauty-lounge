@@ -31,10 +31,20 @@ export type BookingState =
   | { kind: 'edit'; appointment: Appointment }
   | null
 
+/** A dashboard hand-off: open the booking dialog or an appointment's details. */
+export type PendingFocus =
+  | { kind: 'create' }
+  | { kind: 'details'; appointmentId: string }
+
 interface CalendarPageProps {
   /** A customer handed over from the Customers section, booked on arrival. */
   pendingBookingCustomer?: CustomerSummary | null
   onPendingBookingHandled?: () => void
+  /** A dashboard request: open the booking dialog or a specific appointment. */
+  pendingFocus?: PendingFocus | null
+  onPendingFocusHandled?: () => void
+  /** A completed visit started checkout; the app shows the billing screen. */
+  onCheckout?: (appointmentId: string) => void
 }
 
 /**
@@ -45,6 +55,9 @@ interface CalendarPageProps {
 export function CalendarPage({
   pendingBookingCustomer = null,
   onPendingBookingHandled,
+  pendingFocus = null,
+  onPendingFocusHandled,
+  onCheckout,
 }: CalendarPageProps) {
   const [view, setView] = useState<CalendarView>('week')
   const [anchor, setAnchor] = useState(() => new Date())
@@ -54,20 +67,28 @@ export function CalendarPage({
   const [statusFilter, setStatusFilter] = useState('All')
   const [serviceFilter, setServiceFilter] = useState('all')
   const [actionFailure, setActionFailure] = useState<string>()
-  const [detailsId, setDetailsId] = useState<string | null>(null)
-  // "Book appointment" from a customer record arrives with a fresh mount, so
-  // the hand-off opens the dialog straight from the initial state.
-  const [booking, setBooking] = useState<BookingState>(() =>
-    pendingBookingCustomer === null
-      ? null
-      : {
-          kind: 'create',
-          day: startOfDay(anchor),
-          staffId: null,
-          startMinutes: null,
-          customer: pendingBookingCustomer,
-        },
+  // A dashboard "open this appointment" hand-off arrives with a fresh mount,
+  // so the details panel opens straight from the initial state.
+  const [detailsId, setDetailsId] = useState<string | null>(() =>
+    pendingFocus?.kind === 'details' ? pendingFocus.appointmentId : null,
   )
+  // "Book appointment" from a customer record and "New appointment" from the
+  // dashboard both arrive with a fresh mount, so the hand-off opens the dialog
+  // straight from the initial state.
+  const [booking, setBooking] = useState<BookingState>(() => {
+    if (pendingBookingCustomer !== null) {
+      return {
+        kind: 'create',
+        day: startOfDay(anchor),
+        staffId: null,
+        startMinutes: null,
+        customer: pendingBookingCustomer,
+      }
+    }
+    return pendingFocus?.kind === 'create'
+      ? { kind: 'create', day: startOfDay(anchor), staffId: null, startMinutes: null }
+      : null
+  })
   const [now, setNow] = useState(() => new Date())
 
   const dragBusy = useRef(false)
@@ -84,12 +105,18 @@ export function CalendarPage({
     return () => clearInterval(timer)
   }, [])
 
-  // Clear the hand-off once it has been picked up by the initializer above.
+  // Clear the hand-offs once they have been picked up by the initializers above.
   useEffect(() => {
     if (pendingBookingCustomer !== null) {
       onPendingBookingHandled?.()
     }
   }, [pendingBookingCustomer, onPendingBookingHandled])
+
+  useEffect(() => {
+    if (pendingFocus !== null) {
+      onPendingFocusHandled?.()
+    }
+  }, [pendingFocus, onPendingFocusHandled])
 
   function navigate(direction: -1 | 1) {
     setAnchor(current =>
@@ -271,6 +298,10 @@ export function CalendarPage({
           onEdit={appointment => {
             setDetailsId(null)
             setBooking({ kind: 'edit', appointment })
+          }}
+          onCheckout={appointment => {
+            setDetailsId(null)
+            onCheckout?.(appointment.id)
           }}
         />
       )}

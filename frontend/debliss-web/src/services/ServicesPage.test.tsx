@@ -162,7 +162,7 @@ describe('ServicesPage', () => {
     expect(screen.getByRole('button', { name: 'Apply' })).toBeInTheDocument()
   })
 
-  it('shows the full record in the drawer once it loads', async () => {
+  it('shows the summary tiles and description on the overview tab', async () => {
     const user = userEvent.setup()
     render(<ServicesPage />)
 
@@ -170,16 +170,105 @@ describe('ServicesPage', () => {
     await user.click(screen.getByText('Gel Manicure'))
     const drawer = await screen.findByRole('dialog', { name: 'Service Gel Manicure' })
 
-    // Category shows in the header subtitle and again in the overview.
-    expect(within(drawer).getAllByText('Nails')).toHaveLength(2)
+    // The header carries the category; the summary tiles carry the rest.
+    expect(within(drawer).getAllByText('Nails')).toHaveLength(1)
     expect(within(drawer).getByText('45 min')).toBeInTheDocument()
     expect(within(drawer).getByText(formatPrice(120))).toBeInTheDocument()
-    expect(within(drawer).getAllByText('Yes')).toHaveLength(2)
+    expect(within(drawer).getByText('2')).toBeInTheDocument()
+    expect(within(drawer).getByText('Yes')).toBeInTheDocument()
     expect(within(drawer).getByText('A long-lasting gel finish.')).toBeInTheDocument()
-    expect(within(drawer).getByText('Ana Bianchi · Nail Artist')).toBeInTheDocument()
-    expect(within(drawer).getByText('Mona Farouk (inactive)')).toBeInTheDocument()
+  })
+
+  it('explains why an active service is not bookable', async () => {
+    const user = userEvent.setup()
+    vi.mocked(getService).mockResolvedValue({ ...details, isBookable: false })
+    render(<ServicesPage />)
+
+    await screen.findByText('Gel Manicure')
+    await user.click(screen.getByText('Gel Manicure'))
+    const drawer = await screen.findByRole('dialog', { name: 'Service Gel Manicure' })
+
+    expect(
+      await within(drawer).findByText(
+        'Not bookable: the category is inactive or no eligible staff member is active.',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('lists the assigned staff on the roster tab', async () => {
+    const user = userEvent.setup()
+    render(<ServicesPage />)
+
+    await screen.findByText('Gel Manicure')
+    await user.click(screen.getByText('Gel Manicure'))
+    const drawer = await screen.findByRole('dialog', { name: 'Service Gel Manicure' })
+
+    expect(within(drawer).queryByText('Ana Bianchi')).not.toBeInTheDocument()
+    await user.click(within(drawer).getByRole('tab', { name: 'Assigned staff' }))
+
+    expect(within(drawer).getByText('Ana Bianchi')).toBeInTheDocument()
+    expect(within(drawer).getByText('Nail Artist')).toBeInTheDocument()
+    expect(within(drawer).getByText('Mona Farouk')).toBeInTheDocument()
+    expect(within(drawer).getByText('inactive')).toBeInTheDocument()
+  })
+
+  it('shows the full record on the details tab', async () => {
+    const user = userEvent.setup()
+    render(<ServicesPage />)
+
+    await screen.findByText('Gel Manicure')
+    await user.click(screen.getByText('Gel Manicure'))
+    const drawer = await screen.findByRole('dialog', { name: 'Service Gel Manicure' })
+    await user.click(within(drawer).getByRole('tab', { name: 'Service details' }))
+
+    // The name and category repeat from the header in the record itself.
+    expect(within(drawer).getAllByText('Gel Manicure')).toHaveLength(2)
+    expect(within(drawer).getAllByText('Nails')).toHaveLength(2)
+    expect(within(drawer).getAllByText('Yes')).toHaveLength(2)
     expect(within(drawer).getByText(formatDate(details.createdAt))).toBeInTheDocument()
     expect(within(drawer).getByText(formatDate(details.updatedAt as string))).toBeInTheDocument()
+  })
+
+  it('renders the record as labelled tabs over one panel', async () => {
+    const user = userEvent.setup()
+    render(<ServicesPage />)
+
+    await screen.findByText('Gel Manicure')
+    await user.click(screen.getByText('Gel Manicure'))
+    const drawer = await screen.findByRole('dialog', { name: 'Service Gel Manicure' })
+
+    const tablist = within(drawer).getByRole('tablist', { name: 'Service sections' })
+    expect(within(tablist).getAllByRole('tab')).toHaveLength(3)
+    expect(within(tablist).getByRole('tab', { name: 'Overview' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    expect(within(drawer).getByRole('tabpanel')).toHaveAttribute(
+      'aria-labelledby',
+      'service-tab-overview',
+    )
+  })
+
+  it('moves between tabs with arrow keys', async () => {
+    const user = userEvent.setup()
+    render(<ServicesPage />)
+
+    await screen.findByText('Gel Manicure')
+    await user.click(screen.getByText('Gel Manicure'))
+    const drawer = await screen.findByRole('dialog', { name: 'Service Gel Manicure' })
+
+    await user.click(within(drawer).getByRole('tab', { name: 'Overview' }))
+    await user.keyboard('{ArrowRight}')
+
+    const staffTab = within(drawer).getByRole('tab', { name: 'Assigned staff' })
+    expect(staffTab).toHaveAttribute('aria-selected', 'true')
+    expect(staffTab).toHaveFocus()
+
+    await user.keyboard('{ArrowLeft}')
+    expect(within(drawer).getByRole('tab', { name: 'Overview' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
   })
 
   it('keeps the header up while the record loads', async () => {

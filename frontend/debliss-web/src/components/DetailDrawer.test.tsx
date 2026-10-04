@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import { DetailDrawer, DrawerHeader, DrawerSection } from './DetailDrawer.tsx'
+import { DetailDrawer, DrawerHeader } from './DetailDrawer.tsx'
 
 function renderDrawer(onClose: () => void) {
   return render(
@@ -17,9 +17,10 @@ function renderDrawer(onClose: () => void) {
         }
         onClose={onClose}
       />
-      <DrawerSection title="Overview">
+      <section className="tab-section" aria-label="Overview">
+        <h4>Overview</h4>
         <p>Customer since 2024</p>
-      </DrawerSection>
+      </section>
     </DetailDrawer>,
   )
 }
@@ -103,26 +104,16 @@ describe('DetailDrawer', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
-  it('uses the wide panel when asked', () => {
-    render(
-      <DetailDrawer label="Staff details" onClose={vi.fn()} isWide>
-        <p>Content</p>
-      </DetailDrawer>,
-    )
-
-    expect(screen.getByRole('dialog', { name: 'Staff details' })).toHaveClass('drawer-wide')
-  })
-
   it('adds the extra panel class alongside the base one', () => {
     render(
-      <DetailDrawer label="Customer details" onClose={vi.fn()} panelClassName="drawer-customer">
+      <DetailDrawer label="Customer details" onClose={vi.fn()} panelClassName="drawer-workspace">
         <p>Content</p>
       </DetailDrawer>,
     )
 
     expect(screen.getByRole('dialog', { name: 'Customer details' })).toHaveClass(
       'drawer',
-      'drawer-customer',
+      'drawer-workspace',
     )
   })
 })

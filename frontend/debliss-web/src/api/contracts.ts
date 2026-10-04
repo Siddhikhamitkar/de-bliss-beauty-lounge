@@ -439,3 +439,249 @@ export interface CalendarData {
   appointments: Appointment[]
   markers: CalendarMarker[]
 }
+
+/* ------------------------------------------------------------------ */
+/* Billing & payments (Phase 1)                                        */
+/* ------------------------------------------------------------------ */
+
+/** The only payment methods Phase 1 records; no gateways, no split payments. */
+export const PAYMENT_METHODS = ['Cash', 'Card', 'BankTransfer'] as const
+
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number]
+
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  Cash: 'Cash',
+  Card: 'Card',
+  BankTransfer: 'Bank Transfer',
+}
+
+export const DISCOUNT_TYPES = ['Fixed', 'Percentage'] as const
+
+export type DiscountType = (typeof DISCOUNT_TYPES)[number]
+
+export const DISCOUNT_TYPE_LABELS: Record<DiscountType, string> = {
+  Fixed: 'Fixed',
+  Percentage: 'Percentage',
+}
+
+export type InvoiceStatusFilter = 'All' | 'Draft' | 'Paid'
+
+export type InvoicePaymentMethodFilter = 'All' | PaymentMethod
+
+/** One row of the billing list. */
+export interface InvoiceSummary {
+  id: string
+  invoiceNumber: string
+  customerId: string | null
+  customerName: string
+  appointmentId: string
+  status: string
+  currency: string
+  subTotal: number
+  discountTotal: number
+  totalAmount: number
+  paymentMethod: string | null
+  issuedAt: string | null
+  createdAt: string
+}
+
+/** One service line of an invoice, with the price snapshot actually charged. */
+export interface InvoiceItem {
+  id: string
+  description: string
+  quantity: number
+  unitPrice: number
+  lineTotal: number
+  serviceId: string | null
+  appointmentServiceId: string | null
+  sortOrder: number
+}
+
+export interface InvoicePayment {
+  id: string
+  amount: number
+  currency: string
+  method: string
+  status: string
+  reference: string | null
+  paidAt: string
+}
+
+/** A full invoice, including its snapshot line items and recorded payments. */
+export interface Invoice {
+  id: string
+  invoiceNumber: string
+  status: string
+  currency: string
+  appointmentId: string
+  customerId: string | null
+  customerName: string
+  walkInCustomerName: string | null
+  couponId: string | null
+  couponCode: string | null
+  subTotal: number
+  couponDiscount: number
+  manualDiscount: number
+  discountTotal: number
+  totalAmount: number
+  issuedAt: string | null
+  createdAt: string
+  updatedAt: string | null
+  items: InvoiceItem[]
+  payments: InvoicePayment[]
+}
+
+/** The checkout payload; every field is validated again on the server. */
+export interface CheckoutInvoiceRequest {
+  couponCode: string | null
+  manualDiscountType: DiscountType | null
+  manualDiscountValue: number | null
+  paymentMethod: PaymentMethod | null
+  amount: number | null
+  reference: string | null
+}
+
+/** One printable line of a receipt. */
+export interface ReceiptLine {
+  description: string
+  quantity: number
+  unitPrice: number
+  lineTotal: number
+}
+
+/** The printable receipt for a paid invoice. */
+export interface Receipt {
+  salonName: string
+  invoiceId: string
+  invoiceNumber: string
+  customerName: string
+  items: ReceiptLine[]
+  subTotal: number
+  couponCode: string | null
+  couponDiscount: number
+  manualDiscount: number
+  totalAmount: number
+  currency: string
+  paymentMethod: string
+  paymentReference: string | null
+  paidAt: string
+  issuedAt: string
+}
+
+/** What the checkout screen sends to preview a coupon against a subtotal. */
+export interface ValidateCouponRequest {
+  code: string
+  subtotal: number
+}
+
+/** The validated coupon preview: exactly what the checkout screen displays. */
+export interface CouponValidation {
+  code: string
+  discountType: DiscountType
+  discountValue: number
+  discountAmount: number
+}
+
+export type CouponStatusFilter = 'All' | 'Active' | 'Inactive'
+
+/** One coupon as the management screen lists it. */
+export interface Coupon {
+  id: string
+  code: string
+  discountType: DiscountType
+  discountValue: number
+  isActive: boolean
+  validFrom: string | null
+  validUntil: string | null
+  createdAt: string
+  updatedAt: string | null
+}
+
+/** The coupon create/edit form; isActive null leaves the flag untouched on edit. */
+export interface SaveCouponRequest {
+  code: string
+  discountType: DiscountType
+  discountValue: number
+  validFrom: string | null
+  validUntil: string | null
+  isActive: boolean | null
+}
+
+/* ------------------------------------------------------------------ */
+/* Dashboard (receptionist)                                            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The receptionist's read-only snapshot of today — appointment workload
+ * counts and operational lists only. Deliberately free of money: prices,
+ * revenue and every other owner-level figure stay in the billing module.
+ */
+export interface ReceptionistDashboard {
+  generatedAt: string
+  today: DashboardToday
+  schedule: DashboardAppointment[]
+  upcoming: DashboardAppointment[]
+  staff: DashboardStaffMember[]
+  alerts: DashboardAlerts
+  popularServices: DashboardPopularService[]
+}
+
+/** Appointment workload counters for the current day — operational only. */
+export interface DashboardToday {
+  date: string
+  total: number
+  completed: number
+  inProgress: number
+  upcoming: number
+  noShow: number
+  cancelled: number
+  walkIns: number
+}
+
+/** One booking in today's schedule or the upcoming list, flattened for a row. */
+export interface DashboardAppointment {
+  id: string
+  customerId: string | null
+  customerName: string
+  startsAt: string
+  endsAt: string
+  status: string
+  servicesLabel: string
+  staffName: string | null
+  staffColor: string | null
+  canCheckout: boolean
+}
+
+/** A staff member's derived right-now status, computable from existing data only. */
+export interface DashboardStaffMember {
+  id: string
+  firstName: string
+  lastName: string
+  jobTitle: string | null
+  color: string | null
+  status: string
+  statusNote: string | null
+}
+
+/** Front-desk alerts: birthdays, first visits and the freshest reception notes. */
+export interface DashboardAlerts {
+  birthdaysToday: number
+  birthdayNamesToday: string[]
+  birthdayNamesLaterThisWeek: string[]
+  firstVisitsToday: number
+  recentNotes: DashboardNote[]
+}
+
+/** A customer reception note surfaced for the front desk. */
+export interface DashboardNote {
+  customerId: string
+  customerName: string
+  note: string
+  createdAt: string
+}
+
+/** An operational workload indicator: how often a service is booked today. */
+export interface DashboardPopularService {
+  name: string
+  count: number
+}

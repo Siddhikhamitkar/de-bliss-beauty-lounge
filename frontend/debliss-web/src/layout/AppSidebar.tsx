@@ -1,6 +1,14 @@
 import type { ReactNode } from 'react'
 
-export type Section = 'calendar' | 'services' | 'categories' | 'staff' | 'customers'
+export type Section =
+  | 'dashboard'
+  | 'calendar'
+  | 'services'
+  | 'categories'
+  | 'staff'
+  | 'customers'
+  | 'billing'
+  | 'coupons'
 
 type IconName =
   | 'dashboard'
@@ -30,12 +38,12 @@ interface NavItem {
  * reads at a glance without leading anywhere dead.
  */
 const NAV_ITEMS: NavItem[] = [
-  { key: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
+  { key: 'dashboard', label: 'Dashboard', icon: 'dashboard', section: 'dashboard' },
   { key: 'calendar', label: 'Calendar', icon: 'calendar', section: 'calendar' },
   { key: 'customers', label: 'Customers', icon: 'customers', section: 'customers' },
   { key: 'services', label: 'Services', icon: 'services', section: 'services' },
   { key: 'staff', label: 'Staff', icon: 'staff', section: 'staff' },
-  { key: 'billing', label: 'Billing', icon: 'billing' },
+  { key: 'billing', label: 'Billing', icon: 'billing', section: 'billing' },
   { key: 'packages', label: 'Packages', icon: 'packages' },
   { key: 'loyalty', label: 'Loyalty', icon: 'loyalty' },
   { key: 'inventory', label: 'Inventory', icon: 'inventory' },
@@ -186,10 +194,12 @@ export function AppSidebar({
 
       <nav className="side-nav">
         {NAV_ITEMS.map(item => {
-          // Categories is reached through Services while it has no rail entry.
+          // Categories is reached through Services while it has no rail entry;
+          // coupons likewise hang off Billing.
           const isActive =
             item.section === current ||
-            (item.section === 'services' && current === 'categories')
+            (item.section === 'services' && current === 'categories') ||
+            (item.section === 'billing' && current === 'coupons')
 
           return (
             <button

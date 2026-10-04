@@ -34,9 +34,10 @@ describe('AppSidebar', () => {
       'page',
     )
     // Modules that are not built yet are visible but not actionable.
-    expect(screen.getByRole('button', { name: /^Billing/ })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /^Packages/ })).toBeDisabled()
     expect(screen.getByRole('button', { name: /^Settings/ })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Staff' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Billing' })).toBeEnabled()
   })
 
   it('navigates to the implemented sections', async () => {
@@ -59,5 +60,25 @@ describe('AppSidebar', () => {
       'page',
     )
     expect(screen.getByRole('button', { name: 'Calendar' })).not.toHaveAttribute('aria-current')
+  })
+
+  it('marks Billing as the active section while its coupons screen is open', () => {
+    render(<AppSidebar current="coupons" onNavigate={() => {}} />)
+
+    expect(screen.getByRole('button', { name: 'Billing' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('button', { name: 'Calendar' })).not.toHaveAttribute('aria-current')
+  })
+
+  it('enables Dashboard and navigates to it', async () => {
+    const user = userEvent.setup()
+    const onNavigate = vi.fn()
+    render(<AppSidebar current="calendar" onNavigate={onNavigate} />)
+
+    const dashboard = screen.getByRole('button', { name: 'Dashboard' })
+    expect(dashboard).toBeEnabled()
+    expect(dashboard).not.toHaveAttribute('aria-current')
+
+    await user.click(dashboard)
+    expect(onNavigate).toHaveBeenCalledWith('dashboard')
   })
 })

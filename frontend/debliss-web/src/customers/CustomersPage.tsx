@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { describeFailure } from '../api/client.ts'
 import { searchCustomers, setCustomerStatus } from '../api/customers.ts'
 import type { CustomerStatusFilter, CustomerSummary } from '../api/contracts.ts'
@@ -15,6 +15,9 @@ import { CustomerDrawer } from './CustomerDrawer.tsx'
 interface CustomersPageProps {
   /** Hands the customer to the calendar to start a booking for them. */
   onBookAppointment: (customer: CustomerSummary) => void
+  /** A dashboard "Add customer" hand-off: open the create form on arrival. */
+  pendingCreate?: boolean
+  onPendingCreateHandled?: () => void
 }
 
 /**
@@ -25,14 +28,29 @@ interface CustomersPageProps {
  */
 type CustomerView = { kind: 'list' } | { kind: 'form'; customerId: string | null }
 
-export function CustomersPage({ onBookAppointment }: CustomersPageProps) {
+export function CustomersPage({
+  onBookAppointment,
+  pendingCreate = false,
+  onPendingCreateHandled,
+}: CustomersPageProps) {
   const [search, setSearch] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [status, setStatus] = useState<CustomerStatusFilter>('All')
   const [page, setPage] = useState(1)
-  const [view, setView] = useState<CustomerView>({ kind: 'list' })
+  // The dashboard's "Add customer" arrives with a fresh mount, so the hand-off
+  // opens the create form straight from the initial state.
+  const [view, setView] = useState<CustomerView>(() =>
+    pendingCreate ? { kind: 'form', customerId: null } : { kind: 'list' },
+  )
   const [selected, setSelected] = useState<CustomerSummary | null>(null)
   const [actionFailure, setActionFailure] = useState<string>()
+
+  // Clear the hand-off once it has been picked up by the initializer above.
+  useEffect(() => {
+    if (pendingCreate) {
+      onPendingCreateHandled?.()
+    }
+  }, [pendingCreate, onPendingCreateHandled])
 
   const customers = useAsync(
     () =>

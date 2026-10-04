@@ -64,7 +64,27 @@ public sealed class ApiSurfaceTests : ApiTestBase
         ["PUT api/appointments/{id:guid}"] = [Permissions.Scheduling.EditAppointment],
         ["PATCH api/appointments/{id:guid}/schedule"] = [Permissions.Scheduling.RescheduleAppointment],
         ["PATCH api/appointments/{id:guid}/status"] = [Permissions.Scheduling.ChangeAppointmentStatus],
-        ["GET api/calendar"] = [Permissions.Scheduling.ViewCalendar]
+        ["GET api/calendar"] = [Permissions.Scheduling.ViewCalendar],
+        ["GET api/invoices"] = [Permissions.Billing.ViewInvoices],
+        ["POST api/invoices"] = [Permissions.Billing.CreateCheckout],
+        ["GET api/invoices/{id:guid}"] =
+        [
+            Permissions.Billing.ViewInvoices,
+            Permissions.Billing.ViewPayments
+        ],
+        ["POST api/invoices/{id:guid}/checkout"] =
+        [
+            Permissions.Billing.CreateCheckout,
+            Permissions.Billing.ApplyManualDiscount
+        ],
+        ["GET api/invoices/{id:guid}/receipt"] = [Permissions.Billing.ViewInvoices],
+        ["GET api/coupons"] = [Permissions.Billing.ManageCoupons],
+        ["POST api/coupons"] = [Permissions.Billing.ManageCoupons],
+        ["GET api/coupons/{id:guid}"] = [Permissions.Billing.ManageCoupons],
+        ["PUT api/coupons/{id:guid}"] = [Permissions.Billing.ManageCoupons],
+        ["PATCH api/coupons/{id:guid}/status"] = [Permissions.Billing.ManageCoupons],
+        ["POST api/coupons/validate"] = [Permissions.Billing.CreateCheckout],
+        ["GET api/dashboard/receptionist"] = [Permissions.Dashboard.ViewReceptionistDashboard]
     };
 
     [Fact]

@@ -17,6 +17,7 @@ import type {
   StaffSummary,
   WeekSchedule,
 } from '../api/contracts.ts'
+import { formatDate } from '../format.ts'
 import { StaffDrawer } from './StaffDrawer.tsx'
 
 vi.mock('../api/staff.ts', () => ({
@@ -106,37 +107,61 @@ describe('StaffDrawer', () => {
     vi.mocked(listTimeOff).mockResolvedValue([])
   })
 
-  it('shows the row header immediately and the full record once it loads', async () => {
+  it('shows the row header immediately and the overview once it loads', async () => {
     renderDrawer()
 
     expect(screen.getByRole('dialog', { name: 'Staff Jasmin Rae' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Jasmin Rae' })).toBeInTheDocument()
-    // The summary's role paints before the profile answers.
+    // The summary's role and status paint before the profile answers.
     expect(screen.getByText('Stylist')).toBeInTheDocument()
+    expect(screen.getByText('Active', { selector: 'span.pill' })).toBeInTheDocument()
 
-    // Overview fills in from the profile API; the header keeps its copy.
+    // The overview fills in from the profile API without repeating the header.
     expect(await screen.findByText('jasmin.rae@debliss.example')).toBeInTheDocument()
     expect(screen.getByText('+971 50 555 0100')).toBeInTheDocument()
     expect(screen.getByText('#E91E63')).toBeInTheDocument()
-    expect(screen.getAllByText('Stylist')).toHaveLength(2)
-    expect(screen.getAllByText('Active', { selector: 'span.pill' })).toHaveLength(2)
-
-    // The three existing management sections render inside the drawer.
-    expect(await screen.findByText('No services assigned yet.')).toBeInTheDocument()
-    expect(screen.getByText('No time-off records yet.')).toBeInTheDocument()
-    expect(screen.getByText('Monday')).toBeInTheDocument()
-    expect(screen.getAllByText('Off')).toHaveLength(7)
+    expect(screen.getByText(formatDate(profile.createdAt))).toBeInTheDocument()
+    expect(screen.getAllByText('Stylist')).toHaveLength(1)
   })
 
-  it('lists the services the member can perform', async () => {
+  it('lists the services the member can perform on the services tab', async () => {
+    const user = userEvent.setup()
     vi.mocked(getStaffServices).mockResolvedValue([
       { serviceId: 'sv1', name: 'Balayage Colour', categoryName: 'Colour', isActive: true },
     ])
 
     renderDrawer()
+    const drawer = screen.getByRole('dialog', { name: 'Staff Jasmin Rae' })
+    await user.click(within(drawer).getByRole('tab', { name: 'Services' }))
 
-    expect(await screen.findByText('Balayage Colour')).toBeInTheDocument()
-    expect(screen.getByText('Colour')).toBeInTheDocument()
+    expect(await within(drawer).findByText('Balayage Colour')).toBeInTheDocument()
+    expect(within(drawer).getByText('Colour')).toBeInTheDocument()
+  })
+
+  it('fetches each roster panel only when its tab first opens', async () => {
+    const user = userEvent.setup()
+    renderDrawer()
+
+    await screen.findByText('jasmin.rae@debliss.example')
+    expect(getStaffServices).not.toHaveBeenCalled()
+    expect(getWeekSchedule).not.toHaveBeenCalled()
+    expect(listTimeOff).not.toHaveBeenCalled()
+
+    const drawer = screen.getByRole('dialog', { name: 'Staff Jasmin Rae' })
+
+    await user.click(within(drawer).getByRole('tab', { name: 'Services' }))
+    expect(await within(drawer).findByText('No services assigned yet.')).toBeInTheDocument()
+    expect(getStaffServices).toHaveBeenCalledTimes(1)
+    expect(getWeekSchedule).not.toHaveBeenCalled()
+
+    await user.click(within(drawer).getByRole('tab', { name: 'Working hours' }))
+    expect(await within(drawer).findByText('Monday')).toBeInTheDocument()
+    expect(screen.getAllByText('Off')).toHaveLength(7)
+    expect(getWeekSchedule).toHaveBeenCalledTimes(1)
+
+    await user.click(within(drawer).getByRole('tab', { name: 'Time off' }))
+    expect(await within(drawer).findByText('No time-off records yet.')).toBeInTheDocument()
+    expect(listTimeOff).toHaveBeenCalledTimes(1)
   })
 
   it('keeps the header while the profile is still loading', () => {
@@ -199,22 +224,26 @@ describe('StaffDrawer', () => {
     expect(props.onEdit).toHaveBeenCalledWith('s1')
   })
 
-  it('exposes the existing management actions inside the drawer', async () => {
+  it('exposes the management actions on their own tabs', async () => {
     const user = userEvent.setup()
     renderDrawer()
 
-    await screen.findByText('jasmin.rae@debliss.example')
-
     const drawer = screen.getByRole('dialog', { name: 'Staff Jasmin Rae' })
-    expect(within(drawer).getByRole('button', { name: 'Manage services' })).toBeInTheDocument()
-    expect(within(drawer).getByRole('button', { name: 'Manage working hours' })).toBeInTheDocument()
-    expect(within(drawer).getByRole('button', { name: 'Add time off' })).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Manage services' }))
-
+    await user.click(within(drawer).getByRole('tab', { name: 'Services' }))
+    expect(await within(drawer).findByRole('button', { name: 'Manage services' })).toBeInTheDocument()
+    await user.click(within(drawer).getByRole('button', { name: 'Manage services' }))
     expect(
       await screen.findByText('No services found. Add services before assigning staff.'),
     ).toBeInTheDocument()
+
+    await user.click(within(drawer).getByRole('tab', { name: 'Working hours' }))
+    expect(
+      await within(drawer).findByRole('button', { name: 'Manage working hours' }),
+    ).toBeInTheDocument()
+
+    await user.click(within(drawer).getByRole('tab', { name: 'Time off' }))
+    expect(await within(drawer).findByRole('button', { name: 'Add time off' })).toBeInTheDocument()
   })
 
   it('closes from the close button and from Escape', async () => {

@@ -5,8 +5,6 @@ interface DetailDrawerProps {
   /** Names the dialog for assistive technology, e.g. "Customer details". */
   label: string
   onClose: () => void
-  /** Denser records (staff) get the wider panel so their tables stay usable. */
-  isWide?: boolean
   /** Extra class on the panel, for record-specific layout adjustments. */
   panelClassName?: string
   children: ReactNode
@@ -20,12 +18,9 @@ interface DetailDrawerProps {
 export function DetailDrawer({
   label,
   onClose,
-  isWide = false,
   panelClassName,
   children,
 }: DetailDrawerProps) {
-  const panelClass = isWide ? 'drawer drawer-wide' : 'drawer'
-
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key !== 'Escape') {
@@ -51,7 +46,7 @@ export function DetailDrawer({
   return (
     <div className="drawer-backdrop" onClick={onClose}>
       <aside
-        className={panelClassName === undefined ? panelClass : `${panelClass} ${panelClassName}`}
+        className={panelClassName === undefined ? 'drawer' : `drawer ${panelClassName}`}
         role="dialog"
         aria-modal="true"
         aria-label={label}
@@ -103,26 +98,7 @@ export function DrawerHeader({
   )
 }
 
-/** Horizontal strip for a record's actions, in the header or a section. */
-export function DrawerActions({ children }: { children: ReactNode }) {
+/** Horizontal strip for a record's header actions. */
+function DrawerActions({ children }: { children: ReactNode }) {
   return <div className="drawer-actions">{children}</div>
-}
-
-interface DrawerSectionProps {
-  title: string
-  actions?: ReactNode
-  children: ReactNode
-}
-
-/** One titled block inside a drawer, hairline-separated from its siblings. */
-export function DrawerSection({ title, actions, children }: DrawerSectionProps) {
-  return (
-    <section className="drawer-section">
-      <div className="drawer-section-head">
-        <h4>{title}</h4>
-        {actions !== undefined && <DrawerActions>{actions}</DrawerActions>}
-      </div>
-      {children}
-    </section>
-  )
 }

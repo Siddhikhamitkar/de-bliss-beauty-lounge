@@ -28,6 +28,17 @@ public class Invoice : AuditableEntity, ISoftDeletable
 
     public Customer? Customer { get; set; }
 
+    /// <summary>The coupon applied at checkout, when one was used.</summary>
+    public Guid? CouponId { get; set; }
+
+    public Coupon? Coupon { get; set; }
+
+    /// <summary>
+    /// The code as it was on the day of checkout, so a receipt reprinted after the
+    /// coupon was renamed or deactivated still shows what the customer presented.
+    /// </summary>
+    public string? CouponCode { get; set; }
+
     public InvoiceStatus Status { get; set; }
 
     /// <summary>ISO 4217 code. Set by the application from salon configuration.</summary>
@@ -35,7 +46,14 @@ public class Invoice : AuditableEntity, ISoftDeletable
 
     public decimal SubTotal { get; set; }
 
+    /// <summary>Total of every discount on the invoice; see <see cref="CouponDiscount"/> and <see cref="ManualDiscount"/> for the split.</summary>
     public decimal DiscountTotal { get; set; }
+
+    /// <summary>Discount from the applied coupon. Stored separately from the manual discount by design.</summary>
+    public decimal CouponDiscount { get; set; }
+
+    /// <summary>Discount entered by reception. Stored separately from the coupon discount by design.</summary>
+    public decimal ManualDiscount { get; set; }
 
     public decimal TaxTotal { get; set; }
 

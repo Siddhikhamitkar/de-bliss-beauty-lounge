@@ -3,16 +3,20 @@
 Salon management and customer experience platform.
 
 This repository currently contains **the project foundation, the core database
-layer and the first four business modules — Services & Pricing** (service
+layer and the first six business modules — Services & Pricing** (service
 categories, services, prices and eligible-staff assignment), **Staff
 Management & Availability** (staff profiles, service capabilities, working
 schedules, breaks/time-off and the availability check), **Customers /
 CRM** (customer profiles, duplicate-aware quick create, reception notes and
-the visit summary drawn from the scheduling tables) **and Appointments &
+the visit summary drawn from the scheduling tables), **Appointments &
 Calendar** (the scheduling workspace, the booking workflow and the full
-appointment lifecycle), each with its HTTP API, React admin UI and tests.
-Authentication, billing and the customer-facing website are deliberately
-not implemented yet.
+appointment lifecycle), **Billing & Payments** (the checkout workflow,
+coupons, manual discounts, payments and receipts) **and the Receptionist
+Dashboard** (a role-scoped landing page: today's schedule, workload cards,
+quick actions, team status and customer alerts — appointment workload only,
+never money), each with its HTTP API, React admin UI and tests.
+Authentication and the customer-facing website are deliberately not
+implemented yet.
 
 The authoritative description of the Services & Pricing module is
 [docs/SERVICES-MODULE-SPECIFICATION.md](docs/SERVICES-MODULE-SPECIFICATION.md);
@@ -21,7 +25,9 @@ the Staff Management & Availability module is described in
 the Customers / CRM module is described in
 [docs/CUSTOMERS-CRM-SPECIFICATION.md](docs/CUSTOMERS-CRM-SPECIFICATION.md);
 the Appointments & Calendar module is described in
-[docs/APPOINTMENTS-CALENDAR-SPECIFICATION.md](docs/APPOINTMENTS-CALENDAR-SPECIFICATION.md).
+[docs/APPOINTMENTS-CALENDAR-SPECIFICATION.md](docs/APPOINTMENTS-CALENDAR-SPECIFICATION.md);
+the Billing & Payments module is described in
+[docs/BILLING-PAYMENTS-SPECIFICATION.md](docs/BILLING-PAYMENTS-SPECIFICATION.md).
 
 The system is built as a **modular monolith**: a single deployable backend
 composed of independent, cleanly separated modules, with a layered architecture
@@ -65,7 +71,7 @@ the framework, the database, or any other project in the solution.
 because Domain has no dependencies, everything else can change (database,
 delivery mechanism, third-party services) without the core model being touched.
 
-Holds the eighteen core entities behind the salon's booking and billing model,
+Holds the nineteen core entities behind the salon's booking and billing model,
 grouped into folders that match the bounded contexts they belong to:
 
 | Folder        | Entities                                                        |
@@ -76,7 +82,7 @@ grouped into folders that match the bounded contexts they belong to:
 | `Staffing`    | `Staff`, `StaffService`, `StaffWorkingHour`, `StaffTimeOff`     |
 | `Services`    | `ServiceCategory`, `Service`                                    |
 | `Scheduling`  | `Appointment`, `AppointmentService`, `AppointmentStatusHistory`, `BlockedTime` |
-| `Billing`     | `Invoice`, `InvoiceItem`, `Payment`                             |
+| `Billing`     | `Invoice`, `InvoiceItem`, `Payment`, `Coupon`                   |
 
 Every entity carries a `Guid` primary key. Money is always `decimal`, never
 `float`/`double`, and points in time are `DateTimeOffset`. Booking history and
@@ -98,10 +104,12 @@ Besides the persistence-facing ports (`IUnitOfWork`, repository contracts in
 (`ServiceCatalogueService`, `ServiceCategoryService`); `Staffing` — staff
 profiles, service assignment, working hours, time off and the availability
 check; `Customers` — customer profiles, duplicate-aware creation, notes
-and the appointment-history queries; and `Scheduling` — the booking
+and the appointment-history queries; `Scheduling` — the booking
 workflow, the appointment lifecycle and the calendar read model
-(`AppointmentService`, `CalendarService`). Each carries its DTOs and the
-validation rules and limits the module enforces.
+(`AppointmentService`, `CalendarService`); and `Billing` — the checkout
+workflow from a completed appointment to a paid invoice, coupon validation
+and the receipt (`InvoiceService`, `CouponService`). Each carries its DTOs
+and the validation rules and limits the module enforces.
 
 ### DeBliss.Infrastructure
 Adapter layer. Implements the ports declared by Application: EF Core
@@ -155,6 +163,19 @@ Currently exposes:
   non-bookable markers), booking, full updates, schedule patches for
   drag-and-drop and the status lifecycle (see
   [docs/APPOINTMENTS-CALENDAR-SPECIFICATION.md](docs/APPOINTMENTS-CALENDAR-SPECIFICATION.md))
+- `/api/invoices`, `/api/coupons`, `/api/payments` — the Billing & Payments
+  module: the paged invoice list with filters, invoice detail, starting and
+  resuming checkout, the atomic checkout with coupon and manual discount,
+  the receipt, coupon administration and payment records (see
+  [docs/BILLING-PAYMENTS-SPECIFICATION.md](docs/BILLING-PAYMENTS-SPECIFICATION.md))
+- `/api/dashboard/receptionist` — the Receptionist Dashboard module: one
+  server-aggregated, role-scoped snapshot of the front desk (today's
+  schedule, workload counts, upcoming, team status, customer alerts,
+  popular-services workload). The endpoint deliberately carries no money —
+  nothing owner-level can leak onto the front desk; the role separation it
+  enforces today (no revenue/profit/marketing fields exist in its contract)
+  is documented in the controller `<remarks>` as the standing-in for the
+  permission checks that arrive with authorisation.
 
 Endpoints are deliberately open: each carries a `<remarks>` naming the
 permission it will require once authorisation exists.
@@ -227,6 +248,23 @@ markers, drag-to-reschedule (time, staff, duration) validated by the
 backend with revert-on-rejection, click-to-create, the booking modal and
 the details panel with status quick actions. The Vite dev server proxies
 `/api` to the backend's HTTPS URL so the browser sees a single origin.
+
+And the Billing & Payments screens: the billing list (search by invoice or
+customer, status and payment-method filters, pagination), the invoice
+drawer (services, separate coupon/manual discount lines, payment record,
+resume-checkout for drafts and receipt reprint for paid invoices), the
+full-screen checkout workspace (services prefilled from the appointment,
+coupon validation against the backend, fixed or percentage manual
+discount, Cash / Card / Bank Transfer with an optional reference and the
+printed receipt), and the coupon administration screens.
+
+And the Receptionist Dashboard, the app's landing page: a greeting and
+today's date, six appointment-workload cards (never revenue), the
+clickable timeline of today's schedule opening the existing appointment
+details, quick actions that land in the existing booking, customer and
+billing workflows, the team's live statuses, customer alerts (birthdays,
+first visits, latest notes) and the popular-services workload — every
+number aggregated server-side from the read endpoint.
 
 | Tool       | Version |
 | ---------- | ------- |
@@ -306,6 +344,9 @@ projects. It covers:
   customer/walk-in rule, computed end times, the status transition matrix
   with terminal immutability, schedule-patch semantics and the availability
   conflict), run against SQLite;
+- the Billing application services (invoice start/resume, the checkout
+  validation order with its exact error messages, coupon normalisation and
+  validity windows, the discount math and the receipt), run against SQLite;
 - API integration tests over an in-memory TestServer, covering the endpoints,
   the RFC 9457 error contract, and permission-surface drift.
 
@@ -317,7 +358,10 @@ the profile page), and the customers module (list, filters, pagination,
 create/edit, the duplicate confirm flow, the profile page, notes and the
 empty and failure states), and the calendar module (time and snap math,
 the booking modal, the grid with drag-and-drop and the 409 revert path,
-the details panel and the month view).
+the details panel and the month view), and the billing module (the list
+with its filters, the invoice drawer, the checkout screen with coupon,
+manual discount, payment method, reference and the receipt, and the
+coupon administration screens).
 
 ---
 
@@ -367,8 +411,10 @@ should be introduced only when the corresponding work begins:
 - Authentication and authorisation (`User.PasswordHash` exists but is unused);
   every endpoint carries a `<remarks>` naming the permission it will require
 - Business modules other than Services & Pricing, Staff Management &
-  Availability, Customers / CRM and Appointments & Calendar: billing (and
-  the scheduling extras — waitlist and reminders)
+  Availability, Customers / CRM, Appointments & Calendar and Billing &
+  Payments: packages, loyalty, inventory, expenses and reports (plus the
+  scheduling extras — waitlist and reminders, and the Billing Phase 2 items:
+  split payments, gateways, refunds and tax)
 - The public customer-facing website (a separate future phase)
 - Microservices — the system stays a modular monolith
 

@@ -97,9 +97,9 @@ export function WorkingHoursEditor({ staffId }: { staffId: string }) {
   }
 
   return (
-    <section className="panel" aria-label="Working hours">
-      <div className="panel-header">
-        <h2>Working hours</h2>
+    <section className="tab-section" aria-label="Working hours">
+      <div className="tab-section-head">
+        <h4>Working hours</h4>
         {!isEditing && (
           <button type="button" className="button" onClick={startEditing}>
             Manage working hours
