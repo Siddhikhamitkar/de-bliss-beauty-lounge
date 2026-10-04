@@ -1,61 +1,29 @@
 import { useState } from 'react'
+import { CalendarPage } from './calendar/CalendarPage.tsx'
 import { CategoriesPage } from './categories/CategoriesPage.tsx'
 import { CustomersPage } from './customers/CustomersPage.tsx'
+import { AppSidebar } from './layout/AppSidebar.tsx'
+import type { Section } from './layout/AppSidebar.tsx'
 import { ServicesPage } from './services/ServicesPage.tsx'
 import { StaffPage } from './staff/StaffPage.tsx'
 
-type Section = 'services' | 'categories' | 'staff' | 'customers'
-
 function App() {
-  const [section, setSection] = useState<Section>('services')
+  // The calendar is the operational heart of the salon: it opens first.
+  const [section, setSection] = useState<Section>('calendar')
 
   return (
-    <div className="app">
-      <header className="app-header">
-        <div>
-          <h1>De Bliss Beauty Lounge</h1>
-          <p className="app-subtitle">Salon manager</p>
-        </div>
-        <nav className="app-nav" aria-label="Sections">
-          <button
-            type="button"
-            className="nav-button"
-            aria-current={section === 'services' ? 'page' : undefined}
-            onClick={() => setSection('services')}
-          >
-            Services
-          </button>
-          <button
-            type="button"
-            className="nav-button"
-            aria-current={section === 'categories' ? 'page' : undefined}
-            onClick={() => setSection('categories')}
-          >
-            Categories
-          </button>
-          <button
-            type="button"
-            className="nav-button"
-            aria-current={section === 'staff' ? 'page' : undefined}
-            onClick={() => setSection('staff')}
-          >
-            Staff
-          </button>
-          <button
-            type="button"
-            className="nav-button"
-            aria-current={section === 'customers' ? 'page' : undefined}
-            onClick={() => setSection('customers')}
-          >
-            Customers
-          </button>
-        </nav>
-      </header>
+    <div className="app-shell">
+      <AppSidebar current={section} onNavigate={setSection} />
 
-      {section === 'services' && <ServicesPage />}
-      {section === 'categories' && <CategoriesPage />}
-      {section === 'staff' && <StaffPage />}
-      {section === 'customers' && <CustomersPage />}
+      <main className={section === 'calendar' ? 'app-main app-main-wide' : 'app-main'}>
+        {section === 'calendar' && <CalendarPage />}
+        {section === 'services' && (
+          <ServicesPage onManageCategories={() => setSection('categories')} />
+        )}
+        {section === 'categories' && <CategoriesPage />}
+        {section === 'staff' && <StaffPage />}
+        {section === 'customers' && <CustomersPage />}
+      </main>
     </div>
   )
 }

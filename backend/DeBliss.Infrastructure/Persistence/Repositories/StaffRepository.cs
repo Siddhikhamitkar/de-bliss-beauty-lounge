@@ -51,6 +51,33 @@ public sealed class StaffRepository(DeBlissDbContext context) : IStaffRepository
         return (items, totalCount);
     }
 
+    public async Task<IReadOnlyList<Staff>> GetActiveAsync(CancellationToken ct = default)
+    {
+        return await context.Staff
+            .AsNoTracking()
+            .Where(member => member.IsActive)
+            .OrderBy(member => member.SortOrder)
+            .ThenBy(member => member.FirstName)
+            .ThenBy(member => member.LastName)
+            .ToListAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<Staff>> GetByIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
+    {
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        return await context.Staff
+            .AsNoTracking()
+            .Where(member => ids.Contains(member.Id))
+            .OrderBy(member => member.SortOrder)
+            .ThenBy(member => member.FirstName)
+            .ThenBy(member => member.LastName)
+            .ToListAsync(ct);
+    }
+
     public async Task<IReadOnlyList<Staff>> GetActiveAssignedToServiceAsync(
         Guid serviceId,
         CancellationToken ct = default)

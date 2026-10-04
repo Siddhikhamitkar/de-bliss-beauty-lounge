@@ -39,4 +39,14 @@ public static class Permissions
         public const string ChangeCustomerStatus = "customers.status";
         public const string ManageCustomerNotes = "customers.notes";
     }
+
+    public static class Scheduling
+    {
+        public const string ViewAppointments = "appointments.read";
+        public const string CreateAppointment = "appointments.create";
+        public const string EditAppointment = "appointments.update";
+        public const string RescheduleAppointment = "appointments.reschedule";
+        public const string ChangeAppointmentStatus = "appointments.status";
+        public const string ViewCalendar = "calendar.read";
+    }
 }

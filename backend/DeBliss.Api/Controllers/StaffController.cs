@@ -45,7 +45,7 @@ public sealed class StaffController(IStaffService staff, IStaffAvailabilityServi
         [FromQuery] DateTimeOffset end,
         CancellationToken cancellationToken)
     {
-        return Ok(await availability.CheckAsync(staffId, start, end, cancellationToken));
+        return Ok(await availability.CheckAsync(staffId, start, end, cancellationToken: cancellationToken));
     }
 
     /// <remarks>Will require <c>Permissions.Staffing.CreateStaff</c> once authorisation exists.</remarks>

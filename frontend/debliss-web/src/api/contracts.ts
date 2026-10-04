@@ -319,3 +319,122 @@ export interface Problem {
   instance?: string | null
   errors?: Record<string, string[]>
 }
+
+/**
+ * The AppointmentStatus names the API binds, in the order a booking flows
+ * through them. Terminal rows never change again, so the calendar renders
+ * them as historical and refuses drags.
+ */
+export const APPOINTMENT_STATUSES = [
+  'Pending',
+  'Confirmed',
+  'CheckedIn',
+  'InProgress',
+  'Completed',
+  'Cancelled',
+  'NoShow',
+  'Waitlisted',
+] as const
+
+/** Statuses whose bookings are finished: the slot is free and the row is immutable. */
+export const TERMINAL_STATUSES: readonly string[] = ['Completed', 'Cancelled', 'NoShow']
+
+/** One service line inside a booking request: which service, performed by whom. */
+export interface AppointmentServiceLineInput {
+  serviceId: string
+  staffId: string
+}
+
+/**
+ * Payload for creating and editing an appointment. Exactly one of customerId
+ * (an existing customer) or walkInCustomerName must be set. The end instant is
+ * never sent: the server computes it from the snapshot durations.
+ */
+export interface SaveAppointmentRequest {
+  customerId: string | null
+  walkInCustomerName: string | null
+  walkInCustomerPhone: string | null
+  startsAt: string
+  services: AppointmentServiceLineInput[]
+  notes: string | null
+}
+
+/** Partial schedule change from a calendar drag or resize; any subset may be sent. */
+export interface UpdateScheduleRequest {
+  startsAt?: string
+  staffId?: string
+  durationMinutes?: number
+}
+
+/** Body of the status transition endpoint. Status is the AppointmentStatus name. */
+export interface SetAppointmentStatusRequest {
+  status: string
+  reason: string | null
+}
+
+/** One service line on a booked appointment, with its booking-time snapshots. */
+export interface AppointmentServiceLine {
+  serviceId: string
+  serviceName: string
+  durationMinutes: number
+  unitPrice: number
+  staffId: string
+  staffFirstName: string
+  staffLastName: string
+  staffColor: string | null
+}
+
+/** One appointment as the calendar and the details panel render it. */
+export interface Appointment {
+  id: string
+  customerId: string | null
+  customerName: string
+  customerPhone: string | null
+  startsAt: string
+  endsAt: string
+  status: string
+  source: string
+  notes: string | null
+  cancellationReason: string | null
+  services: AppointmentServiceLine[]
+  totalPrice: number
+  totalDurationMinutes: number
+  createdAt: string
+  updatedAt: string | null
+}
+
+/**
+ * A dated, non-bookable period on the grid: time off or a blocked period
+ * (staff-specific, or salon-wide when staffId is null). Kind is the coarse
+ * "TimeOff" | "Blocked" discriminator; Type is the specific enum name.
+ */
+export interface CalendarMarker {
+  id: string
+  staffId: string | null
+  startsAt: string
+  endsAt: string
+  kind: string
+  type: string | null
+  label: string | null
+}
+
+/** One staff column of the calendar, including the week pattern the grid shades by. */
+export interface CalendarStaff {
+  id: string
+  firstName: string
+  lastName: string
+  jobTitle: string | null
+  calendarColor: string | null
+  sortOrder: number
+  workingHours: WeekSchedule
+  isActive: boolean
+}
+
+/** Everything one calendar range query renders: columns, bookings and non-bookable periods. */
+export interface CalendarData {
+  from: string
+  to: string
+  staff: CalendarStaff[]
+  appointments: Appointment[]
+  markers: CalendarMarker[]
+}

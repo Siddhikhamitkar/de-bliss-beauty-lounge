@@ -58,7 +58,13 @@ public sealed class ApiSurfaceTests : ApiTestBase
         ["GET api/customers/{id:guid}/appointments"] = [Permissions.Customers.ViewCustomers],
         ["GET api/customers/{id:guid}/notes"] = [Permissions.Customers.ViewCustomers],
         ["POST api/customers/{id:guid}/notes"] = [Permissions.Customers.ManageCustomerNotes],
-        ["PUT api/customers/{id:guid}/notes/{noteId:guid}"] = [Permissions.Customers.ManageCustomerNotes]
+        ["PUT api/customers/{id:guid}/notes/{noteId:guid}"] = [Permissions.Customers.ManageCustomerNotes],
+        ["GET api/appointments/{id:guid}"] = [Permissions.Scheduling.ViewAppointments],
+        ["POST api/appointments"] = [Permissions.Scheduling.CreateAppointment],
+        ["PUT api/appointments/{id:guid}"] = [Permissions.Scheduling.EditAppointment],
+        ["PATCH api/appointments/{id:guid}/schedule"] = [Permissions.Scheduling.RescheduleAppointment],
+        ["PATCH api/appointments/{id:guid}/status"] = [Permissions.Scheduling.ChangeAppointmentStatus],
+        ["GET api/calendar"] = [Permissions.Scheduling.ViewCalendar]
     };
 
     [Fact]

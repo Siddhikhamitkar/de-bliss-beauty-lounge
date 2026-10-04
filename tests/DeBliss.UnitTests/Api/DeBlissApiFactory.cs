@@ -56,9 +56,10 @@ internal sealed class DeBlissApiFactory : WebApplicationFactory<Program>
         string lastName,
         bool isActive = true,
         string? jobTitle = null,
-        string? email = null) =>
+        string? email = null,
+        string? calendarColor = null) =>
         WithNewContextAsync(context =>
-            CatalogueSeed.StaffAsync(context, firstName, lastName, isActive, jobTitle, email));
+            CatalogueSeed.StaffAsync(context, firstName, lastName, isActive, jobTitle, email, calendarColor: calendarColor));
 
     public Task<Guid> SeedCategoryAsync(
         string name,
@@ -88,6 +89,12 @@ internal sealed class DeBlissApiFactory : WebApplicationFactory<Program>
         bool isActive = true) =>
         WithNewContextAsync(context =>
             CustomerSeed.CustomerAsync(context, firstName, lastName, phoneNumber, email, isActive));
+
+    public async Task SeedWorkingHoursAsync(Guid staffId, DayOfWeek day, TimeSpan start, TimeSpan end)
+    {
+        await using var context = _database.CreateContext();
+        await StaffingSeed.WorkingHoursAsync(context, staffId, day, start, end);
+    }
 
     public Task<Guid> SeedCustomerNoteAsync(Guid customerId, string note) =>
         WithNewContextAsync(context => CustomerSeed.NoteAsync(context, customerId, note));

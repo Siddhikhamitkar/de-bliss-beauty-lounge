@@ -16,7 +16,7 @@ interface Editor {
   id: string | null
 }
 
-export function ServicesPage() {
+export function ServicesPage({ onManageCategories }: { onManageCategories?: () => void }) {
   const [search, setSearch] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [categoryId, setCategoryId] = useState('')
@@ -65,9 +65,16 @@ export function ServicesPage() {
     <section className="panel">
       <div className="panel-header">
         <h2>Services</h2>
-        <button type="button" className="button button-primary" onClick={() => setEditor({ id: null })}>
-          New service
-        </button>
+        <div className="panel-actions">
+          {onManageCategories !== undefined && (
+            <button type="button" className="button" onClick={onManageCategories}>
+              Manage categories
+            </button>
+          )}
+          <button type="button" className="button button-primary" onClick={() => setEditor({ id: null })}>
+            New service
+          </button>
+        </div>
       </div>
 
       <form

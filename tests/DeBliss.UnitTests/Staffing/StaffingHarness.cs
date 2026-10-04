@@ -23,10 +23,12 @@ internal sealed class StaffingHarness : IDisposable
         var staffRepository = new StaffRepository(Context);
         var serviceRepository = new ServiceRepository(Context);
         var scheduleRepository = new ScheduleRepository(Context);
+        Appointments = new AppointmentRepository(Context);
 
         Staff = new StaffManagementService(staffRepository, serviceRepository, Context);
         Schedule = new StaffScheduleService(staffRepository, scheduleRepository, Database.Clock, Context);
-        Availability = new StaffAvailabilityService(staffRepository, serviceRepository, scheduleRepository);
+        Availability = new StaffAvailabilityService(
+            staffRepository, serviceRepository, scheduleRepository, Appointments);
     }
 
     public SqliteTestDatabase Database { get; }
@@ -38,6 +40,9 @@ internal sealed class StaffingHarness : IDisposable
     public IStaffScheduleService Schedule { get; }
 
     public IStaffAvailabilityService Availability { get; }
+
+    /// <summary>The appointment repository the availability service checks conflicts through.</summary>
+    public AppointmentRepository Appointments { get; }
 
     /// <summary>A separate context, so assertions read what was actually written.</summary>
     public DeBlissDbContext Reopen() => Database.CreateContext();

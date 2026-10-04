@@ -34,7 +34,129 @@ p {
   margin: 0;
 }
 
-.app {
+/* Application shell: the left rail carries the main navigation, the main
+   column carries the module. Shared by every section. */
+.app-shell {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.app-sidebar {
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  width: 14.5rem;
+  height: 100vh;
+  padding: 1.1rem 0.8rem;
+  overflow-y: auto;
+  background: var(--raised);
+  border-right: 1px solid var(--line);
+}
+
+.side-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.2rem 0.45rem 0.9rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.side-brand-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.side-brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.side-brand-name {
+  font-size: 1rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+.side-brand-sub {
+  color: var(--muted);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.side-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.side-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.side-nav-item:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.side-nav-item[aria-current='page'] {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.side-nav-item:disabled {
+  color: var(--muted);
+  opacity: 0.7;
+  cursor: default;
+}
+
+.side-nav-icon {
+  flex-shrink: 0;
+}
+
+.side-nav-label {
+  flex: 1;
+}
+
+.side-nav-soon {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.02rem 0.4rem;
+  color: var(--muted);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.app-main {
+  flex: 1;
+  min-width: 0;
   width: 100%;
   max-width: 64rem;
   margin: 0 auto;
@@ -42,50 +164,6 @@ p {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
-}
-
-.app-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.app-header h1 {
-  font-size: 1.5rem;
-  font-weight: 650;
-  letter-spacing: 0.01em;
-}
-
-.app-subtitle {
-  color: var(--muted);
-  font-size: 0.9rem;
-}
-
-.app-nav {
-  display: flex;
-  gap: 0.25rem;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 0.25rem;
-  background: var(--raised);
-}
-
-.nav-button {
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-size: 0.9rem;
-  padding: 0.35rem 0.9rem;
-  border-radius: 999px;
-  cursor: pointer;
-}
-
-.nav-button[aria-current='page'] {
-  background: var(--accent);
-  color: var(--accent-contrast);
 }
 
 .panel {
@@ -108,6 +186,12 @@ p {
 
 .panel-header h2 {
   font-size: 1.15rem;
+}
+
+.panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
 }
 
 .button {
@@ -183,7 +267,7 @@ input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
 .button:focus-visible,
-.nav-button:focus-visible {
+.side-nav-item:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
@@ -514,4 +598,872 @@ textarea {
   display: flex;
   justify-content: flex-end;
   gap: 0.6rem;
+}
+
+/* Appointment & Calendar module */
+
+/* The workspace is the operational heart of the app, so its main column
+   drops the narrow reading width and uses everything beside the rail; the
+   grid below scrolls inside it. */
+.app-main-wide {
+  max-width: none;
+  margin: 0;
+  flex: 1;
+  min-height: 0;
+  padding-bottom: 1.25rem;
+}
+
+.cal-workspace {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+/* Toolbar: two dense rows, compact controls, no decorative weight. */
+.cal-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.cal-toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.cal-toolbar-filters {
+  gap: 0.75rem;
+  padding-bottom: 0.55rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.cal-nav {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.cal-nav .button {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+.cal-range-label {
+  font-size: 1.05rem;
+  font-weight: 650;
+  margin-right: auto;
+}
+
+.cal-view-switch {
+  display: inline-flex;
+  gap: 0.15rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.15rem;
+  background: var(--raised);
+}
+
+.cal-view-button {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.cal-view-button[aria-current='true'] {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.cal-new {
+  padding: 0.3rem 0.8rem;
+  font-size: 0.85rem;
+}
+
+.cal-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.8rem;
+}
+
+.cal-filter > span {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.cal-filter input,
+.cal-filter select {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.85rem;
+}
+
+/* Time grid. One column per staff member per day; geometry (top/height) is
+   inline because it is computed from duration, the styling lives here. */
+.cal-scroll {
+  flex: 1;
+  min-height: 26rem;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  background: var(--surface);
+}
+
+.cal-grid {
+  display: grid;
+  width: max-content;
+  min-width: 100%;
+}
+
+.cal-corner {
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 6;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.cal-column-head {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.4rem 0.3rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+  text-align: center;
+}
+
+.cal-column-day {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.cal-stamp {
+  display: inline-grid;
+  place-items: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 50%;
+  background: var(--muted);
+  color: #fffaf6;
+  font-size: 0.68rem;
+  font-weight: 650;
+}
+
+.cal-staff-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.cal-staff-status {
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.cal-gutter {
+  position: sticky;
+  left: 0;
+  z-index: 4;
+  background: var(--surface);
+  border-right: 1px solid var(--line);
+}
+
+.cal-gutter-hour {
+  position: absolute;
+  right: 0.35rem;
+  transform: translateY(-50%);
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
+.cal-column {
+  position: relative;
+  border-left: 1px solid var(--line);
+  /* One hour between hairlines; the JS layout and this stay in step via
+     PIXELS_PER_MINUTE (60 * 1.2 = 72px). */
+  background-image: linear-gradient(var(--line) 1px, transparent 1px);
+  background-size: 100% 72px;
+}
+
+.cal-column.is-today {
+  background-color: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+
+.cal-column.is-drop-target {
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+}
+
+.cal-column.is-inactive {
+  background-color: color-mix(in srgb, var(--muted) 8%, transparent);
+}
+
+.cal-closed {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: color-mix(in srgb, var(--muted) 10%, transparent);
+}
+
+/* Markers: the difference between "free" and "nobody works here" must read
+   instantly — time off is a flat block, blocked time is hatched. */
+.cal-marker {
+  position: absolute;
+  left: 0;
+  right: 0;
+  overflow: hidden;
+  pointer-events: none;
+  font-size: 0.68rem;
+  padding: 0.1rem 0.3rem;
+}
+
+.marker-TimeOff {
+  background: color-mix(in srgb, var(--muted) 22%, transparent);
+  color: var(--text);
+}
+
+.marker-Blocked {
+  background: repeating-linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--accent) 22%, transparent) 0 6px,
+    transparent 6px 12px
+  );
+  color: var(--muted);
+}
+
+.cal-marker-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+.cal-now {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 2px solid var(--accent);
+  pointer-events: none;
+}
+
+.cal-drag-ghost {
+  position: fixed;
+  z-index: 30;
+  pointer-events: none;
+  background: var(--text);
+  color: var(--surface);
+  font-size: 0.78rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 0.4rem;
+  white-space: nowrap;
+}
+
+/* The follow preview while moving: shaped like the appointment card itself
+   and pinned to the pointer, so the booking visibly travels with the drag. */
+.cal-drag-card {
+  position: fixed;
+  z-index: 30;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.05rem;
+  padding: 0.15rem 0.35rem 0.15rem 0.45rem;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--status-color, var(--accent));
+  border-radius: 0.35rem;
+  background: var(--raised);
+  color: var(--text);
+  font-size: 0.72rem;
+  line-height: 1.25;
+  overflow: hidden;
+  opacity: 0.92;
+  box-shadow: 0 10px 24px rgb(0 0 0 / 0.18);
+}
+
+/* Booking blocks. Height follows duration; the left stripe carries status,
+   the body tints toward the staff member's calendar colour (inline). */
+.cal-event {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.05rem;
+  padding: 0.15rem 0.35rem 0.15rem 0.45rem;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--status-color, var(--accent));
+  border-radius: 0.35rem;
+  background: var(--raised);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.72rem;
+  line-height: 1.25;
+  text-align: left;
+  overflow: hidden;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.cal-event.is-dragging {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.cal-event.is-terminal {
+  opacity: 0.65;
+}
+
+.cal-event.is-compact .cal-event-service {
+  display: none;
+}
+
+.cal-event-time {
+  font-size: 0.66rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.cal-event-name,
+.cal-event-service {
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cal-event-name {
+  font-weight: 600;
+}
+
+.cal-event-service {
+  color: var(--muted);
+}
+
+.cal-event-resize {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 7px;
+  cursor: ns-resize;
+}
+
+/* Status hues, shared by grid blocks, month chips and the details pill. */
+.status-Pending {
+  --status-color: light-dark(#a97e2f, #d8b36a);
+}
+
+.status-Confirmed {
+  --status-color: light-dark(#8a4f56, #d49aa0);
+}
+
+.status-CheckedIn {
+  --status-color: light-dark(#3f6d8e, #8fb6d4);
+}
+
+.status-InProgress {
+  --status-color: light-dark(#31683f, #8fca9d);
+}
+
+.status-Completed {
+  --status-color: light-dark(#6f6357, #a89a8d);
+}
+
+.status-Cancelled {
+  --status-color: light-dark(#a2342c, #e08d87);
+}
+
+.status-NoShow {
+  --status-color: light-dark(#7d3b34, #c9847c);
+}
+
+.status-Waitlisted {
+  --status-color: light-dark(#6d5a8e, #b3a1d4);
+}
+
+.status-pill {
+  color: var(--status-color, var(--muted));
+  border-color: var(--status-color, var(--line));
+}
+
+/* Month overview: triage, not decoration. */
+.cal-month {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  overflow: hidden;
+}
+
+.cal-month-weekday {
+  background: var(--raised);
+  padding: 0.3rem 0.5rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.cal-month-cell {
+  background: var(--surface);
+  min-height: 7.5rem;
+  padding: 0.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.cal-month-cell.is-outside {
+  background: color-mix(in srgb, var(--raised) 55%, var(--surface));
+}
+
+.cal-month-cell.is-quiet .cal-month-day {
+  color: var(--muted);
+}
+
+.cal-month-day {
+  align-self: flex-start;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.cal-month-day:hover {
+  background: var(--raised);
+}
+
+.cal-month-marker {
+  font-size: 0.64rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cal-month-event {
+  display: flex;
+  gap: 0.3rem;
+  align-items: baseline;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--status-color, var(--accent));
+  border-radius: 0.3rem;
+  background: var(--raised);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.7rem;
+  padding: 0.1rem 0.3rem;
+  cursor: pointer;
+  text-align: left;
+  overflow: hidden;
+}
+
+.cal-month-event:hover {
+  border-color: var(--accent);
+}
+
+.cal-month-event-time {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.cal-month-event-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cal-month-event-service {
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Details panel: a working drawer, not a page. */
+.cal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: flex-end;
+  background: rgb(0 0 0 / 25%);
+}
+
+.cal-details {
+  width: min(26rem, 100%);
+  height: 100%;
+  overflow: auto;
+  background: var(--raised);
+  border-left: 1px solid var(--line);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  font-size: 0.9rem;
+}
+
+.cal-details-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.cal-details-head h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1.1rem;
+}
+
+.cal-details-phone {
+  color: var(--muted);
+}
+
+.cal-details .detail-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.35rem 0.9rem;
+  margin: 0;
+}
+
+.cal-details .detail-grid dt {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.cal-details .detail-grid dd {
+  margin: 0;
+}
+
+.cal-details-services h4,
+.cal-details-notes h4 {
+  margin: 0 0 0.4rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cal-details-services ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.cal-details-services li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.cal-details-service-name em {
+  display: block;
+  font-style: normal;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.cal-details-service-staff {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.cal-color-dot {
+  display: inline-block;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: var(--muted);
+  flex-shrink: 0;
+}
+
+.cal-details-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.cal-details-actions .button {
+  font-size: 0.82rem;
+  padding: 0.3rem 0.7rem;
+}
+
+.cal-details-hint {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+/* Booking dialog: the whole decision (who / what / who performs it / when) in
+   one scrollable dialog — no page hops to place a booking. */
+.booking-dialog {
+  max-width: 42rem;
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+}
+
+.booking-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.booking-close {
+  padding: 0.1rem 0.55rem;
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.booking-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.booking-section {
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  padding: 0.8rem 0.9rem;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.booking-section legend {
+  font-size: 0.78rem;
+  color: var(--muted);
+  padding: 0 0.25rem;
+}
+
+.segmented {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 0.15rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.15rem;
+  background: var(--surface);
+}
+
+.segment {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.segment.is-active {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.booking-customer-search {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.booking-inline {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.booking-inline input {
+  flex: 1;
+  min-width: 0;
+}
+
+.booking-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  max-height: 11rem;
+  overflow: auto;
+}
+
+.booking-result {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.7rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.booking-result:hover {
+  background: var(--surface);
+}
+
+.booking-result.is-selected {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.booking-empty {
+  color: var(--muted);
+  font-size: 0.82rem;
+  padding: 0.4rem 0.7rem;
+}
+
+.booking-selected {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.booking-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem 0.9rem;
+}
+
+.booking-menu {
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  max-height: 13rem;
+  overflow: auto;
+}
+
+.booking-category h4 {
+  margin: 0;
+  padding: 0.35rem 0.7rem 0.15rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.booking-category ul {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0.3rem;
+}
+
+.booking-service {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.booking-service:hover {
+  background: var(--surface);
+}
+
+.booking-service-meta {
+  color: var(--muted);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.booking-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.booking-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  padding: 0.4rem 0.6rem;
+}
+
+.booking-line-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.booking-line-staff {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.booking-line-staff select {
+  font-size: 0.82rem;
+  padding: 0.2rem 0.4rem;
+}
+
+.booking-remove {
+  padding: 0.05rem 0.45rem;
+  font-size: 0.95rem;
+  line-height: 1.3;
+}
+
+.booking-total {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.booking-hint {
+  font-size: 0.8rem;
+}
+
+.booking-hint.is-ok {
+  color: var(--ok);
+}
+
+.booking-hint.is-blocked {
+  color: var(--danger);
 }

@@ -1,5 +1,6 @@
 using DeBliss.Application.Common.Interfaces;
 using DeBliss.Application.Customers.Ports;
+using DeBliss.Application.Scheduling.Ports;
 using DeBliss.Application.ServiceCatalogue.Ports;
 using DeBliss.Application.Staffing.Ports;
 using DeBliss.Infrastructure.Persistence;
@@ -39,6 +40,8 @@ public static class DependencyInjection
         services.AddScoped<IStaffRepository, StaffRepository>();
         services.AddScoped<IScheduleRepository, ScheduleRepository>();
         services.AddScoped<ICustomerRepository, CustomerRepository>();
+        services.AddScoped<IAppointmentRepository, AppointmentRepository>();
+        services.AddScoped<IAppointmentConflictPort, AppointmentRepository>();
 
         return services;
     }

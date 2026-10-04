@@ -1,4 +1,5 @@
 using DeBliss.Api.Common;
+using DeBliss.Api.DevData;
 using DeBliss.Application;
 using DeBliss.Infrastructure;
 using DeBliss.Infrastructure.Persistence;
@@ -29,6 +30,10 @@ app.UseExceptionHandler();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+
+    // Demo scenario for the calendar workspace: only in Development and only
+    // while the staff table is empty, so production data is never overwritten.
+    await DevDataSeeder.SeedAsync(app);
 }
 
 app.UseHttpsRedirection();

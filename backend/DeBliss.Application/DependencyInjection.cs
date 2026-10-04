@@ -1,4 +1,5 @@
 using DeBliss.Application.Customers;
+using DeBliss.Application.Scheduling;
 using DeBliss.Application.ServiceCatalogue;
 using DeBliss.Application.Staffing;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,6 +16,8 @@ public static class DependencyInjection
         services.AddScoped<IStaffScheduleService, StaffScheduleService>();
         services.AddScoped<IStaffAvailabilityService, StaffAvailabilityService>();
         services.AddScoped<ICustomerService, CustomerService>();
+        services.AddScoped<IAppointmentService, AppointmentService>();
+        services.AddScoped<ICalendarService, CalendarService>();
 
         return services;
     }

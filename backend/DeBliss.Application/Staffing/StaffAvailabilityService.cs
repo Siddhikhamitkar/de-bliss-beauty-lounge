@@ -10,12 +10,14 @@ namespace DeBliss.Application.Staffing;
 public sealed class StaffAvailabilityService(
     IStaffRepository staff,
     IServiceRepository services,
-    IScheduleRepository schedule) : IStaffAvailabilityService
+    IScheduleRepository schedule,
+    IAppointmentConflictPort appointments) : IStaffAvailabilityService
 {
     public async Task<StaffAvailabilityCheckDto> CheckAsync(
         Guid staffId,
         DateTimeOffset start,
         DateTimeOffset end,
+        Guid? excludeAppointmentId = null,
         CancellationToken cancellationToken = default)
     {
         EnsureWindow(start, end);
@@ -23,7 +25,7 @@ public sealed class StaffAvailabilityService(
         var member = await staff.GetByIdAsync(staffId, cancellationToken)
             ?? throw new NotFoundException($"Staff member '{staffId}' was not found.");
 
-        var isAvailable = await IsAvailableAsync(member, serviceId: null, start, end, cancellationToken);
+        var isAvailable = await IsAvailableAsync(member, serviceId: null, start, end, excludeAppointmentId, cancellationToken);
 
         return new StaffAvailabilityCheckDto(staffId, start, end, isAvailable);
     }
@@ -45,7 +47,7 @@ public sealed class StaffAvailabilityService(
 
         foreach (var member in candidates)
         {
-            if (await IsAvailableAsync(member, serviceId, start, end, cancellationToken))
+            if (await IsAvailableAsync(member, serviceId, start, end, excludeAppointmentId: null, cancellationToken))
             {
                 available.Add(member);
             }
@@ -66,18 +68,21 @@ public sealed class StaffAvailabilityService(
     }
 
     /// <summary>
-    /// The six current rules, in the order cheapest to most expensive to check:
+    /// The six rules, in the order cheapest to most expensive to check:
     /// active, assigned to the service, the slot sits inside one working
     /// interval of the right weekday (breaks fall between intervals and so
     /// exclude the slot), no time off overlaps it, no blocked period overlaps
-    /// it. The future appointment module adds "no overlapping appointment" as
-    /// one more source inside this method.
+    /// it, and — added by the appointment module — no overlapping appointment
+    /// with a line assigned to this member. A reschedule passes its own id as
+    /// excludeAppointmentId so the appointment being moved never conflicts
+    /// with itself.
     /// </summary>
     private async Task<bool> IsAvailableAsync(
         Staff member,
         Guid? serviceId,
         DateTimeOffset start,
         DateTimeOffset end,
+        Guid? excludeAppointmentId,
         CancellationToken cancellationToken)
     {
         if (!member.IsActive)
@@ -117,6 +122,11 @@ public sealed class StaffAvailabilityService(
         }
 
         if ((await schedule.GetOverlappingBlockedTimesAsync(member.Id, start, end, cancellationToken)).Count > 0)
+        {
+            return false;
+        }
+
+        if (await appointments.HasConflictingAppointmentAsync(member.Id, start, end, excludeAppointmentId, cancellationToken))
         {
             return false;
         }

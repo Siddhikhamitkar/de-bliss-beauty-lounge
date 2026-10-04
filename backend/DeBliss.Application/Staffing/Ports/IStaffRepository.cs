@@ -18,6 +18,12 @@ public interface IStaffRepository
 
     Task<(IReadOnlyList<Staff> Items, int TotalCount)> SearchAsync(StaffQuery query, CancellationToken ct = default);
 
+    /// <summary>Every active staff member, ordered for display; no related data loaded.</summary>
+    Task<IReadOnlyList<Staff>> GetActiveAsync(CancellationToken ct = default);
+
+    /// <summary>Staff members with the given ids, ordered for display; no related data loaded.</summary>
+    Task<IReadOnlyList<Staff>> GetByIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
+
     /// <summary>Active staff assigned to the service, ordered for display.</summary>
     Task<IReadOnlyList<Staff>> GetActiveAssignedToServiceAsync(Guid serviceId, CancellationToken ct = default);
 

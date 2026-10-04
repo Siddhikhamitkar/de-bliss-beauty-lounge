@@ -13,7 +13,12 @@ namespace DeBliss.Application.Staffing;
 /// </summary>
 public interface IStaffAvailabilityService
 {
-    Task<StaffAvailabilityCheckDto> CheckAsync(Guid staffId, DateTimeOffset start, DateTimeOffset end, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Whether one member can take the window. When excludeAppointmentId is set
+    /// (a reschedule), the appointment being moved is ignored as a conflict
+    /// source.
+    /// </summary>
+    Task<StaffAvailabilityCheckDto> CheckAsync(Guid staffId, DateTimeOffset start, DateTimeOffset end, Guid? excludeAppointmentId = null, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<StaffOptionDto>> GetAvailableStaffAsync(Guid serviceId, DateTimeOffset start, DateTimeOffset end, CancellationToken cancellationToken = default);
 }
