@@ -15,6 +15,8 @@ public interface ICustomerService
 
     Task<CustomerDto> SetStatusAsync(Guid id, bool isActive, CancellationToken cancellationToken = default);
 
+    Task<CustomerDto> SetWhatsAppOptInAsync(Guid id, string? status, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<CustomerNoteDto>> ListNotesAsync(Guid id, CancellationToken cancellationToken = default);
 
     Task<CustomerNoteDto> AddNoteAsync(Guid id, SaveCustomerNoteRequest request, CancellationToken cancellationToken = default);

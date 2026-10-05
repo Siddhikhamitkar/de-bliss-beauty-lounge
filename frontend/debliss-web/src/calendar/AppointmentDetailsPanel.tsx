@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { describeFailure } from '../api/client.ts'
 import type { Appointment } from '../api/contracts.ts'
+import { getAppointmentReminders } from '../api/reminders.ts'
+import type { AppointmentReminder } from '../api/reminders.ts'
 import { getAppointment, setAppointmentStatus } from '../api/scheduling.ts'
 import { ErrorState } from '../components/ErrorState.tsx'
 import { LoadingState } from '../components/LoadingState.tsx'
-import { formatDuration, formatPrice } from '../format.ts'
+import { formatDateTime, formatDuration, formatPrice } from '../format.ts'
 import { useAsync } from '../useAsync.ts'
 import { formatClock, minutesOfDay, parseDayKey, dayKeyOf } from './calendarTime.ts'
 
@@ -38,6 +40,23 @@ const ALLOWED_TRANSITIONS: Record<string, readonly string[]> = {
   Waitlisted: ['Confirmed', 'Cancelled'],
 }
 
+/** The one line each reminder row shows after its status pill. */
+function reminderTiming(reminder: AppointmentReminder): string {
+  switch (reminder.status) {
+    case 'Sent':
+      return reminder.sentAt === null ? 'Sent' : `Sent ${formatDateTime(reminder.sentAt)}`
+    case 'Pending':
+      return `Scheduled ${formatDateTime(reminder.scheduledAt)}`
+    case 'Failed':
+      return reminder.lastAttemptAt === null
+        ? 'Failed'
+        : `Failed · last attempt ${formatDateTime(reminder.lastAttemptAt)}`
+    case 'Cancelled':
+    case 'Skipped':
+      return reminder.failureReason ?? 'Not sent'
+  }
+}
+
 /**
  * The booking's side panel: who, what, when, how much, and the quick actions
  * that move the visit along its day. It slides over the grid — details never
@@ -51,6 +70,7 @@ export function AppointmentDetailsPanel({
   onCheckout,
 }: AppointmentDetailsPanelProps) {
   const appointment = useAsync(() => getAppointment(appointmentId), [appointmentId])
+  const reminders = useAsync(() => getAppointmentReminders(appointmentId), [appointmentId])
   const [actionFailure, setActionFailure] = useState<string>()
   const [busy, setBusy] = useState(false)
   const [reasonFor, setReasonFor] = useState<string | null>(null)
@@ -72,6 +92,7 @@ export function AppointmentDetailsPanel({
         setReasonFor(null)
         setReason('')
         appointment.reload()
+        reminders.reload()
         onChanged()
       })
       .catch((error: unknown) => setActionFailure(describeFailure(error)))
@@ -189,6 +210,34 @@ export function AppointmentDetailsPanel({
                 <p>{current.cancellationReason}</p>
               </div>
             )}
+
+            <div className="cal-details-reminders">
+              <h4>WhatsApp reminders</h4>
+              {reminders.failure !== undefined && (
+                <ErrorState message={reminders.failure} onRetry={reminders.reload} />
+              )}
+              {reminders.data !== undefined && reminders.data.length === 0 && (
+                <p className="cal-details-hint">
+                  Nothing scheduled — reminders are created when the booking is confirmed.
+                </p>
+              )}
+              {reminders.data !== undefined && reminders.data.length > 0 && (
+                <ul className="cal-details-reminder-list">
+                  {reminders.data.map(reminder => (
+                    <li key={reminder.id}>
+                      <span className={`pill status-pill status-${reminder.status}`}>
+                        {reminder.status}
+                      </span>
+                      <span className="cal-details-reminder-type">{reminder.reminderType}</span>
+                      <span className="cal-details-reminder-when">{reminderTiming(reminder)}</span>
+                      {reminder.status === 'Failed' && reminder.failureReason !== null && (
+                        <span className="reminder-failure">{reminder.failureReason}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
 
             {actionFailure !== undefined && (
               <p className="banner" role="alert">{actionFailure}</p>

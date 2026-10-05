@@ -2,6 +2,7 @@ using DeBliss.Domain.Billing;
 using DeBliss.Domain.Common;
 using DeBliss.Domain.Customers;
 using DeBliss.Domain.Identity;
+using DeBliss.Domain.Notifications;
 using DeBliss.Domain.Scheduling;
 using DeBliss.Domain.Services;
 using DeBliss.Domain.Staffing;
@@ -35,12 +36,14 @@ public class DeBlissDbContextModelTests
         typeof(InvoiceItem),
         typeof(Payment),
         typeof(Coupon),
+        typeof(ReminderRule),
+        typeof(AppointmentReminder),
     };
 
     [Fact]
-    public void The_model_maps_exactly_the_twenty_one_core_entities()
+    public void The_model_maps_exactly_the_twenty_three_core_entities()
     {
-        Assert.Equal(21, TestModel.Model.GetEntityTypes().Count());
+        Assert.Equal(23, TestModel.Model.GetEntityTypes().Count());
     }
 
     [Theory]
@@ -85,6 +88,8 @@ public class DeBlissDbContextModelTests
     [InlineData(typeof(InvoiceItem), "InvoiceItems")]
     [InlineData(typeof(Payment), "Payments")]
     [InlineData(typeof(Coupon), "Coupons")]
+    [InlineData(typeof(ReminderRule), "ReminderRules")]
+    [InlineData(typeof(AppointmentReminder), "AppointmentReminders")]
     public void Tables_are_named_explicitly(Type entityType, string tableName)
     {
         Assert.Equal(tableName, TestModel.Entity(entityType).GetTableName());
@@ -147,6 +152,11 @@ public class DeBlissDbContextModelTests
     [InlineData(typeof(Payment), nameof(Payment.Method))]
     [InlineData(typeof(Payment), nameof(Payment.Status))]
     [InlineData(typeof(Coupon), nameof(Coupon.DiscountType))]
+    [InlineData(typeof(ReminderRule), nameof(ReminderRule.ReminderType))]
+    [InlineData(typeof(AppointmentReminder), nameof(AppointmentReminder.ReminderType))]
+    [InlineData(typeof(AppointmentReminder), nameof(AppointmentReminder.Status))]
+    [InlineData(typeof(AppointmentReminder), nameof(AppointmentReminder.Channel))]
+    [InlineData(typeof(Customer), nameof(Customer.WhatsAppOptInStatus))]
     public void Enumerations_are_stored_as_readable_strings(Type entityType, string propertyName)
     {
         var property = TestModel.Entity(entityType).FindProperty(propertyName)!;
@@ -160,6 +170,7 @@ public class DeBlissDbContextModelTests
     [InlineData(typeof(AppointmentStatusHistory), nameof(AppointmentStatusHistory.ChangedAt))]
     [InlineData(typeof(Payment), nameof(Payment.PaidAt))]
     [InlineData(typeof(User), nameof(User.CreatedAt))]
+    [InlineData(typeof(AppointmentReminder), nameof(AppointmentReminder.ScheduledAt))]
     public void Timestamps_are_stored_as_datetimeoffset(Type entityType, string propertyName)
     {
         var property = TestModel.Entity(entityType).FindProperty(propertyName)!;
@@ -266,6 +277,7 @@ public class DeBlissDbContextModelTests
     [InlineData(typeof(Invoice), nameof(Invoice.ServiceBundleId))]
     [InlineData(typeof(ServiceBundleItem), nameof(ServiceBundleItem.ServiceId))]
     [InlineData(typeof(Payment), nameof(Payment.RefundOfPaymentId))]
+    [InlineData(typeof(AppointmentReminder), nameof(AppointmentReminder.CustomerId))]
     public void Deleting_a_referenced_record_never_removes_booking_or_financial_history(
         Type dependentType,
         string foreignKeyProperty)
@@ -282,6 +294,7 @@ public class DeBlissDbContextModelTests
     [InlineData(typeof(StaffWorkingHour), nameof(StaffWorkingHour.StaffId))]
     [InlineData(typeof(ServiceBundleItem), nameof(ServiceBundleItem.ServiceBundleId))]
     [InlineData(typeof(UserRole), nameof(UserRole.UserId))]
+    [InlineData(typeof(AppointmentReminder), nameof(AppointmentReminder.AppointmentId))]
     public void Rows_owned_by_a_parent_are_removed_with_it(
         Type dependentType,
         string foreignKeyProperty)
@@ -354,6 +367,69 @@ public class DeBlissDbContextModelTests
             .Single(i => i.Properties.Select(p => p.Name).SequenceEqual([nameof(Appointment.StartsAt), nameof(Appointment.EndsAt)]));
 
         Assert.False(index.IsUnique);
+    }
+
+    [Fact]
+    public void A_pending_reminder_for_the_same_appointment_type_and_moment_cannot_be_planned_twice()
+    {
+        var index = TestModel.Entity(typeof(AppointmentReminder)).GetIndexes()
+            .Single(i => i.Properties.Select(p => p.Name).SequenceEqual([
+                nameof(AppointmentReminder.AppointmentId),
+                nameof(AppointmentReminder.ReminderType),
+                nameof(AppointmentReminder.ScheduledAt)]));
+
+        Assert.True(index.IsUnique);
+        Assert.Equal("[Status] = 'Pending'", index.GetFilter());
+    }
+
+    [Fact]
+    public void A_sent_message_id_can_belong_to_only_one_reminder()
+    {
+        var index = TestModel.Entity(typeof(AppointmentReminder)).GetIndexes()
+            .Single(i => i.Properties.Select(p => p.Name).SequenceEqual([nameof(AppointmentReminder.ProviderMessageId)]));
+
+        Assert.True(index.IsUnique);
+        Assert.Equal("[ProviderMessageId] IS NOT NULL", index.GetFilter());
+    }
+
+    [Fact]
+    public void Reminders_are_indexed_for_the_due_scan()
+    {
+        var index = TestModel.Entity(typeof(AppointmentReminder)).GetIndexes()
+            .Single(i => i.Properties.Select(p => p.Name).SequenceEqual([
+                nameof(AppointmentReminder.Status),
+                nameof(AppointmentReminder.ScheduledAt)]));
+
+        Assert.False(index.IsUnique);
+    }
+
+    [Fact]
+    public void Reminder_rules_ship_with_the_default_timing_seeded()
+    {
+        var rules = TestModel.DesignTimeEntity(typeof(ReminderRule)).GetSeedData()
+            .Select(rule => (
+                Type: rule[nameof(ReminderRule.ReminderType)]?.ToString(),
+                OffsetMinutes: (int)rule[nameof(ReminderRule.OffsetMinutes)]!,
+                IsEnabled: (bool)rule[nameof(ReminderRule.IsEnabled)]!))
+            .ToArray();
+
+        Assert.Equal(5, rules.Length);
+
+        Assert.Contains(rules, rule => rule is { Type: "Confirmation", OffsetMinutes: 0, IsEnabled: true });
+        Assert.Contains(rules, rule => rule is { Type: "Reminder", OffsetMinutes: 24 * 60, IsEnabled: true });
+        Assert.Contains(rules, rule => rule is { Type: "Reminder", OffsetMinutes: 2 * 60, IsEnabled: true });
+        Assert.Contains(rules, rule => rule is { Type: "Cancellation", OffsetMinutes: 0, IsEnabled: true });
+        Assert.Contains(rules, rule => rule is { Type: "Rescheduled", OffsetMinutes: 0, IsEnabled: true });
+    }
+
+    [Fact]
+    public void A_customer_starts_with_unknown_whatsapp_opt_in_rather_than_implied_consent()
+    {
+        var property = TestModel.Entity(typeof(Customer)).FindProperty(nameof(Customer.WhatsAppOptInStatus))!;
+
+        Assert.False(property.IsNullable);
+        Assert.Equal("nvarchar(20)", property.GetColumnType());
+        Assert.Equal("Unknown", property.GetDefaultValue()?.ToString());
     }
 
     private static DeleteBehavior DeleteBehaviorOf(Type dependentType, string foreignKeyProperty) =>

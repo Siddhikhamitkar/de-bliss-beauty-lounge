@@ -65,6 +65,10 @@ public sealed record CustomerDto(
     string? Gender,
     string? Address,
     bool IsActive,
+    string WhatsAppOptInStatus,
+    DateTimeOffset? WhatsAppOptInDate,
+    DateTimeOffset? WhatsAppOptOutDate,
+    string? WhatsAppOptInSource,
     CustomerAppointmentSummaryDto AppointmentSummary,
     DateTimeOffset CreatedAt,
     DateTimeOffset? UpdatedAt);
@@ -111,6 +115,14 @@ public sealed record SaveCustomerRequest(
 
 /// <summary>Body of the customer status toggle endpoint.</summary>
 public sealed record SetCustomerStatusRequest(bool IsActive);
+
+/// <summary>
+/// Body of the WhatsApp consent endpoint. <see cref="Status"/> is the
+/// WhatsAppOptInStatus name: OptedIn records consent, OptedOut withdraws it and
+/// Unknown clears the record entirely. Unknown never counts as consent, so the
+/// reminder dispatcher only sends to customers explicitly marked OptedIn.
+/// </summary>
+public sealed record SetWhatsAppOptInRequest(string? Status);
 
 /// <summary>Payload for adding to or editing a customer note. Notes are never deleted.</summary>
 public sealed record SaveCustomerNoteRequest(string? Note);

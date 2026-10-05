@@ -1,3 +1,4 @@
+using DeBliss.Application.Notifications;
 using DeBliss.Application.Scheduling;
 using DeBliss.Application.Staffing;
 using DeBliss.Domain.Scheduling;
@@ -30,6 +31,10 @@ internal sealed class SchedulingHarness : IDisposable
 
         var availability = new StaffAvailabilityService(
             staffRepository, serviceRepository, scheduleRepository, appointmentRepository);
+        var reminderPlanner = new ReminderPlanner(
+            new ReminderRuleRepository(Context),
+            new AppointmentReminderRepository(Context),
+            Database.Clock);
         Appointments = new BookingService(
             appointmentRepository,
             customerRepository,
@@ -37,6 +42,7 @@ internal sealed class SchedulingHarness : IDisposable
             bundleRepository,
             staffRepository,
             availability,
+            reminderPlanner,
             Context,
             Database.Clock);
         Calendar = new CalendarService(appointmentRepository, staffRepository, scheduleRepository);

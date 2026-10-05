@@ -2,6 +2,7 @@ using DeBliss.Application.Common.Interfaces;
 using DeBliss.Domain.Billing;
 using DeBliss.Domain.Customers;
 using DeBliss.Domain.Identity;
+using DeBliss.Domain.Notifications;
 using DeBliss.Domain.Scheduling;
 using DeBliss.Domain.Services;
 using DeBliss.Domain.Staffing;
@@ -58,6 +59,10 @@ public class DeBlissDbContext(DbContextOptions<DeBlissDbContext> options)
     public DbSet<Payment> Payments => Set<Payment>();
 
     public DbSet<Coupon> Coupons => Set<Coupon>();
+
+    public DbSet<ReminderRule> ReminderRules => Set<ReminderRule>();
+
+    public DbSet<AppointmentReminder> AppointmentReminders => Set<AppointmentReminder>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

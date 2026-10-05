@@ -14,7 +14,11 @@ appointment lifecycle), **Billing & Payments** (the checkout workflow,
 coupons, manual discounts, payments and receipts) **and the Receptionist
 Dashboard** (a role-scoped landing page: today's schedule, workload cards,
 quick actions, team status and customer alerts — appointment workload only,
-never money), each with its HTTP API, React admin UI and tests.
+never money) **and Appointment Reminders** (the WhatsApp reminder engine:
+lifecycle-driven confirmation/reminder/cancellation/reschedule notices,
+customer consent, a background dispatcher with retries and idempotency, and
+the Twilio provider behind a provider-neutral port), each with its HTTP API,
+React admin UI and tests.
 Authentication and the customer-facing website are deliberately not
 implemented yet.
 
@@ -27,7 +31,9 @@ the Customers / CRM module is described in
 the Appointments & Calendar module is described in
 [docs/APPOINTMENTS-CALENDAR-SPECIFICATION.md](docs/APPOINTMENTS-CALENDAR-SPECIFICATION.md);
 the Billing & Payments module is described in
-[docs/BILLING-PAYMENTS-SPECIFICATION.md](docs/BILLING-PAYMENTS-SPECIFICATION.md).
+[docs/BILLING-PAYMENTS-SPECIFICATION.md](docs/BILLING-PAYMENTS-SPECIFICATION.md);
+the Appointment Reminders module is described in
+[docs/APPOINTMENT-REMINDERS-SPECIFICATION.md](docs/APPOINTMENT-REMINDERS-SPECIFICATION.md).
 
 The system is built as a **modular monolith**: a single deployable backend
 composed of independent, cleanly separated modules, with a layered architecture
@@ -266,6 +272,15 @@ billing workflows, the team's live statuses, customer alerts (birthdays,
 first visits, latest notes) and the popular-services workload — every
 number aggregated server-side from the read endpoint.
 
+And the Reminders workspace at `/reminders` (owner and receptionist): the
+operational reminder history every operations user monitors (status and type
+filters, failure reasons, attempt counts) plus — for the owner alone — the
+settings tab: WhatsApp connection status, the configurable reminder rules
+(enable/disable, timing with a live preview) and an explicit-confirmation
+test send. The appointment details panel shows each booking's WhatsApp
+reminder rows, and the customer drawer records WhatsApp consent
+(opt-in / opt-out, confirmed).
+
 | Tool       | Version |
 | ---------- | ------- |
 | React      | 19.2.x  |
@@ -347,6 +362,9 @@ projects. It covers:
 - the Billing application services (invoice start/resume, the checkout
   validation order with its exact error messages, coupon normalisation and
   validity windows, the discount math and the receipt), run against SQLite;
+- the Reminders application services (lifecycle planning, dispatch with a fake
+  provider — consent skips, retries, idempotent claiming, template variables),
+  run against SQLite;
 - API integration tests over an in-memory TestServer, covering the endpoints,
   the RFC 9457 error contract, and permission-surface drift.
 
@@ -361,7 +379,9 @@ the booking modal, the grid with drag-and-drop and the 409 revert path,
 the details panel and the month view), and the billing module (the list
 with its filters, the invoice drawer, the checkout screen with coupon,
 manual discount, payment method, reference and the receipt, and the
-coupon administration screens).
+coupon administration screens), and the reminders module (the history list
+and filters, the owner settings with rule timing, the test send, the
+customer consent card and the appointment panel section).
 
 ---
 
@@ -451,10 +471,13 @@ should be introduced only when the corresponding work begins:
   authorization foundation (`OwnerOnly`/`Operational` policies, owner workspace
   probe endpoint) protects them, but the modules themselves are future phases
 - Business modules other than Services & Pricing, Staff Management &
-  Availability, Customers / CRM, Appointments & Calendar and Billing &
-  Payments: packages, loyalty, inventory, expenses and reports (plus the
-  scheduling extras — waitlist and reminders, and the Billing Phase 2 items:
-  split payments, gateways, refunds and tax)
+  Availability, Customers / CRM, Appointments & Calendar, Billing &
+  Payments and Appointment Reminders: packages, loyalty, inventory, expenses
+  and reports (plus the scheduling leftover — waitlist — and the Billing
+  Phase 2 items: split payments, gateways, refunds and tax)
+- SMS, marketing/promotional WhatsApp and any bulk messaging — the reminder
+  engine intentionally delivers only the four transactional appointment
+  notices
 - The public customer-facing website (a separate future phase)
 - Microservices — the system stays a modular monolith
 
@@ -478,3 +501,11 @@ commit because it uses `Integrated Security=true` — it authenticates as the
 Windows user running the API and contains no password. A SQL-authenticated
 string must never be committed; supply it through user secrets or an
 environment variable instead.
+
+The `Twilio` section in `appsettings.json` follows the same rule: it is
+committed with `Enabled: false` and empty placeholders only. WhatsApp
+credentials (`Twilio__AccountSid`, `Twilio__AuthToken`, `Twilio__WhatsAppFrom`,
+template SIDs) must arrive via environment variables, a secret store, or user
+secrets — never a committed file. See
+[docs/APPOINTMENT-REMINDERS-SPECIFICATION.md](docs/APPOINTMENT-REMINDERS-SPECIFICATION.md)
+for the full variable list and the Sandbox/production setup procedures.

@@ -1,5 +1,6 @@
 using DeBliss.Domain.Common;
 using DeBliss.Domain.Identity;
+using DeBliss.Domain.Notifications;
 using DeBliss.Domain.Scheduling;
 
 namespace DeBliss.Domain.Customers;
@@ -26,6 +27,20 @@ public class Customer : AuditableEntity
 
     /// <summary>Consent to receive marketing messages. Not consent to be contacted about a booking.</summary>
     public bool MarketingConsent { get; set; }
+
+    /// <summary>
+    /// Consent to receive appointment notifications on WhatsApp. Unknown (the
+    /// default) never counts as consent: the dispatcher only sends to customers
+    /// explicitly marked as opted in.
+    /// </summary>
+    public WhatsAppOptInStatus WhatsAppOptInStatus { get; set; }
+
+    public DateTimeOffset? WhatsAppOptInDate { get; set; }
+
+    public DateTimeOffset? WhatsAppOptOutDate { get; set; }
+
+    /// <summary>Where consent was captured, e.g. "Reception" or "Website".</summary>
+    public string? WhatsAppOptInSource { get; set; }
 
     /// <summary>
     /// Inactive customers stay in the database so appointment history keeps its

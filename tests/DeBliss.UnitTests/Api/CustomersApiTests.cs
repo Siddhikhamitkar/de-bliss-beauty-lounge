@@ -210,6 +210,62 @@ public sealed class CustomersApiTests : ApiTestBase
     }
 
     [Fact]
+    public async Task WhatsAppOptIn_records_and_withdraws_consent_with_the_audit_dates()
+    {
+        var created = await ReadAsync<CustomerDto>(
+            await Client.PostAsJsonAsync(BaseUrl, SaveRequest()));
+
+        Assert.Equal("Unknown", created.WhatsAppOptInStatus);
+        Assert.Null(created.WhatsAppOptInDate);
+
+        var optedIn = await ReadAsync<CustomerDto>(
+            await Client.PutAsJsonAsync(
+                $"{BaseUrl}/{created.Id}/whatsapp-opt-in",
+                new { status = "OptedIn" }));
+
+        Assert.Equal("OptedIn", optedIn.WhatsAppOptInStatus);
+        Assert.NotNull(optedIn.WhatsAppOptInDate);
+        Assert.Equal("Reception", optedIn.WhatsAppOptInSource);
+        Assert.Null(optedIn.WhatsAppOptOutDate);
+
+        var optedOut = await ReadAsync<CustomerDto>(
+            await Client.PutAsJsonAsync(
+                $"{BaseUrl}/{created.Id}/whatsapp-opt-in",
+                new { status = "OptedOut" }));
+
+        Assert.Equal("OptedOut", optedOut.WhatsAppOptInStatus);
+        Assert.Equal(optedIn.WhatsAppOptInDate, optedOut.WhatsAppOptInDate);
+        Assert.NotNull(optedOut.WhatsAppOptOutDate);
+    }
+
+    [Fact]
+    public async Task WhatsAppOptIn_rejects_an_unrecognised_state_with_a_field_error()
+    {
+        var created = await ReadAsync<CustomerDto>(
+            await Client.PostAsJsonAsync(BaseUrl, SaveRequest()));
+
+        var response = await Client.PutAsJsonAsync(
+            $"{BaseUrl}/{created.Id}/whatsapp-opt-in",
+            new { status = "Maybe" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var problem = await ReadAsync<ValidationProblem>(response);
+
+        Assert.Contains("status", problem.Errors.Keys);
+    }
+
+    [Fact]
+    public async Task WhatsAppOptIn_returns_404_for_an_unknown_customer()
+    {
+        var response = await Client.PutAsJsonAsync(
+            $"{BaseUrl}/{Guid.NewGuid()}/whatsapp-opt-in",
+            new { status = "OptedIn" });
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Notes_roundtrip_through_post_get_and_put()
     {
         var customer = await ReadAsync<CustomerDto>(

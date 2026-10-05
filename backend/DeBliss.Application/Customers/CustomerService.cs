@@ -5,14 +5,19 @@ using DeBliss.Application.Common.Paging;
 using DeBliss.Application.Customers.Dtos;
 using DeBliss.Application.Customers.Ports;
 using DeBliss.Domain.Customers;
+using DeBliss.Domain.Notifications;
 using DeBliss.Domain.Scheduling;
 
 namespace DeBliss.Application.Customers;
 
 public sealed class CustomerService(
     ICustomerRepository customers,
-    IUnitOfWork unitOfWork) : ICustomerService
+    IUnitOfWork unitOfWork,
+    TimeProvider timeProvider) : ICustomerService
 {
+    /// <summary>Where this front-desk endpoint captures consent.</summary>
+    private const string FrontDeskOptInSource = "Reception";
+
     public async Task<PagedResult<CustomerSummaryDto>> SearchAsync(
         CustomerQuery query,
         CancellationToken cancellationToken = default)
@@ -95,6 +100,57 @@ public sealed class CustomerService(
         var customer = await LoadAsync(id, cancellationToken);
 
         customer.IsActive = isActive;
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return await MapAsync(customer, cancellationToken);
+    }
+
+    public async Task<CustomerDto> SetWhatsAppOptInAsync(
+        Guid id,
+        string? status,
+        CancellationToken cancellationToken = default)
+    {
+        var errors = new ValidationErrorBuilder();
+
+        WhatsAppOptInStatus? parsed = null;
+
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            errors.Add("status", "Choose a consent state.");
+        }
+        else if (!Enum.TryParse<WhatsAppOptInStatus>(status.Trim(), ignoreCase: true, out var value))
+        {
+            errors.Add("status", $"'{status}' is not a recognised consent state.");
+        }
+        else
+        {
+            parsed = value;
+        }
+
+        errors.ThrowIfInvalid();
+
+        var customer = await LoadAsync(id, cancellationToken);
+
+        switch (parsed!.Value)
+        {
+            case WhatsAppOptInStatus.OptedIn:
+                customer.WhatsAppOptInStatus = WhatsAppOptInStatus.OptedIn;
+                customer.WhatsAppOptInDate = timeProvider.GetUtcNow();
+                customer.WhatsAppOptInSource = FrontDeskOptInSource;
+                customer.WhatsAppOptOutDate = null;
+                break;
+            case WhatsAppOptInStatus.OptedOut:
+                customer.WhatsAppOptInStatus = WhatsAppOptInStatus.OptedOut;
+                customer.WhatsAppOptOutDate = timeProvider.GetUtcNow();
+                break;
+            case WhatsAppOptInStatus.Unknown:
+                customer.WhatsAppOptInStatus = WhatsAppOptInStatus.Unknown;
+                customer.WhatsAppOptInDate = null;
+                customer.WhatsAppOptOutDate = null;
+                customer.WhatsAppOptInSource = null;
+                break;
+        }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -327,6 +383,10 @@ public sealed class CustomerService(
             customer.Gender,
             customer.Address,
             customer.IsActive,
+            customer.WhatsAppOptInStatus.ToString(),
+            customer.WhatsAppOptInDate,
+            customer.WhatsAppOptOutDate,
+            customer.WhatsAppOptInSource,
             new CustomerAppointmentSummaryDto(
                 summary.Total,
                 summary.Completed,

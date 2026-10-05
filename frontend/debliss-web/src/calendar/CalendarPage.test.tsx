@@ -5,6 +5,8 @@ import { ApiError } from '../api/client.ts'
 import type { Appointment, CalendarData, CalendarStaff } from '../api/contracts.ts'
 import { getService, listBookableBundles, searchIndividualServices } from '../api/catalogue.ts'
 import { createCustomer, searchCustomers } from '../api/customers.ts'
+import { getAppointmentReminders } from '../api/reminders.ts'
+import type { AppointmentReminder } from '../api/reminders.ts'
 import {
   createAppointment,
   getAppointment,
@@ -57,6 +59,15 @@ vi.mock('../api/staff.ts', () => ({
   listBlockedPeriods: vi.fn(),
   createBlockedPeriod: vi.fn(),
   cancelBlockedPeriod: vi.fn(),
+}))
+
+vi.mock('../api/reminders.ts', () => ({
+  searchReminders: vi.fn(),
+  getAppointmentReminders: vi.fn(),
+  getReminderRules: vi.fn(),
+  updateReminderRule: vi.fn(),
+  getReminderProvider: vi.fn(),
+  sendTestMessage: vi.fn(),
 }))
 
 const everyDay = (start: string, end: string): CalendarStaff['workingHours']['days'] => [
@@ -148,6 +159,24 @@ const calendarData: CalendarData = {
   ],
 }
 
+const pendingReminder: AppointmentReminder = {
+  id: 'r1',
+  appointmentId: 'a1',
+  customerId: 'c1',
+  customerName: 'Lina Mansour',
+  appointmentStartsAt: calendarData.appointments[0].startsAt,
+  reminderType: 'Reminder',
+  channel: 'WhatsApp',
+  status: 'Pending',
+  scheduledAt: '2026-10-02T08:00:00Z',
+  sentAt: null,
+  attemptCount: 0,
+  lastAttemptAt: null,
+  providerMessageId: null,
+  failureReason: null,
+  createdAt: '2026-10-01T08:00:00Z',
+}
+
 /** The staff names rendered as grid column heads (the toolbar also lists them). */
 function columnNames(): string[] {
   return [...document.querySelectorAll('.cal-staff-name')].map(
@@ -197,6 +226,7 @@ beforeEach(() => {
     end: todayAt(11, 0).toISOString(),
     isAvailable: true,
   })
+  vi.mocked(getAppointmentReminders).mockResolvedValue([])
 })
 
 describe('CalendarPage', () => {
@@ -289,6 +319,33 @@ describe('CalendarPage', () => {
     )
     // The panel asks the calendar to refresh after the action lands.
     await waitFor(() => expect(getCalendar).toHaveBeenCalledTimes(2))
+  })
+
+  it('shows the appointment’s WhatsApp reminders and refreshes them after a status move', async () => {
+    const user = userEvent.setup()
+    vi.mocked(getAppointmentReminders).mockResolvedValue([pendingReminder])
+    render(<CalendarPage />)
+
+    await user.click(await screen.findByRole('button', { name: /Lina Mansour/ }))
+
+    const panel = await screen.findByRole('dialog', { name: 'Appointment details' })
+    expect(within(panel).getByRole('heading', { name: 'WhatsApp reminders' })).toBeInTheDocument()
+    expect(vi.mocked(getAppointmentReminders)).toHaveBeenCalledWith('a1')
+
+    // The row carries its own pill, type and schedule line — the appointment
+    // status pill in the header is a different element with the same word.
+    expect(
+      within(panel).getByText('Pending', { selector: '.cal-details-reminder-list .pill' }),
+    ).toBeInTheDocument()
+    expect(
+      within(panel).getByText('Reminder', { selector: '.cal-details-reminder-type' }),
+    ).toBeInTheDocument()
+    expect(within(panel).getByText(/^Scheduled /)).toBeInTheDocument()
+
+    await user.click(within(panel).getByRole('button', { name: 'Confirm' }))
+
+    // Confirming rebuilds the reminder plan, so the panel refetches its rows.
+    await waitFor(() => expect(getAppointmentReminders).toHaveBeenCalledTimes(2))
   })
 
   it('presents a bundle booking with its price, saving and retained component lines', async () => {

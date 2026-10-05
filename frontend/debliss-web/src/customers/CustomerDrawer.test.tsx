@@ -8,6 +8,7 @@ import {
   listCustomerAppointments,
   listCustomerNotes,
   setCustomerStatus,
+  setCustomerWhatsAppOptIn,
   updateCustomerNote,
 } from '../api/customers.ts'
 import { searchInvoices } from '../api/billing.ts'
@@ -28,6 +29,7 @@ vi.mock('../api/customers.ts', () => ({
   createCustomer: vi.fn(),
   updateCustomer: vi.fn(),
   setCustomerStatus: vi.fn(),
+  setCustomerWhatsAppOptIn: vi.fn(),
   listCustomerNotes: vi.fn(),
   createCustomerNote: vi.fn(),
   updateCustomerNote: vi.fn(),
@@ -72,6 +74,10 @@ const profile: CustomerProfile = {
   gender: 'Female',
   address: 'Marina Walk 4',
   isActive: true,
+  whatsAppOptInStatus: 'Unknown',
+  whatsAppOptInDate: null,
+  whatsAppOptOutDate: null,
+  whatsAppOptInSource: null,
   appointmentSummary: {
     totalAppointments: 3,
     completedAppointments: 2,
@@ -509,6 +515,37 @@ describe('CustomerDrawer', () => {
     expect(screen.getByRole('heading', { name: 'Lina Mansour' })).toBeInTheDocument()
     expect(screen.getByText('+971 50 555 0100')).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('Loading profile…')
+  })
+
+  it('records WhatsApp consent from the Overview tab and reloads the record', async () => {
+    const user = userEvent.setup()
+    renderDrawer()
+
+    // The consent gate opens with nothing assumed.
+    expect(await screen.findByRole('region', { name: 'WhatsApp consent' })).toBeInTheDocument()
+    expect(screen.getByText('Not recorded')).toBeInTheDocument()
+
+    vi.mocked(setCustomerWhatsAppOptIn).mockResolvedValue({
+      ...profile,
+      whatsAppOptInStatus: 'OptedIn',
+      whatsAppOptInDate: '2026-10-03T10:00:00Z',
+      whatsAppOptInSource: 'Reception',
+    })
+    vi.mocked(getCustomer).mockResolvedValue({
+      ...profile,
+      whatsAppOptInStatus: 'OptedIn',
+      whatsAppOptInDate: '2026-10-03T10:00:00Z',
+      whatsAppOptInSource: 'Reception',
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Record opt-in' }))
+    const dialog = within(screen.getByRole('dialog', { name: 'Record WhatsApp consent' }))
+    await user.click(dialog.getByRole('button', { name: 'Record opt-in' }))
+
+    expect(vi.mocked(setCustomerWhatsAppOptIn)).toHaveBeenCalledWith('c1', 'OptedIn')
+    // The recorded state is what the desk sees next: the profile reloads.
+    expect(await screen.findByText(/Opted in on/)).toBeInTheDocument()
+    expect(getCustomer).toHaveBeenCalledTimes(2)
   })
 
   it('closes from the close button and from Escape', async () => {

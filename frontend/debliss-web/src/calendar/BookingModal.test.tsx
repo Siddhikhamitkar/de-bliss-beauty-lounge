@@ -105,6 +105,10 @@ function customerProfile(summary: CustomerSummary): CustomerProfile {
     dateOfBirth: null,
     gender: null,
     address: null,
+    whatsAppOptInStatus: 'Unknown',
+    whatsAppOptInDate: null,
+    whatsAppOptOutDate: null,
+    whatsAppOptInSource: null,
     appointmentSummary: {
       totalAppointments: 0,
       completedAppointments: 0,

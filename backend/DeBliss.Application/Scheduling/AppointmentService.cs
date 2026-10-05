@@ -1,6 +1,7 @@
 using DeBliss.Application.Common.Exceptions;
 using DeBliss.Application.Common.Interfaces;
 using DeBliss.Application.Customers.Ports;
+using DeBliss.Application.Notifications;
 using DeBliss.Application.Scheduling.Dtos;
 using DeBliss.Application.Scheduling.Ports;
 using DeBliss.Application.ServiceCatalogue.Ports;
@@ -28,6 +29,7 @@ public sealed class AppointmentService(
     IServiceBundleRepository bundles,
     IStaffRepository staff,
     IStaffAvailabilityService availability,
+    ReminderPlanner reminderPlanner,
     IUnitOfWork unitOfWork,
     TimeProvider timeProvider) : IAppointmentService
 {
@@ -88,6 +90,8 @@ public sealed class AppointmentService(
 
         appointments.Add(appointment);
 
+        await reminderPlanner.PlanForBookingAsync(appointment, cancellationToken);
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Map(appointment);
@@ -101,6 +105,9 @@ public sealed class AppointmentService(
         var appointment = await LoadAsync(id, cancellationToken);
 
         EnsureEditable(appointment);
+
+        var previousStartsAt = appointment.StartsAt;
+        var previousCustomerId = appointment.CustomerId;
 
         var (start, lines, notes, bundle) = await ValidateBookingAsync(request, excludeId: id, cancellationToken);
 
@@ -118,6 +125,8 @@ public sealed class AppointmentService(
         appointment.Services.Clear();
         AddLines(appointment, lines);
 
+        await reminderPlanner.ApplyChangeAsync(appointment, previousStartsAt, previousCustomerId, cancellationToken);
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Map(appointment);
@@ -131,6 +140,8 @@ public sealed class AppointmentService(
         var appointment = await LoadAsync(id, cancellationToken);
 
         EnsureEditable(appointment);
+
+        var previousStartsAt = appointment.StartsAt;
 
         var errors = new ValidationErrorBuilder();
 
@@ -217,6 +228,8 @@ public sealed class AppointmentService(
         appointment.StartsAt = start;
         appointment.EndsAt = end;
 
+        await reminderPlanner.ApplyChangeAsync(appointment, previousStartsAt, appointment.CustomerId, cancellationToken);
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Map(appointment);
@@ -274,6 +287,8 @@ public sealed class AppointmentService(
             Reason = request.Reason?.Trim(),
             ChangedAt = timeProvider.GetUtcNow()
         });
+
+        await reminderPlanner.ApplyStatusChangeAsync(appointment, from, target, cancellationToken);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

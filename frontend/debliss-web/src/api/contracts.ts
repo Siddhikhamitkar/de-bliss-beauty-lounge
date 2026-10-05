@@ -303,6 +303,13 @@ export interface CustomerAppointmentSummary {
   lastVisitAt: string | null
 }
 
+/**
+ * The WhatsApp consent states the API records. Only `OptedIn` ever allows an
+ * appointment message to be sent; `Unknown` is the absence of a record and
+ * never counts as consent.
+ */
+export type WhatsAppOptInStatus = 'Unknown' | 'OptedIn' | 'OptedOut'
+
 /** The full customer profile as the profile page renders it. */
 export interface CustomerProfile {
   id: string
@@ -314,6 +321,10 @@ export interface CustomerProfile {
   gender: string | null
   address: string | null
   isActive: boolean
+  whatsAppOptInStatus: WhatsAppOptInStatus
+  whatsAppOptInDate: string | null
+  whatsAppOptOutDate: string | null
+  whatsAppOptInSource: string | null
   appointmentSummary: CustomerAppointmentSummary
   createdAt: string
   updatedAt: string | null

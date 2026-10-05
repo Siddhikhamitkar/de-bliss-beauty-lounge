@@ -8,6 +8,7 @@ import type {
   PagedResult,
   SaveCustomerNoteRequest,
   SaveCustomerRequest,
+  WhatsAppOptInStatus,
 } from './contracts.ts'
 
 /** Everything the customer list can be narrowed by. Omitted keys are not sent. */
@@ -44,6 +45,17 @@ export function updateCustomer(id: string, body: SaveCustomerRequest): Promise<C
 
 export function setCustomerStatus(id: string, isActive: boolean): Promise<CustomerProfile> {
   return request('PATCH', `/customers/${id}/status`, { isActive })
+}
+
+/**
+ * Records the customer's WhatsApp consent. `Unknown` clears the record entirely;
+ * the reminder engine only ever sends to customers explicitly marked OptedIn.
+ */
+export function setCustomerWhatsAppOptIn(
+  id: string,
+  status: WhatsAppOptInStatus,
+): Promise<CustomerProfile> {
+  return request('PUT', `/customers/${id}/whatsapp-opt-in`, { status })
 }
 
 export function listCustomerNotes(customerId: string): Promise<CustomerNote[]> {

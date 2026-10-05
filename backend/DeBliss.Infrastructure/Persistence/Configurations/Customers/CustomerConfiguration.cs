@@ -1,4 +1,5 @@
 using DeBliss.Domain.Customers;
+using DeBliss.Domain.Notifications;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -27,6 +28,15 @@ public class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         builder.HasIndex(customer => customer.IsActive);
 
         builder.Property(customer => customer.IsActive).HasDefaultValue(true);
+
+        // Existing and new customers start as Unknown, which the dispatcher
+        // treats as "do not send" until consent is explicitly recorded.
+        builder.Property(customer => customer.WhatsAppOptInStatus)
+            .HasConversion<string>()
+            .HasMaxLength(20)
+            .HasDefaultValue(WhatsAppOptInStatus.Unknown);
+
+        builder.Property(customer => customer.WhatsAppOptInSource).HasMaxLength(40);
 
         builder.HasOne(customer => customer.User)
             .WithMany()

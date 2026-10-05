@@ -93,7 +93,9 @@ export function CustomerDrawer({
   function renderTab() {
     switch (activeTab) {
       case 'overview':
-        return renderProfileTab(profileData => <CustomerOverview profile={profileData} />)
+        return renderProfileTab(profileData => (
+          <CustomerOverview profile={profileData} onChanged={profile.reload} />
+        ))
       case 'appointments':
         return <CustomerAppointmentHistory customerId={customer.id} />
       case 'sales':

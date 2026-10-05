@@ -1,5 +1,6 @@
 using DeBliss.Application.Common.Exceptions;
 using DeBliss.Application.Customers.Dtos;
+using DeBliss.Domain.Notifications;
 using DeBliss.Domain.Scheduling;
 using Microsoft.EntityFrameworkCore;
 
@@ -226,6 +227,99 @@ public class CustomerServiceTests
 
         Assert.False(updated.IsActive);
         Assert.Equal("Sara", updated.FirstName);
+    }
+
+    [Fact]
+    public async Task SetWhatsAppOptIn_records_consent_with_the_date_and_source()
+    {
+        using var harness = new CustomersHarness();
+        var id = await harness.SeedCustomerAsync("Sara", "Haddad", phoneNumber: "+971 50 000 0000");
+
+        var updated = await harness.Customers.SetWhatsAppOptInAsync(id, "OptedIn");
+
+        Assert.Equal("OptedIn", updated.WhatsAppOptInStatus);
+        Assert.Equal(harness.Database.Clock.Now, updated.WhatsAppOptInDate);
+        Assert.Null(updated.WhatsAppOptOutDate);
+        Assert.Equal("Reception", updated.WhatsAppOptInSource);
+
+        await using var verify = harness.Reopen();
+
+        var stored = await verify.Customers.SingleAsync();
+
+        Assert.Equal(WhatsAppOptInStatus.OptedIn, stored.WhatsAppOptInStatus);
+    }
+
+    [Fact]
+    public async Task SetWhatsAppOptIn_withdrawal_stamps_the_date_and_keeps_the_consent_history()
+    {
+        using var harness = new CustomersHarness();
+        var id = await harness.SeedCustomerAsync("Sara", "Haddad", phoneNumber: "+971 50 000 0000");
+
+        var consented = await harness.Customers.SetWhatsAppOptInAsync(id, "optedin");
+
+        harness.Database.Clock.Advance(TimeSpan.FromDays(3));
+
+        var withdrawn = await harness.Customers.SetWhatsAppOptInAsync(id, "OptedOut");
+
+        Assert.Equal("OptedOut", withdrawn.WhatsAppOptInStatus);
+        Assert.Equal(consented.WhatsAppOptInDate, withdrawn.WhatsAppOptInDate);
+        Assert.Equal("Reception", withdrawn.WhatsAppOptInSource);
+        Assert.Equal(harness.Database.Clock.Now, withdrawn.WhatsAppOptOutDate);
+    }
+
+    [Fact]
+    public async Task SetWhatsAppOptIn_again_clears_the_withdrawal()
+    {
+        using var harness = new CustomersHarness();
+        var id = await harness.SeedCustomerAsync("Sara", "Haddad", phoneNumber: "+971 50 000 0000");
+
+        await harness.Customers.SetWhatsAppOptInAsync(id, "OptedOut");
+
+        var reconsented = await harness.Customers.SetWhatsAppOptInAsync(id, "OptedIn");
+
+        Assert.Equal("OptedIn", reconsented.WhatsAppOptInStatus);
+        Assert.Null(reconsented.WhatsAppOptOutDate);
+    }
+
+    [Fact]
+    public async Task SetWhatsAppOptIn_unknown_clears_the_whole_consent_record()
+    {
+        using var harness = new CustomersHarness();
+        var id = await harness.SeedCustomerAsync("Sara", "Haddad", phoneNumber: "+971 50 000 0000");
+
+        await harness.Customers.SetWhatsAppOptInAsync(id, "OptedIn");
+
+        var cleared = await harness.Customers.SetWhatsAppOptInAsync(id, "Unknown");
+
+        Assert.Equal("Unknown", cleared.WhatsAppOptInStatus);
+        Assert.Null(cleared.WhatsAppOptInDate);
+        Assert.Null(cleared.WhatsAppOptOutDate);
+        Assert.Null(cleared.WhatsAppOptInSource);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("Maybe")]
+    public async Task SetWhatsAppOptIn_rejects_an_unrecognised_state(string? status)
+    {
+        using var harness = new CustomersHarness();
+        var id = await harness.SeedCustomerAsync("Sara", "Haddad", phoneNumber: "+971 50 000 0000");
+
+        var failure = await Assert.ThrowsAsync<ValidationFailedException>(
+            () => harness.Customers.SetWhatsAppOptInAsync(id, status));
+
+        Assert.Contains("status", failure.Errors.Keys);
+    }
+
+    [Fact]
+    public async Task SetWhatsAppOptIn_throws_for_an_unknown_customer()
+    {
+        using var harness = new CustomersHarness();
+
+        await Assert.ThrowsAsync<NotFoundException>(
+            () => harness.Customers.SetWhatsAppOptInAsync(Guid.NewGuid(), "OptedIn"));
     }
 
     [Fact]

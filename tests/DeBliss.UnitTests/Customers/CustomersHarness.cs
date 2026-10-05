@@ -20,7 +20,7 @@ internal sealed class CustomersHarness : IDisposable
 
         var repository = new CustomerRepository(Context);
 
-        Customers = new CustomerService(repository, Context);
+        Customers = new CustomerService(repository, Context, Database.Clock);
     }
 
     public SqliteTestDatabase Database { get; }

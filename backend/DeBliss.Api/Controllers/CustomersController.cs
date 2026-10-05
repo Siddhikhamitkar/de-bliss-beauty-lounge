@@ -84,6 +84,25 @@ public sealed class CustomersController(ICustomerService customers) : Controller
     }
 
     /// <summary>
+    /// Records the customer's WhatsApp consent, the switch that gates every
+    /// appointment message the reminder engine sends. Reception captures it in
+    /// person; nothing is ever sent to a customer whose record is not explicitly
+    /// consented.
+    /// </summary>
+    /// <remarks>Will require <c>Permissions.Customers.ManageWhatsAppOptIn</c> once authorisation exists.</remarks>
+    [HttpPut("{id:guid}/whatsapp-opt-in")]
+    [ProducesResponseType(typeof(CustomerDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<CustomerDto>> SetWhatsAppOptIn(
+        Guid id,
+        [FromBody] SetWhatsAppOptInRequest request,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await customers.SetWhatsAppOptInAsync(id, request.Status, cancellationToken));
+    }
+
+    /// <summary>
     /// The appointment history behind the profile page. Reads the scheduling
     /// tables directly, so it is empty until the appointment module starts
     /// writing bookings and fills itself in from then on.

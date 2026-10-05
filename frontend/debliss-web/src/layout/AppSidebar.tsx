@@ -8,6 +8,7 @@ type IconName =
   | 'services'
   | 'staff'
   | 'billing'
+  | 'reminders'
   | 'packages'
   | 'loyalty'
   | 'inventory'
@@ -40,6 +41,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'services', label: 'Services', icon: 'services', path: '/services', roles: ['OWNER', 'RECEPTIONIST'] },
   { key: 'staff', label: 'Staff', icon: 'staff', path: '/staff', roles: ['OWNER', 'RECEPTIONIST'] },
   { key: 'billing', label: 'Billing', icon: 'billing', path: '/billing', roles: ['OWNER', 'RECEPTIONIST'] },
+  { key: 'reminders', label: 'Reminders', icon: 'reminders', path: '/reminders', roles: ['OWNER', 'RECEPTIONIST'] },
   { key: 'packages', label: 'Packages', icon: 'packages', roles: ['OWNER'] },
   { key: 'loyalty', label: 'Loyalty', icon: 'loyalty', roles: ['OWNER'] },
   { key: 'inventory', label: 'Inventory', icon: 'inventory', roles: ['OWNER'] },
@@ -97,6 +99,12 @@ const ICON_PATHS: Record<IconName, ReactNode> = {
       <rect x="3.5" y="6" width="17" height="12" rx="2" />
       <path d="M3.5 10h17" />
       <path d="M7 14.5h4" />
+    </>
+  ),
+  reminders: (
+    <>
+      <path d="M12 4a5.3 5.3 0 0 0-5.3 5.3c0 4.2-1.7 5.6-1.7 5.6h14s-1.7-1.4-1.7-5.6A5.3 5.3 0 0 0 12 4Z" />
+      <path d="M10.2 18.6a1.9 1.9 0 0 0 3.6 0" />
     </>
   ),
   packages: (

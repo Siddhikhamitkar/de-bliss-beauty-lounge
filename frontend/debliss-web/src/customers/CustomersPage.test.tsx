@@ -17,6 +17,7 @@ vi.mock('../api/customers.ts', () => ({
   createCustomer: vi.fn(),
   updateCustomer: vi.fn(),
   setCustomerStatus: vi.fn(),
+  setCustomerWhatsAppOptIn: vi.fn(),
   listCustomerNotes: vi.fn(),
   createCustomerNote: vi.fn(),
   updateCustomerNote: vi.fn(),
@@ -60,6 +61,10 @@ const profile: CustomerProfile = {
   gender: null,
   address: null,
   isActive: true,
+  whatsAppOptInStatus: 'Unknown',
+  whatsAppOptInDate: null,
+  whatsAppOptOutDate: null,
+  whatsAppOptInSource: null,
   appointmentSummary: {
     totalAppointments: 0,
     completedAppointments: 0,

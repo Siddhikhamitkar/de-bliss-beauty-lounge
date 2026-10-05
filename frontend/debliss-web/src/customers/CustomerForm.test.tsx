@@ -28,6 +28,10 @@ const profile: CustomerProfile = {
   gender: 'Female',
   address: 'Marina Walk 4',
   isActive: true,
+  whatsAppOptInStatus: 'Unknown',
+  whatsAppOptInDate: null,
+  whatsAppOptOutDate: null,
+  whatsAppOptInSource: null,
   appointmentSummary: {
     totalAppointments: 0,
     completedAppointments: 0,

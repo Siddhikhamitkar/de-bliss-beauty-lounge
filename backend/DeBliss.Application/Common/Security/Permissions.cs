@@ -38,6 +38,9 @@ public static class Permissions
         public const string EditCustomer = "customers.update";
         public const string ChangeCustomerStatus = "customers.status";
         public const string ManageCustomerNotes = "customers.notes";
+
+        /// <summary>Recording or withdrawing the customer's WhatsApp appointment-message consent.</summary>
+        public const string ManageWhatsAppOptIn = "customers.whatsapp-opt-in";
     }
 
     public static class Scheduling
@@ -62,6 +65,18 @@ public static class Permissions
     public static class Dashboard
     {
         public const string ViewReceptionistDashboard = "dashboard.receptionist.read";
+    }
+
+    public static class Notifications
+    {
+        /// <summary>Reminder history and reminder status anywhere they are shown. Owner and receptionist.</summary>
+        public const string ViewReminders = "reminders.read";
+
+        /// <summary>Rule timing, enable/disable and the WhatsApp connection status. Owner only.</summary>
+        public const string ManageReminderSettings = "reminders.settings";
+
+        /// <summary>Sending the operator test message. Owner only; never available to customers.</summary>
+        public const string SendTestReminder = "reminders.test";
     }
 
     public static class Owner

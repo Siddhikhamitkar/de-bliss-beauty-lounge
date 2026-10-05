@@ -14,6 +14,7 @@ import { DashboardPage } from './dashboard/DashboardPage.tsx'
 import { OwnerDashboardPage } from './dashboard/OwnerDashboardPage.tsx'
 import { StaffDashboardPage } from './dashboard/StaffDashboardPage.tsx'
 import { AppSidebar } from './layout/AppSidebar.tsx'
+import { RemindersPage } from './reminders/RemindersPage.tsx'
 import { ServicesPage } from './services/ServicesPage.tsx'
 import { StaffPage } from './staff/StaffPage.tsx'
 
@@ -129,6 +130,7 @@ function AppRoutes() {
           />
         )}
         {path === '/coupons' && <CouponsPage />}
+        {path === '/reminders' && <RemindersPage />}
       </main>
 
       {checkoutAppointmentId !== null && (

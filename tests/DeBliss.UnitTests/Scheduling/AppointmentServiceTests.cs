@@ -717,13 +717,15 @@ public class AppointmentServiceTests
         Assert.Equal("CheckedIn", updated.Status);
 
         var saved = await ReloadAsync(fixture.Harness, created.Id);
-        var history = saved.StatusHistory.OrderBy(row => row.ChangedAt).ToList();
 
+        // Both rows share the fake clock's instant, so their order is not
+        // guaranteed; select by content rather than by position.
+        var history = saved.StatusHistory.ToList();
         Assert.Equal(2, history.Count);
-        Assert.Null(history[0].FromStatus);
-        Assert.Equal(AppointmentStatus.Confirmed, history[0].ToStatus);
-        Assert.Equal(AppointmentStatus.Confirmed, history[1].FromStatus);
-        Assert.Equal(AppointmentStatus.CheckedIn, history[1].ToStatus);
+        var booked = history.Single(row => row.FromStatus is null);
+        Assert.Equal(AppointmentStatus.Confirmed, booked.ToStatus);
+        var checkedIn = history.Single(row => row.FromStatus == AppointmentStatus.Confirmed);
+        Assert.Equal(AppointmentStatus.CheckedIn, checkedIn.ToStatus);
     }
 
     [Fact]

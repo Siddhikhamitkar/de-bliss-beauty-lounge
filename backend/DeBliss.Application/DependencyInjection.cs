@@ -2,6 +2,8 @@ using DeBliss.Application.Billing;
 using DeBliss.Application.Customers;
 using DeBliss.Application.Dashboard;
 using DeBliss.Application.Identity;
+using DeBliss.Application.Notifications;
+using DeBliss.Application.Notifications.Ports;
 using DeBliss.Application.Scheduling;
 using DeBliss.Application.ServiceCatalogue;
 using DeBliss.Application.Staffing;
@@ -26,6 +28,10 @@ public static class DependencyInjection
         services.AddScoped<ICouponService, CouponService>();
         services.AddScoped<IReceptionistDashboardService, ReceptionistDashboardService>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<ReminderPlanner>();
+        services.AddScoped<IReminderDispatchService, ReminderDispatchService>();
+        services.AddScoped<IReminderSettingsService, ReminderSettingsService>();
+        services.AddScoped<IReminderHistoryService, ReminderHistoryService>();
 
         return services;
     }

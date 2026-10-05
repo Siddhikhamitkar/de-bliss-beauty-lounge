@@ -13,6 +13,7 @@ import {
 import type { Appointment, CustomerProfile, CustomerSummary, ReceptionistDashboard } from './api/contracts.ts'
 import { getReceptionistDashboard } from './api/dashboard.ts'
 import { startInvoice, searchInvoices } from './api/billing.ts'
+import { getAppointmentReminders } from './api/reminders.ts'
 import { getAppointment, getCalendar } from './api/scheduling.ts'
 import App from './App.tsx'
 
@@ -85,6 +86,15 @@ vi.mock('./api/dashboard.ts', () => ({
   getReceptionistDashboard: vi.fn(),
 }))
 
+vi.mock('./api/reminders.ts', () => ({
+  searchReminders: vi.fn(),
+  getAppointmentReminders: vi.fn(),
+  getReminderRules: vi.fn(),
+  updateReminderRule: vi.fn(),
+  getReminderProvider: vi.fn(),
+  sendTestMessage: vi.fn(),
+}))
+
 const receptionistUser: AuthUser = {
   id: 'u2',
   firstName: 'Nadia',
@@ -140,6 +150,10 @@ const linaProfile: CustomerProfile = {
   gender: null,
   address: null,
   isActive: true,
+  whatsAppOptInStatus: 'Unknown',
+  whatsAppOptInDate: null,
+  whatsAppOptOutDate: null,
+  whatsAppOptInSource: null,
   appointmentSummary: {
     totalAppointments: 0,
     completedAppointments: 0,
@@ -202,6 +216,7 @@ beforeEach(() => {
     hasNextPage: false,
   })
   vi.mocked(listBookableBundles).mockResolvedValue([])
+  vi.mocked(getAppointmentReminders).mockResolvedValue([])
 })
 
 describe('App', () => {
@@ -262,6 +277,7 @@ describe('App', () => {
     // The calendar takes over with the appointment's details panel open.
     expect(await screen.findByRole('dialog', { name: 'Appointment details' })).toBeInTheDocument()
     expect(vi.mocked(getAppointment)).toHaveBeenCalledWith('appt-1')
+    expect(vi.mocked(getAppointmentReminders)).toHaveBeenCalledWith('appt-1')
     expect(screen.getByRole('button', { name: 'Calendar' })).toHaveAttribute('aria-current', 'page')
   })
 

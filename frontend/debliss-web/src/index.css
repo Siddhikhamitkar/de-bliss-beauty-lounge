@@ -1911,7 +1911,8 @@ textarea {
 }
 
 .cal-details-services h4,
-.cal-details-notes h4 {
+.cal-details-notes h4,
+.cal-details-reminders h4 {
   margin: 0 0 0.4rem;
   font-size: 0.8rem;
   color: var(--muted);
@@ -1963,6 +1964,31 @@ textarea {
   border-radius: 50%;
   background: var(--muted);
   flex-shrink: 0;
+}
+
+.cal-details-reminder-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.cal-details-reminder-list li {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  font-size: 0.82rem;
+}
+
+.cal-details-reminder-type {
+  font-weight: 600;
+}
+
+.cal-details-reminder-when {
+  color: var(--muted);
 }
 
 .cal-details-actions {
@@ -2525,6 +2551,18 @@ textarea {
 .kv-grid dd {
   margin: 0;
   overflow-wrap: anywhere;
+}
+
+/* Consent actions: three explicit verbs, never a toggle the desk might misread. */
+.whatsapp-optin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.whatsapp-optin-actions .button {
+  padding: 0.3rem 0.7rem;
+  font-size: 0.82rem;
 }
 
 /* The counters a receptionist quotes at a glance. */
@@ -3318,4 +3356,96 @@ textarea {
   margin: 0;
   color: var(--muted);
   font-size: 0.92rem;
+}
+
+/* ------------------------------------------------------------------ */
+/* Appointment reminders                                               */
+/* ------------------------------------------------------------------ */
+
+/* Reminder states: Sent reads as healthy, Skipped as deliberately inert. */
+.status-Sent {
+  --status-color: light-dark(#31683f, #8fca9d);
+}
+
+.status-Skipped {
+  --status-color: light-dark(#6f6357, #a89a8d);
+}
+
+.status-Failed {
+  --status-color: light-dark(#a2342c, #e08d87);
+}
+
+/* Page-level tab bar — the drawer tab idiom, sized for a panel. */
+.page-tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.page-tab {
+  margin-bottom: -1px;
+  padding: 0.55rem 0.7rem;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.page-tab:hover {
+  color: var(--text);
+}
+
+.page-tab[aria-selected='true'] {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+.page-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* A failed send is the one cell the front desk must not miss. */
+.reminder-failure {
+  color: var(--danger);
+}
+
+.reminder-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.reminder-note {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.reminder-timing {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.reminder-timing input {
+  width: 6rem;
+}
+
+.reminder-phone-row {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.banner-success {
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+  border-color: var(--ok);
+  color: var(--ok);
 }
