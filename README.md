@@ -403,13 +403,53 @@ npm run preview                   # serve the production build locally
 
 ---
 
+## Authentication and roles
+
+Sign-in is JWT-based: `POST /api/auth/login` returns the safe user projection and
+sets an HttpOnly, SameSite=Strict, Secure `debliss_auth` cookie holding a 60-minute
+signed token. Non-browser clients can send the same token as `Authorization: Bearer`.
+`GET /api/auth/me` returns the current user; `POST /api/auth/logout` revokes the
+presented token and drops the cookie. Passwords are hashed with ASP.NET Core
+Identity's `PasswordHasher` (PBKDF2-SHA256); the plaintext is never stored or logged.
+
+Three stable role names gate the API via authorization policies:
+
+- `OWNER` — full access, including the future owner workspace (`OwnerOnly` policy)
+- `RECEPTIONIST` — day-to-day operations (`Operational` policy: dashboard, calendar,
+  customers, services, staff, billing)
+- `STAFF` — the role exists and can authenticate, but it is granted no module access
+  yet; its permissions are defined with the future staff workspace
+
+Policies are the extension point for finer permissions (reports, campaigns, revenue).
+
+### Development sign-ins
+
+When the API runs in the `Development` environment with an empty `Users` table,
+`DevAuthSeeder` creates one account per role (hashed passwords, `*.dev` addresses —
+never real credentials):
+
+| Role         | Email                    | Password             |
+|--------------|--------------------------|----------------------|
+| OWNER        | `owner@debliss.dev`      | `DeBliss#Owner2026!` |
+| RECEPTIONIST | `receptionist@debliss.dev` | `DeBliss#Front2026!` |
+| STAFF        | `staff@debliss.dev`      | `DeBliss#Team2026!`  |
+
+The seeder never runs outside `Development` and never touches a table that already
+has users. The development JWT signing key in `appsettings.Development.json` is
+Development-only configuration; every other environment must supply
+`Authentication:Jwt:SigningKey` via environment variables or a secret store, and the
+API refuses to start without it.
+
+---
+
 ## What is intentionally NOT here yet
 
 To keep the foundation clean, the following are deliberately out of scope and
 should be introduced only when the corresponding work begins:
 
-- Authentication and authorisation (`User.PasswordHash` exists but is unused);
-  every endpoint carries a `<remarks>` naming the permission it will require
+- The Owner Dashboard, Staff workspace and user/role administration UIs — the
+  authorization foundation (`OwnerOnly`/`Operational` policies, owner workspace
+  probe endpoint) protects them, but the modules themselves are future phases
 - Business modules other than Services & Pricing, Staff Management &
   Availability, Customers / CRM, Appointments & Calendar and Billing &
   Payments: packages, loyalty, inventory, expenses and reports (plus the

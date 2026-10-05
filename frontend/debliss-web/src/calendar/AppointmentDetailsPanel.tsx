@@ -79,6 +79,8 @@ export function AppointmentDetailsPanel({
   }
 
   const current = appointment.data
+  const bundleName = current?.bundleName ?? null
+  const bundlePrice = current?.bundlePrice ?? null
 
   return (
     <div className="cal-backdrop" onClick={onClose}>
@@ -131,13 +133,22 @@ export function AppointmentDetailsPanel({
               <dt>Duration</dt>
               <dd>{formatDuration(current.totalDurationMinutes)}</dd>
               <dt>Price</dt>
-              <dd>{formatPrice(current.totalPrice)}</dd>
+              <dd>
+                {bundleName !== null && bundlePrice !== null ? (
+                  <>
+                    {formatPrice(bundlePrice)}
+                    <span className="was-price">{formatPrice(current.totalPrice)}</span>
+                  </>
+                ) : (
+                  formatPrice(current.totalPrice)
+                )}
+              </dd>
               <dt>Source</dt>
               <dd>{current.source}</dd>
             </dl>
 
             <div className="cal-details-services">
-              <h4>Services</h4>
+              <h4>{bundleName === null ? 'Services' : `Bundle · ${bundleName}`}</h4>
               <ul>
                 {current.services.map((line, index) => (
                   <li key={`${line.serviceId}-${index}`}>
@@ -157,6 +168,12 @@ export function AppointmentDetailsPanel({
                   </li>
                 ))}
               </ul>
+              {bundleName !== null && bundlePrice !== null && current.totalPrice > bundlePrice && (
+                <p className="cal-details-saving">
+                  Bundle saving {formatPrice(current.totalPrice - bundlePrice)} — the services above
+                  are still performed and billed as one visit.
+                </p>
+              )}
             </div>
 
             {current.notes !== null && current.notes !== '' && (

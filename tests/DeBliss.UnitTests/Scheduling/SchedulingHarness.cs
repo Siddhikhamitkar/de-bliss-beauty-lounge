@@ -24,6 +24,7 @@ internal sealed class SchedulingHarness : IDisposable
         var appointmentRepository = new AppointmentRepository(Context);
         var customerRepository = new CustomerRepository(Context);
         var serviceRepository = new ServiceRepository(Context);
+        var bundleRepository = new ServiceBundleRepository(Context);
         var staffRepository = new StaffRepository(Context);
         var scheduleRepository = new ScheduleRepository(Context);
 
@@ -33,6 +34,7 @@ internal sealed class SchedulingHarness : IDisposable
             appointmentRepository,
             customerRepository,
             serviceRepository,
+            bundleRepository,
             staffRepository,
             availability,
             Context,
@@ -78,6 +80,19 @@ internal sealed class SchedulingHarness : IDisposable
         await using var context = Reopen();
         var id = await CatalogueSeed.ServiceAsync(
             context, categoryId, name, price, durationMinutes, isActive, staffIds: staffIds);
+        Context.ChangeTracker.Clear();
+        return id;
+    }
+
+    public async Task<Guid> SeedBundleAsync(
+        Guid categoryId,
+        string name,
+        decimal price,
+        IReadOnlyList<Guid> serviceIds,
+        bool isActive = true)
+    {
+        await using var context = Reopen();
+        var id = await CatalogueSeed.BundleAsync(context, categoryId, name, price, serviceIds, isActive);
         Context.ChangeTracker.Clear();
         return id;
     }

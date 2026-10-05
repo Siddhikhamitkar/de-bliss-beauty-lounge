@@ -27,23 +27,15 @@ public sealed class ServiceRepository(DeBlissDbContext context) : IServiceReposi
             .FirstOrDefaultAsync(service => service.Id == id, cancellationToken);
     }
 
-    public async Task<(IReadOnlyList<Service> Items, int TotalCount)> SearchAsync(
+    public async Task<IReadOnlyList<Service>> SearchAsync(
         ServiceQuery query,
         CancellationToken cancellationToken = default)
     {
-        var filtered = ApplyFilters(WithNavigations(context.Services.AsNoTracking()), query);
-
-        var totalCount = await filtered.CountAsync(cancellationToken);
-
-        var items = await filtered
+        return await ApplyFilters(WithNavigations(context.Services.AsNoTracking()), query)
             .OrderBy(service => service.ServiceCategory!.SortOrder)
             .ThenBy(service => service.SortOrder)
             .ThenBy(service => service.Name)
-            .Skip((query.Page - 1) * query.PageSize)
-            .Take(query.PageSize)
             .ToListAsync(cancellationToken);
-
-        return (items, totalCount);
     }
 
     public async Task<IReadOnlyList<Service>> GetBookableAsync(CancellationToken cancellationToken = default)

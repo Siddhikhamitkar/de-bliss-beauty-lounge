@@ -3,6 +3,9 @@ using DeBliss.Application.Billing.Dtos;
 using DeBliss.Application.Common.Paging;
 using Microsoft.AspNetCore.Mvc;
 
+using DeBliss.Api.Security;
+using Microsoft.AspNetCore.Authorization;
+
 namespace DeBliss.Api.Controllers;
 
 /// <summary>
@@ -14,6 +17,7 @@ namespace DeBliss.Api.Controllers;
 [ApiController]
 [Route("api/coupons")]
 [Produces("application/json")]
+[Authorize(Policy = AuthPolicies.Operational)]
 public sealed class CouponsController(ICouponService coupons) : ControllerBase
 {
     /// <remarks>Will require <c>Permissions.Billing.ManageCoupons</c> once authorisation exists.</remarks>

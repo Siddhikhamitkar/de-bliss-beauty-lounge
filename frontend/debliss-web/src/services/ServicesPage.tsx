@@ -1,21 +1,31 @@
 import { useState } from 'react'
-import { listCategories, searchServices, setServiceStatus } from '../api/catalogue.ts'
+import {
+  listCategories,
+  searchServices,
+  setBundleStatus,
+  setServiceStatus,
+} from '../api/catalogue.ts'
 import { describeFailure } from '../api/client.ts'
 import type { ServiceStatusFilter, ServiceSummary } from '../api/contracts.ts'
 import { EmptyState } from '../components/EmptyState.tsx'
 import { ErrorState } from '../components/ErrorState.tsx'
 import { LoadingState } from '../components/LoadingState.tsx'
 import { Pagination } from '../components/Pagination.tsx'
+import { RowActionMenu } from '../components/RowActionMenu.tsx'
 import { useAsync } from '../useAsync.ts'
+import { BundleDrawer } from './BundleDrawer.tsx'
+import { BundleEditor } from './BundleForm.tsx'
 import { ServiceDrawer } from './ServiceDrawer.tsx'
 import { ServiceEditor } from './ServiceForm.tsx'
 import { ServiceList } from './ServiceList.tsx'
 
 /**
- * Which service the editor is open on, or null while the list is showing. A
- * null `id` means "create", so one piece of state covers both directions.
+ * Which offering the editor is open on, or null while the list is showing. A
+ * null `id` means "create", so one piece of state covers both directions, and
+ * `kind` picks the service form or the bundle form.
  */
 interface Editor {
+  kind: 'service' | 'bundle'
   id: string | null
 }
 
@@ -44,25 +54,42 @@ export function ServicesPage({ onManageCategories }: { onManageCategories?: () =
     [appliedSearch, categoryId, status, bookableOnly, page],
   )
 
-  function toggleStatus(service: ServiceSummary) {
+  // Bundles and services share the list but not the status endpoint, and a
+  // bundle refuses to activate while one of its services cannot be booked.
+  function toggleStatus(item: ServiceSummary) {
     setActionFailure(undefined)
 
-    setServiceStatus(service.id, !service.isActive)
+    const setStatus =
+      item.itemKind === 'Bundle'
+        ? setBundleStatus(item.id, !item.isActive)
+        : setServiceStatus(item.id, !item.isActive)
+
+    setStatus
       .then(() => services.reload())
       .catch((error: unknown) => setActionFailure(describeFailure(error)))
   }
 
   if (editor !== null) {
-    return (
-      <ServiceEditor
-        serviceId={editor.id}
-        onSaved={() => {
-          setEditor(null)
-          services.reload()
-        }}
-        onCancel={() => setEditor(null)}
-      />
+    const closeEditor = () => setEditor(null)
+    const saved = () => {
+      setEditor(null)
+      services.reload()
+    }
+
+    return editor.kind === 'bundle' ? (
+      <BundleEditor bundleId={editor.id} onSaved={saved} onCancel={closeEditor} />
+    ) : (
+      <ServiceEditor serviceId={editor.id} onSaved={saved} onCancel={closeEditor} />
     )
+  }
+
+  const drawerProps = {
+    onClose: () => setSelected(null),
+    onEdit: (id: string) => {
+      setSelected(null)
+      setEditor({ kind: selected?.itemKind === 'Bundle' ? 'bundle' : 'service', id })
+    },
+    onChanged: services.reload,
   }
 
   return (
@@ -75,9 +102,15 @@ export function ServicesPage({ onManageCategories }: { onManageCategories?: () =
               Manage categories
             </button>
           )}
-          <button type="button" className="button button-primary" onClick={() => setEditor({ id: null })}>
-            New service
-          </button>
+          <RowActionMenu
+            label="Add to the service menu"
+            triggerText="Add ▾"
+            triggerClassName="button button-primary"
+            actions={[
+              { label: 'New service', onSelect: () => setEditor({ kind: 'service', id: null }) },
+              { label: 'New bundle', onSelect: () => setEditor({ kind: 'bundle', id: null }) },
+            ]}
+          />
         </div>
       </div>
 
@@ -178,17 +211,12 @@ export function ServicesPage({ onManageCategories }: { onManageCategories?: () =
         </>
       )}
 
-      {selected !== null && (
-        <ServiceDrawer
-          service={selected}
-          onClose={() => setSelected(null)}
-          onEdit={serviceId => {
-            setSelected(null)
-            setEditor({ id: serviceId })
-          }}
-          onChanged={services.reload}
-        />
-      )}
+      {selected !== null &&
+        (selected.itemKind === 'Bundle' ? (
+          <BundleDrawer bundle={selected} {...drawerProps} />
+        ) : (
+          <ServiceDrawer service={selected} {...drawerProps} />
+        ))}
     </section>
   )
 }

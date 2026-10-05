@@ -1,5 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { homePathFor, isKnownPath, isPathAllowed, navigateTo, usePathname } from './app/router.ts'
 import type { CustomerSummary } from './api/contracts.ts'
+import { AuthProvider, useAuth } from './auth/AuthContext.tsx'
+import { LoginPage } from './auth/LoginPage.tsx'
 import { BillingPage } from './billing/BillingPage.tsx'
 import { CheckoutPage } from './billing/CheckoutPage.tsx'
 import { CalendarPage } from './calendar/CalendarPage.tsx'
@@ -8,51 +11,95 @@ import { CategoriesPage } from './categories/CategoriesPage.tsx'
 import { CouponsPage } from './coupons/CouponsPage.tsx'
 import { CustomersPage } from './customers/CustomersPage.tsx'
 import { DashboardPage } from './dashboard/DashboardPage.tsx'
+import { OwnerDashboardPage } from './dashboard/OwnerDashboardPage.tsx'
+import { StaffDashboardPage } from './dashboard/StaffDashboardPage.tsx'
 import { AppSidebar } from './layout/AppSidebar.tsx'
-import type { Section } from './layout/AppSidebar.tsx'
 import { ServicesPage } from './services/ServicesPage.tsx'
 import { StaffPage } from './staff/StaffPage.tsx'
 
 function App() {
-  // The dashboard is the front desk's landing page; the calendar stays one
-  // click away as the operational heart.
-  const [section, setSection] = useState<Section>('dashboard')
+  return (
+    <AuthProvider>
+      <AppRoutes />
+    </AuthProvider>
+  )
+}
+
+/**
+ * URL-driven shell. Guards run on every render against the current path:
+ * anonymous users always end at /login; a signed-in user at /login, at an
+ * unknown path, or at a path their roles do not admit is moved to their own
+ * home. Everything else renders the matching module.
+ */
+function AppRoutes() {
+  const { user, loading, logout } = useAuth()
+  const path = usePathname()
+
+  // Dashboard hand-offs picked up on mount by the module they land in.
   const [pendingBookingCustomer, setPendingBookingCustomer] = useState<CustomerSummary | null>(null)
-  // Dashboard hand-offs picked up on mount by the section they land in.
   const [pendingFocus, setPendingFocus] = useState<PendingFocus | null>(null)
   const [pendingCustomerCreate, setPendingCustomerCreate] = useState(false)
-  // Checkout is a full-screen workspace over whatever the receptionist was doing.
+  // Checkout is a full-screen workspace over whatever the user was doing.
   const [checkoutAppointmentId, setCheckoutAppointmentId] = useState<string | null>(null)
   // Bumped whenever a payment lands so dashboard and billing reload on next show.
   const [dataRevision, setDataRevision] = useState(0)
 
+  if (loading) {
+    return (
+      <div className="app-splash" role="status">
+        <span className="side-brand-mark" aria-hidden="true">
+          DB
+        </span>
+        <p>Loading your workspace…</p>
+      </div>
+    )
+  }
+
+  if (user === null) {
+    return path === '/login' ? <LoginPage /> : <Redirect to="/login" />
+  }
+
+  if (path === '/login' || !isKnownPath(path) || !isPathAllowed(path, user.roles)) {
+    return <Redirect to={homePathFor(user.roles)} />
+  }
+
   return (
     <div className="app-shell">
-      <AppSidebar current={section} onNavigate={setSection} />
+      <AppSidebar
+        currentPath={path}
+        user={user}
+        onNavigate={navigateTo}
+        onSignOut={() => {
+          void logout()
+        }}
+      />
 
-      <main className={section === 'calendar' ? 'app-main app-main-wide' : 'app-main'}>
-        {section === 'dashboard' && (
+      <main className={path === '/calendar' ? 'app-main app-main-wide' : 'app-main'}>
+        {path === '/receptionist/dashboard' && (
           <DashboardPage
             revision={dataRevision}
+            firstName={user.firstName}
             onOpenAppointment={appointmentId => {
               setPendingFocus({ kind: 'details', appointmentId })
-              setSection('calendar')
+              navigateTo('/calendar')
             }}
             onNewAppointment={() => {
               setPendingFocus({ kind: 'create' })
-              setSection('calendar')
+              navigateTo('/calendar')
             }}
             onAddCustomer={() => {
               setPendingCustomerCreate(true)
-              setSection('customers')
+              navigateTo('/customers')
             }}
-            onFindCustomer={() => setSection('customers')}
-            onOpenBilling={() => setSection('billing')}
+            onFindCustomer={() => navigateTo('/customers')}
+            onOpenBilling={() => navigateTo('/billing')}
             onCheckout={setCheckoutAppointmentId}
-            onViewAllAppointments={() => setSection('calendar')}
+            onViewAllAppointments={() => navigateTo('/calendar')}
           />
         )}
-        {section === 'calendar' && (
+        {path === '/owner/dashboard' && <OwnerDashboardPage />}
+        {path === '/staff/dashboard' && <StaffDashboardPage />}
+        {path === '/calendar' && (
           <CalendarPage
             pendingBookingCustomer={pendingBookingCustomer}
             onPendingBookingHandled={() => setPendingBookingCustomer(null)}
@@ -61,29 +108,27 @@ function App() {
             onCheckout={setCheckoutAppointmentId}
           />
         )}
-        {section === 'services' && (
-          <ServicesPage onManageCategories={() => setSection('categories')} />
-        )}
-        {section === 'categories' && <CategoriesPage />}
-        {section === 'staff' && <StaffPage />}
-        {section === 'customers' && (
+        {path === '/services' && <ServicesPage onManageCategories={() => navigateTo('/categories')} />}
+        {path === '/categories' && <CategoriesPage />}
+        {path === '/staff' && <StaffPage />}
+        {path === '/customers' && (
           <CustomersPage
             pendingCreate={pendingCustomerCreate}
             onPendingCreateHandled={() => setPendingCustomerCreate(false)}
             onBookAppointment={customer => {
               setPendingBookingCustomer(customer)
-              setSection('calendar')
+              navigateTo('/calendar')
             }}
           />
         )}
-        {section === 'billing' && (
+        {path === '/billing' && (
           <BillingPage
             revision={dataRevision}
             onResumeCheckout={setCheckoutAppointmentId}
-            onManageCoupons={() => setSection('coupons')}
+            onManageCoupons={() => navigateTo('/coupons')}
           />
         )}
-        {section === 'coupons' && <CouponsPage />}
+        {path === '/coupons' && <CouponsPage />}
       </main>
 
       {checkoutAppointmentId !== null && (
@@ -96,6 +141,15 @@ function App() {
       )}
     </div>
   )
+}
+
+/** Pushes the target path and lets the popstate listener re-render the shell. */
+function Redirect({ to }: { to: string }) {
+  useEffect(() => {
+    navigateTo(to)
+  }, [to])
+
+  return null
 }
 
 export default App

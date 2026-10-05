@@ -44,7 +44,9 @@ internal static class BillingSeed
         DateTimeOffset startsAt,
         AppointmentStatus status = AppointmentStatus.Completed,
         string? walkInCustomerName = null,
-        IReadOnlyList<(Guid ServiceId, string SnapshotName, decimal UnitPrice, int SortOrder)>? lines = null)
+        IReadOnlyList<(Guid ServiceId, string SnapshotName, decimal UnitPrice, int SortOrder)>? lines = null,
+        Guid? serviceBundleId = null,
+        decimal? bundlePriceSnapshot = null)
     {
         var appointment = new Appointment
         {
@@ -54,7 +56,9 @@ internal static class BillingSeed
             EndsAt = startsAt.AddHours(1),
             Status = status,
             Source = AppointmentSource.Reception,
-            WalkInCustomerName = walkInCustomerName
+            WalkInCustomerName = walkInCustomerName,
+            ServiceBundleId = serviceBundleId,
+            BundlePriceSnapshot = bundlePriceSnapshot
         };
 
         foreach (var (serviceId, snapshotName, unitPrice, sortOrder) in lines ?? [])

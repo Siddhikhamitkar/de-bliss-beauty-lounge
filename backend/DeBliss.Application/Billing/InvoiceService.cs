@@ -14,7 +14,10 @@ namespace DeBliss.Application.Billing;
 /// The checkout use cases behind the Billing module. A checkout starts from a
 /// completed appointment — its service lines become invoice lines at the
 /// booking-time price snapshots, so nothing is retyped and history is never
-/// rewritten. Discounts are validated here (the browser is never trusted):
+/// rewritten. An appointment booked as a bundle still bills every component
+/// line: the bundle's saving is carried as its own discount, so the components
+/// stay visible on the bill while the amount owed is the bundle price.
+/// Discounts are validated here (the browser is never trusted):
 /// coupon and manual discount are computed separately, the combined reduction
 /// can never exceed the subtotal, and the final total can never go below zero.
 /// Recording the payment and marking the invoice Paid happen in one save, so an
@@ -113,7 +116,24 @@ public sealed class InvoiceService(
         }
 
         invoice.SubTotal = invoice.Items.Sum(item => item.LineTotal);
-        invoice.TotalAmount = invoice.SubTotal;
+
+        // A bundle booking keeps billing its components as their own lines, but
+        // the customer pays the bundle price: the saving against the component
+        // subtotal is recorded as the bundle's own discount, never as a keyed
+        // one, so the offering and any coupon stay separately visible.
+        if (appointment.ServiceBundleId is not null && appointment.BundlePriceSnapshot is { } bundlePrice)
+        {
+            invoice.ServiceBundleId = appointment.ServiceBundleId;
+            invoice.BundleNameSnapshot = appointment.ServiceBundle?.Name;
+            invoice.BundleDiscount = Math.Max(invoice.SubTotal - bundlePrice, 0m);
+        }
+
+        invoice.TotalAmount = invoice.SubTotal - invoice.BundleDiscount;
+
+        // Keeps the draft's own arithmetic honest: total = subtotal − discount
+        // total must hold before checkout too, or the invoice list reports a
+        // bundle visit as undiscounted while charging the bundle price.
+        invoice.DiscountTotal = invoice.BundleDiscount;
 
         // Added through the navigation so EF fixes up the line foreign keys
         // when it assigns the invoice's generated key.
@@ -143,19 +163,25 @@ public sealed class InvoiceService(
 
         var errors = new ValidationErrorBuilder();
 
-        var couponCheck = await CheckCouponAsync(request.CouponCode, invoice.SubTotal, errors, cancellationToken);
-        var manualCheck = ValidateManualDiscount(request, invoice.SubTotal, errors);
+        // A keyed discount reduces what is still owed after the bundle's own
+        // saving, so a percentage coupon is computed against the bundle price
+        // rather than the component subtotal. The saving is zero for a visit
+        // that was not booked as a bundle, which leaves that arithmetic alone.
+        var discountable = invoice.SubTotal - invoice.BundleDiscount;
+
+        var couponCheck = await CheckCouponAsync(request.CouponCode, discountable, errors, cancellationToken);
+        var manualCheck = ValidateManualDiscount(request, discountable, errors);
 
         // The combined cap is only meaningful once each part passed on its own;
         // a part that is already flagged would only produce a second, misleading
         // message here.
         if (!couponCheck.Flagged && !manualCheck.Flagged
-            && couponCheck.Discount + manualCheck.Discount > invoice.SubTotal)
+            && couponCheck.Discount + manualCheck.Discount > discountable)
         {
             errors.Add("manualDiscountValue", "Discounts cannot exceed the subtotal.");
         }
 
-        var total = invoice.SubTotal - couponCheck.Discount - manualCheck.Discount;
+        var total = discountable - couponCheck.Discount - manualCheck.Discount;
 
         // The amount is only checked once the discounts themselves are valid;
         // comparing against a total that is about to be rejected would just add
@@ -176,7 +202,7 @@ public sealed class InvoiceService(
         invoice.CouponCode = couponCheck.Coupon?.Code;
         invoice.CouponDiscount = couponCheck.Discount;
         invoice.ManualDiscount = manualCheck.Discount;
-        invoice.DiscountTotal = couponCheck.Discount + manualCheck.Discount;
+        invoice.DiscountTotal = invoice.BundleDiscount + couponCheck.Discount + manualCheck.Discount;
         invoice.TotalAmount = total;
         invoice.IssuedAt = now;
         invoice.Status = InvoiceStatus.Paid;
@@ -419,7 +445,10 @@ public sealed class InvoiceService(
         invoice.Appointment?.WalkInCustomerName,
         invoice.CouponId,
         invoice.CouponCode,
+        invoice.ServiceBundleId,
+        invoice.BundleNameSnapshot,
         invoice.SubTotal,
+        invoice.BundleDiscount,
         invoice.CouponDiscount,
         invoice.ManualDiscount,
         invoice.DiscountTotal,
@@ -470,6 +499,8 @@ public sealed class InvoiceService(
                     item.UnitPrice,
                     item.LineTotal))],
             invoice.SubTotal,
+            invoice.BundleNameSnapshot,
+            invoice.BundleDiscount,
             invoice.CouponCode,
             invoice.CouponDiscount,
             invoice.ManualDiscount,

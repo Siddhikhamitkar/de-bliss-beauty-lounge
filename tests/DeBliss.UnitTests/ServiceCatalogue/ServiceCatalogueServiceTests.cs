@@ -706,6 +706,194 @@ public class ServiceCatalogueServiceTests
     }
 
     [Fact]
+    public async Task Search_lists_bundles_interleaved_with_services_within_their_category()
+    {
+        var (harness, categoryId, staffId) = await ArrangeAsync();
+        using var _ = harness;
+
+        var nails = await harness.SeedCategoryAsync("Nails", sortOrder: 1);
+
+        var haircutId = await harness.SeedServiceAsync(
+            categoryId, "Haircut", 60m, staffIds: [staffId], sortOrder: 1);
+        var blowDryId = await harness.SeedServiceAsync(
+            categoryId, "Blow Dry", 20m, staffIds: [staffId], sortOrder: 2);
+        await harness.SeedServiceAsync(nails, "Manicure", 45m, staffIds: [staffId]);
+
+        await harness.SeedBundleAsync(categoryId, "Bridal Day", 70m, [haircutId, blowDryId]);
+
+        // A bundle may share a name with a service, so the two "Haircut" rows
+        // are separated by the kind, which is the last thing the menu sorts on.
+        await harness.SeedBundleAsync(categoryId, "Haircut", 75m, [haircutId, blowDryId], sortOrder: 1);
+
+        var page = await harness.Catalogue.SearchAsync(Query());
+
+        Assert.Equal(
+            new[]
+            {
+                ("Bridal Day", "Bundle"),
+                ("Haircut", "Bundle"),
+                ("Haircut", "Service"),
+                ("Blow Dry", "Service"),
+                ("Manicure", "Service")
+            },
+            page.Items.Select(item => (item.Name, item.ItemKind)).ToArray());
+    }
+
+    [Fact]
+    public async Task Search_reports_a_bundle_row_with_its_components_and_the_standard_total()
+    {
+        var (harness, categoryId, staffId) = await ArrangeAsync();
+        using var _ = harness;
+
+        var haircutId = await harness.SeedServiceAsync(
+            categoryId, "Haircut", 120m, 45, staffIds: [staffId]);
+        var beardTrimId = await harness.SeedServiceAsync(
+            categoryId, "Beard Trim", 40m, 30, staffIds: [staffId]);
+
+        var bundleId = await harness.SeedBundleAsync(
+            categoryId, "Grooming Day", 140m, [haircutId, beardTrimId]);
+
+        var page = await harness.Catalogue.SearchAsync(Query());
+
+        var row = Assert.Single(page.Items, item => item.ItemKind == "Bundle");
+
+        Assert.Equal(bundleId, row.Id);
+        Assert.Equal(2, row.ServiceCount);
+        Assert.Equal(160m, row.StandardTotalPrice);
+        Assert.Equal(140m, row.Price);
+        Assert.Equal(75, row.DurationMinutes);
+        Assert.Equal("Hair", row.CategoryName);
+        Assert.True(row.IsActive);
+        Assert.True(row.IsBookable);
+        Assert.False(row.IsOnlineBookable);
+        Assert.Equal(0, row.EligibleStaffCount);
+    }
+
+    [Fact]
+    public async Task Search_leaves_the_bundle_columns_empty_on_a_service_row()
+    {
+        var (harness, categoryId, staffId) = await ArrangeAsync();
+        using var _ = harness;
+
+        var serviceId = await harness.SeedServiceAsync(categoryId, "Haircut", 60m, staffIds: [staffId]);
+
+        var row = Assert.Single((await harness.Catalogue.SearchAsync(Query())).Items);
+
+        Assert.Equal(serviceId, row.Id);
+        Assert.Equal("Service", row.ItemKind);
+        Assert.Null(row.ServiceCount);
+        Assert.Null(row.StandardTotalPrice);
+    }
+
+    [Fact]
+    public async Task Search_matches_a_bundle_by_its_name_or_its_description()
+    {
+        var (harness, categoryId, staffId) = await ArrangeAsync();
+        using var _ = harness;
+
+        var haircutId = await harness.SeedServiceAsync(categoryId, "Haircut", 60m, staffIds: [staffId]);
+        var blowDryId = await harness.SeedServiceAsync(categoryId, "Blow Dry", 20m, staffIds: [staffId]);
+
+        await harness.SeedBundleAsync(
+            categoryId,
+            "Bridal Day",
+            70m,
+            [haircutId, blowDryId],
+            description: "Everything the bride needs before the ceremony");
+        await harness.SeedBundleAsync(categoryId, "Grooming Day", 70m, [haircutId, blowDryId]);
+
+        var byName = await harness.Catalogue.SearchAsync(Query(search: "BRIDAL"));
+        var byDescription = await harness.Catalogue.SearchAsync(Query(search: "ceremony"));
+
+        Assert.Equal("Bridal Day", Assert.Single(byName.Items).Name);
+        Assert.Equal("Bridal Day", Assert.Single(byDescription.Items).Name);
+    }
+
+    [Fact]
+    public async Task Search_applies_the_status_filter_to_bundles_too()
+    {
+        var (harness, categoryId, staffId) = await ArrangeAsync();
+        using var _ = harness;
+
+        var haircutId = await harness.SeedServiceAsync(categoryId, "Haircut", 60m, staffIds: [staffId]);
+        var blowDryId = await harness.SeedServiceAsync(categoryId, "Blow Dry", 20m, staffIds: [staffId]);
+
+        await harness.SeedBundleAsync(categoryId, "On the menu", 70m, [haircutId, blowDryId]);
+        await harness.SeedBundleAsync(
+            categoryId, "Taken off", 70m, [haircutId, blowDryId], isActive: false);
+
+        var active = await harness.Catalogue.SearchAsync(Query(status: ServiceStatusFilter.Active));
+        var inactive = await harness.Catalogue.SearchAsync(Query(status: ServiceStatusFilter.Inactive));
+
+        Assert.Equal("On the menu", Assert.Single(active.Items, item => item.ItemKind == "Bundle").Name);
+        Assert.Equal("Taken off", Assert.Single(inactive.Items).Name);
+    }
+
+    [Fact]
+    public async Task Search_returns_only_the_bundles_that_may_be_booked_when_restricted()
+    {
+        var (harness, categoryId, staffId) = await ArrangeAsync();
+        using var _ = harness;
+
+        var haircutId = await harness.SeedServiceAsync(categoryId, "Haircut", 60m, staffIds: [staffId]);
+        var blowDryId = await harness.SeedServiceAsync(categoryId, "Blow Dry", 20m, staffIds: [staffId]);
+        var unstaffedId = await harness.SeedServiceAsync(categoryId, "Aromatherapy", 70m);
+
+        await harness.SeedBundleAsync(categoryId, "Ready to book", 70m, [haircutId, blowDryId]);
+        await harness.SeedBundleAsync(
+            categoryId, "Switched off", 70m, [haircutId, blowDryId], isActive: false);
+        await harness.SeedBundleAsync(categoryId, "Nobody can do it", 100m, [haircutId, unstaffedId]);
+
+        var page = await harness.Catalogue.SearchAsync(Query(bookableOnly: true));
+
+        Assert.Equal(
+            new[] { "Blow Dry", "Haircut", "Ready to book" },
+            page.Items.Select(item => item.Name).ToArray());
+    }
+
+    [Fact]
+    public async Task Search_pages_across_services_and_bundles_together()
+    {
+        var (harness, categoryId, staffId) = await ArrangeAsync();
+        using var _ = harness;
+
+        var alphaId = await harness.SeedServiceAsync(categoryId, "Alpha", 60m, staffIds: [staffId]);
+        var echoId = await harness.SeedServiceAsync(categoryId, "Echo", 40m, staffIds: [staffId]);
+
+        await harness.SeedBundleAsync(categoryId, "Bravo", 90m, [alphaId, echoId]);
+        await harness.SeedBundleAsync(categoryId, "Charlie", 90m, [alphaId, echoId]);
+        await harness.SeedBundleAsync(categoryId, "Delta", 90m, [alphaId, echoId]);
+
+        var firstPage = await harness.Catalogue.SearchAsync(Query(page: 1, pageSize: 2));
+
+        Assert.Equal(5, firstPage.TotalCount);
+        Assert.Equal(3, firstPage.TotalPages);
+
+        // A bundle belongs in the middle of the menu, not after every service.
+        Assert.Equal(
+            new[] { "Alpha", "Bravo" },
+            firstPage.Items.Select(item => item.Name).ToArray());
+    }
+
+    [Fact]
+    public async Task GetBookable_leaves_bundles_to_their_own_list()
+    {
+        var (harness, categoryId, staffId) = await ArrangeAsync();
+        using var _ = harness;
+
+        var haircutId = await harness.SeedServiceAsync(categoryId, "Haircut", 60m, staffIds: [staffId]);
+        var blowDryId = await harness.SeedServiceAsync(categoryId, "Blow Dry", 20m, staffIds: [staffId]);
+
+        await harness.SeedBundleAsync(categoryId, "Bridal Day", 70m, [haircutId, blowDryId]);
+
+        var bookable = await harness.Catalogue.GetBookableAsync();
+
+        Assert.Equal(
+            new[] { "Blow Dry", "Haircut" },
+            bookable.Select(service => service.Name).ToArray());
+    }
+
+    [Fact]
     public async Task GetBookable_returns_only_services_that_can_actually_be_booked()
     {
         var (harness, categoryId, staffId) = await ArrangeAsync();

@@ -25,6 +25,8 @@ public class DeBlissDbContextModelTests
         typeof(StaffTimeOff),
         typeof(ServiceCategory),
         typeof(Service),
+        typeof(ServiceBundle),
+        typeof(ServiceBundleItem),
         typeof(Appointment),
         typeof(AppointmentService),
         typeof(AppointmentStatusHistory),
@@ -36,9 +38,9 @@ public class DeBlissDbContextModelTests
     };
 
     [Fact]
-    public void The_model_maps_exactly_the_nineteen_core_entities()
+    public void The_model_maps_exactly_the_twenty_one_core_entities()
     {
-        Assert.Equal(19, TestModel.Model.GetEntityTypes().Count());
+        Assert.Equal(21, TestModel.Model.GetEntityTypes().Count());
     }
 
     [Theory]
@@ -73,6 +75,8 @@ public class DeBlissDbContextModelTests
     [InlineData(typeof(StaffTimeOff), "StaffTimeOff")]
     [InlineData(typeof(ServiceCategory), "ServiceCategories")]
     [InlineData(typeof(Service), "Services")]
+    [InlineData(typeof(ServiceBundle), "ServiceBundles")]
+    [InlineData(typeof(ServiceBundleItem), "ServiceBundleItems")]
     [InlineData(typeof(Appointment), "Appointments")]
     [InlineData(typeof(AppointmentService), "AppointmentServices")]
     [InlineData(typeof(AppointmentStatusHistory), "AppointmentStatusHistory")]
@@ -93,6 +97,7 @@ public class DeBlissDbContextModelTests
     [InlineData(typeof(Invoice), nameof(Invoice.DiscountTotal))]
     [InlineData(typeof(Invoice), nameof(Invoice.CouponDiscount))]
     [InlineData(typeof(Invoice), nameof(Invoice.ManualDiscount))]
+    [InlineData(typeof(Invoice), nameof(Invoice.BundleDiscount))]
     [InlineData(typeof(Invoice), nameof(Invoice.TaxTotal))]
     [InlineData(typeof(Invoice), nameof(Invoice.TotalAmount))]
     [InlineData(typeof(InvoiceItem), nameof(InvoiceItem.UnitPrice))]
@@ -106,6 +111,16 @@ public class DeBlissDbContextModelTests
         var property = TestModel.Entity(entityType).FindProperty(propertyName)!;
 
         Assert.Equal(typeof(decimal), property.ClrType);
+        Assert.Equal(18, property.GetPrecision()!.Value);
+        Assert.Equal(2, property.GetScale()!.Value);
+    }
+
+    [Fact]
+    public void A_bundle_price_snapshot_on_an_appointment_is_optional_but_keeps_fixed_scale()
+    {
+        var property = TestModel.Entity(typeof(Appointment)).FindProperty(nameof(Appointment.BundlePriceSnapshot))!;
+
+        Assert.Equal(typeof(decimal?), property.ClrType);
         Assert.Equal(18, property.GetPrecision()!.Value);
         Assert.Equal(2, property.GetScale()!.Value);
     }
@@ -240,6 +255,7 @@ public class DeBlissDbContextModelTests
     [Theory]
     [InlineData(typeof(Appointment), nameof(Appointment.CustomerId))]
     [InlineData(typeof(Appointment), nameof(Appointment.RecurringSeriesId))]
+    [InlineData(typeof(Appointment), nameof(Appointment.ServiceBundleId))]
     [InlineData(typeof(AppointmentService), nameof(AppointmentService.ServiceId))]
     [InlineData(typeof(AppointmentService), nameof(AppointmentService.StaffId))]
     [InlineData(typeof(Invoice), nameof(Invoice.AppointmentId))]
@@ -247,6 +263,8 @@ public class DeBlissDbContextModelTests
     [InlineData(typeof(InvoiceItem), nameof(InvoiceItem.AppointmentServiceId))]
     [InlineData(typeof(InvoiceItem), nameof(InvoiceItem.ServiceId))]
     [InlineData(typeof(Invoice), nameof(Invoice.CouponId))]
+    [InlineData(typeof(Invoice), nameof(Invoice.ServiceBundleId))]
+    [InlineData(typeof(ServiceBundleItem), nameof(ServiceBundleItem.ServiceId))]
     [InlineData(typeof(Payment), nameof(Payment.RefundOfPaymentId))]
     public void Deleting_a_referenced_record_never_removes_booking_or_financial_history(
         Type dependentType,
@@ -262,6 +280,7 @@ public class DeBlissDbContextModelTests
     [InlineData(typeof(Payment), nameof(Payment.InvoiceId))]
     [InlineData(typeof(CustomerNote), nameof(CustomerNote.CustomerId))]
     [InlineData(typeof(StaffWorkingHour), nameof(StaffWorkingHour.StaffId))]
+    [InlineData(typeof(ServiceBundleItem), nameof(ServiceBundleItem.ServiceBundleId))]
     [InlineData(typeof(UserRole), nameof(UserRole.UserId))]
     public void Rows_owned_by_a_parent_are_removed_with_it(
         Type dependentType,
@@ -276,6 +295,33 @@ public class DeBlissDbContextModelTests
         Assert.Equal(
             DeleteBehavior.SetNull,
             DeleteBehaviorOf(typeof(Service), nameof(Service.ServiceCategoryId)));
+
+        Assert.Equal(
+            DeleteBehavior.SetNull,
+            DeleteBehaviorOf(typeof(ServiceBundle), nameof(ServiceBundle.ServiceCategoryId)));
+    }
+
+    [Fact]
+    public void A_bundle_cannot_list_the_same_service_twice()
+    {
+        var index = TestModel.Entity(typeof(ServiceBundleItem)).GetIndexes()
+            .Single(i => i.Properties.Select(p => p.Name).SequenceEqual([nameof(ServiceBundleItem.ServiceBundleId), nameof(ServiceBundleItem.ServiceId)]));
+
+        Assert.True(index.IsUnique);
+    }
+
+    [Fact]
+    public void A_bundle_knows_its_components_and_a_component_knows_its_bundles()
+    {
+        var bundle = TestModel.Entity(typeof(ServiceBundle));
+
+        Assert.Equal(typeof(ServiceBundleItem), bundle.FindNavigation(nameof(ServiceBundle.Items))!.TargetEntityType.ClrType);
+        Assert.Equal(typeof(ServiceCategory), bundle.FindNavigation(nameof(ServiceBundle.ServiceCategory))!.TargetEntityType.ClrType);
+
+        var item = TestModel.Entity(typeof(ServiceBundleItem));
+
+        Assert.Equal(typeof(ServiceBundle), item.FindNavigation(nameof(ServiceBundleItem.ServiceBundle))!.TargetEntityType.ClrType);
+        Assert.Equal(typeof(Service), item.FindNavigation(nameof(ServiceBundleItem.Service))!.TargetEntityType.ClrType);
     }
 
     [Theory]

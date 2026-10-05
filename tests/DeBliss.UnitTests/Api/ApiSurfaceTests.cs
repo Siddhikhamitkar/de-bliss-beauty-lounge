@@ -35,6 +35,11 @@ public sealed class ApiSurfaceTests : ApiTestBase
             Permissions.ServiceCatalogue.AssignStaffToServices
         ],
         ["PATCH api/services/{id:guid}/status"] = [Permissions.ServiceCatalogue.ChangeServiceStatus],
+        ["GET api/service-bundles/bookable"] = [Permissions.ServiceCatalogue.ViewServices],
+        ["GET api/service-bundles/{id:guid}"] = [Permissions.ServiceCatalogue.ViewServices],
+        ["POST api/service-bundles"] = [Permissions.ServiceCatalogue.CreateService],
+        ["PUT api/service-bundles/{id:guid}"] = [Permissions.ServiceCatalogue.EditService],
+        ["PATCH api/service-bundles/{id:guid}/status"] = [Permissions.ServiceCatalogue.ChangeServiceStatus],
         ["GET api/staff-members"] = [Permissions.ServiceCatalogue.AssignStaffToServices],
         ["GET api/staff"] = [Permissions.Staffing.ViewStaff],
         ["POST api/staff"] = [Permissions.Staffing.CreateStaff],
@@ -84,8 +89,18 @@ public sealed class ApiSurfaceTests : ApiTestBase
         ["PUT api/coupons/{id:guid}"] = [Permissions.Billing.ManageCoupons],
         ["PATCH api/coupons/{id:guid}/status"] = [Permissions.Billing.ManageCoupons],
         ["POST api/coupons/validate"] = [Permissions.Billing.CreateCheckout],
-        ["GET api/dashboard/receptionist"] = [Permissions.Dashboard.ViewReceptionistDashboard]
+        ["GET api/dashboard/receptionist"] = [Permissions.Dashboard.ViewReceptionistDashboard],
+        ["POST api/auth/login"] = [Anonymous],
+        ["GET api/auth/me"] = [Authenticated],
+        ["POST api/auth/logout"] = [Anonymous],
+        ["GET api/owner/workspace"] = [Permissions.Owner.AccessWorkspace]
     };
+
+    /// <summary>Endpoints that deliberately allow anonymous access (login/logout).</summary>
+    private const string Anonymous = "anonymous";
+
+    /// <summary>Endpoints any authenticated user can reach, regardless of role.</summary>
+    private const string Authenticated = "authenticated:any-role";
 
     [Fact]
     public void Every_api_endpoint_declares_the_permissions_it_will_require()
@@ -125,8 +140,15 @@ public sealed class ApiSurfaceTests : ApiTestBase
     [Fact]
     public async Task The_api_answers_over_plain_http_so_the_browser_dev_server_can_proxy_to_it()
     {
-        // AllowAutoRedirect is off, so a UseHttpsRedirection that suddenly found an
-        // HTTPS port would show up here as a 307 instead of a 200.
+        // Anonymous traffic is turned away before the pipeline runs, and an
+        // authenticated request still answers 200 — AllowAutoRedirect is off, so
+        // a UseHttpsRedirection that suddenly found an HTTPS port would show up
+        // here as a 307 instead.
+        using var anonymous = AnonymousClient;
+        var rejected = await anonymous.GetAsync("/api/service-categories");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, rejected.StatusCode);
+
         var response = await Client.GetAsync("/api/service-categories");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);

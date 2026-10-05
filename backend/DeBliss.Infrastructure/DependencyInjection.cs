@@ -2,6 +2,7 @@ using DeBliss.Application.Billing.Ports;
 using DeBliss.Application.Common.Interfaces;
 using DeBliss.Application.Customers.Ports;
 using DeBliss.Application.Dashboard.Ports;
+using DeBliss.Application.Identity.Ports;
 using DeBliss.Application.Scheduling.Ports;
 using DeBliss.Application.ServiceCatalogue.Ports;
 using DeBliss.Application.Staffing.Ports;
@@ -38,6 +39,7 @@ public static class DependencyInjection
 
         services.AddScoped<IServiceCategoryRepository, ServiceCategoryRepository>();
         services.AddScoped<IServiceRepository, ServiceRepository>();
+        services.AddScoped<IServiceBundleRepository, ServiceBundleRepository>();
         services.AddScoped<IStaffDirectory, StaffDirectory>();
         services.AddScoped<IStaffRepository, StaffRepository>();
         services.AddScoped<IScheduleRepository, ScheduleRepository>();
@@ -47,6 +49,7 @@ public static class DependencyInjection
         services.AddScoped<IInvoiceRepository, InvoiceRepository>();
         services.AddScoped<ICouponRepository, CouponRepository>();
         services.AddScoped<IDashboardReadStore, DashboardReadStore>();
+        services.AddScoped<IUserRepository, UserRepository>();
 
         return services;
     }

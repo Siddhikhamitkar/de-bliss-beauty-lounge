@@ -46,6 +46,36 @@ public class InvoiceServiceTests
             ]);
     }
 
+    /// <summary>
+    /// The same completed visit, booked as a bundle. The component lines still
+    /// total 160 at their booked prices while the offering sold for 140, so the
+    /// saving is 20 and the amount owed is the bundle price.
+    /// </summary>
+    private static async Task<Guid> ArrangedBundleVisitAsync(
+        BillingHarness harness,
+        decimal bundlePrice = 140m,
+        string bundleName = "Grooming Day")
+    {
+        var customerId = await harness.SeedCustomerAsync();
+        var haircutId = await harness.SeedServiceAsync("Haircut", 120m);
+        var beardTrimId = await harness.SeedServiceAsync("Beard Trim", 40m);
+        var bundleId = await harness.SeedBundleAsync(bundleName, bundlePrice, [haircutId, beardTrimId]);
+
+        return await harness.SeedAppointmentAsync(
+            customerId,
+            VisitTime,
+            lines:
+            [
+                (haircutId, "Haircut", 100m, 0),
+                (beardTrimId, "Beard Trim", 60m, 1)
+            ],
+            serviceBundleId: bundleId,
+            bundlePriceSnapshot: bundlePrice);
+    }
+
+    private static async Task<Guid> StartAsync(BillingHarness harness, Guid appointmentId) =>
+        (await harness.Invoices.StartFromAppointmentAsync(new CreateInvoiceRequest(appointmentId))).Invoice.Id;
+
     [Fact]
     public async Task Starting_a_checkout_creates_a_draft_invoice_from_the_appointments_lines()
     {
@@ -625,5 +655,202 @@ public class InvoiceServiceTests
             () => harness.Invoices.GetAsync(missingId));
 
         Assert.Contains(missingId.ToString(), failure.Message);
+    }
+
+    [Fact]
+    public async Task A_bundle_visit_bills_every_component_and_carries_the_saving_as_its_own_discount()
+    {
+        using var harness = new BillingHarness();
+        var appointmentId = await ArrangedBundleVisitAsync(harness);
+
+        var result = await harness.Invoices.StartFromAppointmentAsync(new CreateInvoiceRequest(appointmentId));
+
+        var invoice = result.Invoice;
+
+        // Nothing is collapsed into one "bundle" line: the customer sees what
+        // was actually done, at the price each part was booked for.
+        Assert.Collection(
+            invoice.Items,
+            first =>
+            {
+                Assert.Equal("Haircut", first.Description);
+                Assert.Equal(100m, first.UnitPrice);
+                Assert.Equal(100m, first.LineTotal);
+            },
+            second =>
+            {
+                Assert.Equal("Beard Trim", second.Description);
+                Assert.Equal(60m, second.UnitPrice);
+                Assert.Equal(60m, second.LineTotal);
+            });
+
+        Assert.NotNull(invoice.ServiceBundleId);
+        Assert.Equal("Grooming Day", invoice.BundleName);
+        Assert.Equal(160m, invoice.SubTotal);
+        Assert.Equal(20m, invoice.BundleDiscount);
+        Assert.Equal(0m, invoice.CouponDiscount);
+        Assert.Equal(0m, invoice.ManualDiscount);
+
+        // The draft already reports the saving, so the invoice list never shows
+        // a bundle visit as undiscounted while charging the bundle price.
+        Assert.Equal(20m, invoice.DiscountTotal);
+        Assert.Equal(140m, invoice.TotalAmount);
+
+        await using var verify = harness.Reopen();
+
+        var stored = await verify.Invoices.Include(i => i.Items).SingleAsync();
+
+        Assert.Equal(20m, stored.BundleDiscount);
+        Assert.Equal(20m, stored.DiscountTotal);
+        Assert.Equal(140m, stored.TotalAmount);
+        Assert.Equal("Grooming Day", stored.BundleNameSnapshot);
+        Assert.Equal(2, stored.Items.Count);
+    }
+
+    [Fact]
+    public async Task A_bundle_visit_is_checked_out_at_the_bundle_price()
+    {
+        using var harness = new BillingHarness();
+        var invoiceId = await StartAsync(harness, await ArrangedBundleVisitAsync(harness));
+
+        var receipt = await harness.Invoices.CheckoutAsync(invoiceId, Checkout(amount: 140m));
+
+        Assert.Equal(160m, receipt.SubTotal);
+        Assert.Equal("Grooming Day", receipt.BundleName);
+        Assert.Equal(20m, receipt.BundleDiscount);
+        Assert.Equal(140m, receipt.TotalAmount);
+
+        await using var verify = harness.Reopen();
+
+        var stored = await verify.Invoices.Include(i => i.Payments).SingleAsync();
+
+        Assert.Equal(InvoiceStatus.Paid, stored.Status);
+        Assert.Equal(140m, stored.TotalAmount);
+        Assert.Equal(140m, Assert.Single(stored.Payments).Amount);
+    }
+
+    [Fact]
+    public async Task Collecting_the_component_total_on_a_bundle_visit_is_rejected()
+    {
+        using var harness = new BillingHarness();
+        var invoiceId = await StartAsync(harness, await ArrangedBundleVisitAsync(harness));
+
+        var failure = await Assert.ThrowsAsync<ValidationFailedException>(
+            () => harness.Invoices.CheckoutAsync(invoiceId, Checkout(amount: 160m)));
+
+        Assert.Equal(
+            "Payment amount must equal the invoice total of AED 140.00.",
+            Assert.Single(failure.Errors["amount"]));
+    }
+
+    [Fact]
+    public async Task A_percentage_coupon_on_a_bundle_visit_is_computed_against_the_bundle_price()
+    {
+        using var harness = new BillingHarness();
+        await harness.SeedCouponAsync("TENOFF", DiscountType.Percentage, 10m);
+        var invoiceId = await StartAsync(harness, await ArrangedBundleVisitAsync(harness));
+
+        var receipt = await harness.Invoices.CheckoutAsync(
+            invoiceId, Checkout(couponCode: "TENOFF", amount: 126m));
+
+        // 10% of the 140 still owed, not of the 160 the components total.
+        Assert.Equal(14m, receipt.CouponDiscount);
+        Assert.Equal(20m, receipt.BundleDiscount);
+        Assert.Equal(126m, receipt.TotalAmount);
+
+        var stored = await harness.Invoices.GetAsync(invoiceId);
+
+        Assert.Equal(34m, stored.DiscountTotal);
+    }
+
+    [Fact]
+    public async Task A_keyed_discount_on_a_bundle_visit_cannot_exceed_the_bundle_price()
+    {
+        using var harness = new BillingHarness();
+        // Below the 160 component subtotal, above the 140 the customer owes.
+        await harness.SeedCouponAsync("BIG", discountValue: 150m);
+        var invoiceId = await StartAsync(harness, await ArrangedBundleVisitAsync(harness));
+
+        var failure = await Assert.ThrowsAsync<ValidationFailedException>(
+            () => harness.Invoices.CheckoutAsync(invoiceId, Checkout(couponCode: "BIG", amount: 0m)));
+
+        Assert.Equal(
+            "Discount cannot exceed the subtotal.",
+            Assert.Single(failure.Errors["couponCode"]));
+    }
+
+    [Fact]
+    public async Task Combined_keyed_discounts_on_a_bundle_visit_cannot_exceed_the_bundle_price()
+    {
+        using var harness = new BillingHarness();
+        await harness.SeedCouponAsync("HUNDRED", discountValue: 100m);
+        var invoiceId = await StartAsync(harness, await ArrangedBundleVisitAsync(harness));
+
+        // Each part is affordable on its own; together they overshoot the 140.
+        var failure = await Assert.ThrowsAsync<ValidationFailedException>(
+            () => harness.Invoices.CheckoutAsync(
+                invoiceId,
+                Checkout(couponCode: "HUNDRED", manualDiscountType: "Fixed", manualDiscountValue: 60m, amount: 0m)));
+
+        Assert.Equal(
+            "Discounts cannot exceed the subtotal.",
+            Assert.Single(failure.Errors["manualDiscountValue"]));
+
+        await using var verify = harness.Reopen();
+
+        Assert.Equal(InvoiceStatus.Draft, (await verify.Invoices.SingleAsync()).Status);
+    }
+
+    [Fact]
+    public async Task A_bundle_priced_above_its_components_carries_no_saving()
+    {
+        using var harness = new BillingHarness();
+        var appointmentId = await ArrangedBundleVisitAsync(harness, bundlePrice: 180m);
+
+        var invoice = (await harness.Invoices.StartFromAppointmentAsync(
+            new CreateInvoiceRequest(appointmentId))).Invoice;
+
+        Assert.Equal(160m, invoice.SubTotal);
+        Assert.Equal(0m, invoice.BundleDiscount);
+        Assert.Equal(160m, invoice.TotalAmount);
+
+        var receipt = await harness.Invoices.CheckoutAsync(invoice.Id, Checkout(amount: 160m));
+
+        Assert.Equal(0m, receipt.BundleDiscount);
+        Assert.Equal(160m, receipt.TotalAmount);
+    }
+
+    [Fact]
+    public async Task The_bundle_name_on_the_invoice_is_the_one_from_the_day_of_the_visit()
+    {
+        using var harness = new BillingHarness();
+        var invoiceId = await StartAsync(harness, await ArrangedBundleVisitAsync(harness));
+
+        await using (var context = harness.Reopen())
+        {
+            var bundle = await context.ServiceBundles.SingleAsync();
+            bundle.Name = "Renamed Offering";
+            await context.SaveChangesAsync();
+        }
+
+        var receipt = await harness.Invoices.CheckoutAsync(invoiceId, Checkout(amount: 140m));
+
+        Assert.Equal("Grooming Day", receipt.BundleName);
+    }
+
+    [Fact]
+    public async Task A_visit_that_was_not_booked_as_a_bundle_carries_no_bundle_saving()
+    {
+        using var harness = new BillingHarness();
+        var appointmentId = await ArrangedVisitAsync(harness);
+
+        var invoice = (await harness.Invoices.StartFromAppointmentAsync(
+            new CreateInvoiceRequest(appointmentId))).Invoice;
+
+        Assert.Null(invoice.ServiceBundleId);
+        Assert.Null(invoice.BundleName);
+        Assert.Equal(0m, invoice.BundleDiscount);
+        Assert.Equal(0m, invoice.DiscountTotal);
+        Assert.Equal(160m, invoice.TotalAmount);
     }
 }

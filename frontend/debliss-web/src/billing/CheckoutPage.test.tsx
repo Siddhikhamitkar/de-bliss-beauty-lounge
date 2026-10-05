@@ -47,6 +47,7 @@ function invoice(overrides: Partial<Invoice> = {}): Invoice {
     couponId: null,
     couponCode: null,
     subTotal: 200,
+    bundleDiscount: 0,
     couponDiscount: 0,
     manualDiscount: 0,
     discountTotal: 0,
@@ -74,6 +75,7 @@ function receipt(overrides: Partial<Receipt> = {}): Receipt {
       { description: 'Blow dry', quantity: 1, unitPrice: 50, lineTotal: 50 },
     ],
     subTotal: 200,
+    bundleDiscount: 0,
     couponCode: null,
     couponDiscount: 0,
     manualDiscount: 0,
@@ -301,5 +303,52 @@ describe('CheckoutPage', () => {
     await userEvent.setup().click(screen.getByRole('button', { name: 'Try again' }))
 
     expect(await screen.findByText('Balayage')).toBeInTheDocument()
+  })
+
+  it('shows the bundle saving and prices a coupon against what is still owed', async () => {
+    const user = userEvent.setup()
+    // The two lines still add up to 200.00; the bundle saving is the 20.00 off it.
+    vi.mocked(startInvoice).mockResolvedValue(
+      invoice({ bundleName: 'Makeover', bundleDiscount: 20, discountTotal: 20, totalAmount: 180 }),
+    )
+    vi.mocked(validateCoupon).mockResolvedValue({
+      code: 'BLISS20',
+      discountType: 'Percentage',
+      discountValue: 20,
+      discountAmount: 36,
+    })
+
+    renderCheckout()
+    await screen.findByText('Balayage')
+
+    expect(screen.getByText('Bundle saving (Makeover)')).toBeInTheDocument()
+    expect(screen.getByText('−AED 20.00')).toBeInTheDocument()
+
+    await user.type(screen.getByPlaceholderText('e.g. BLISS20'), 'BLISS20')
+    await user.click(screen.getByRole('button', { name: 'Apply' }))
+
+    // 20% of the bundle-adjusted 180.00, not of the 200.00 subtotal.
+    expect(validateCoupon).toHaveBeenCalledExactlyOnceWith({ code: 'BLISS20', subtotal: 180 })
+    expect(await screen.findByText('BLISS20')).toBeInTheDocument()
+    expect(screen.getByText('−AED 36.00')).toBeInTheDocument()
+    expect(screen.getByText('AED 144.00')).toBeInTheDocument()
+    expect(screen.getByLabelText('Amount collected')).toHaveValue(144)
+  })
+
+  it('prices a manual percentage discount on the bundle-adjusted amount', async () => {
+    const user = userEvent.setup()
+    vi.mocked(startInvoice).mockResolvedValue(
+      invoice({ bundleName: 'Makeover', bundleDiscount: 20, totalAmount: 180 }),
+    )
+
+    renderCheckout()
+    await screen.findByText('Balayage')
+
+    await user.selectOptions(screen.getByLabelText('Discount type'), 'Percentage')
+    await user.type(screen.getByLabelText('Discount value'), '10')
+
+    expect(screen.getByText('−AED 18.00')).toBeInTheDocument()
+    expect(screen.getByText('AED 162.00')).toBeInTheDocument()
+    expect(screen.getByLabelText('Amount collected')).toHaveValue(162)
   })
 })

@@ -86,11 +86,19 @@ export async function request<T>(method: string, path: string, body?: unknown): 
 
   const response = await fetch(`/api${path}`, {
     method,
+    credentials: 'same-origin',
     headers: hasBody ? { 'Content-Type': 'application/json' } : undefined,
     body: hasBody ? JSON.stringify(body) : undefined,
   })
 
   if (!response.ok) {
+    // A 401 outside the auth endpoints themselves means the session expired or
+    // was revoked: the auth context listens for this and returns to the login
+    // page. Login's own 401 (bad credentials) must not trigger that.
+    if (response.status === 401 && !path.startsWith('/auth/')) {
+      window.dispatchEvent(new CustomEvent('debliss:unauthorized'))
+    }
+
     throw new ApiError(response.status, await readProblem(response))
   }
 

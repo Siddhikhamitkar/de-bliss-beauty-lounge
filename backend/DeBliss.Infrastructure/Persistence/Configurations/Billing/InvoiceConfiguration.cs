@@ -15,6 +15,7 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         builder.Property(invoice => invoice.Currency).HasMaxLength(3).IsRequired();
         builder.Property(invoice => invoice.Notes).HasMaxLength(2000);
         builder.Property(invoice => invoice.CouponCode).HasMaxLength(50);
+        builder.Property(invoice => invoice.BundleNameSnapshot).HasMaxLength(150);
 
         builder.Property(invoice => invoice.Status).HasConversion<string>().HasMaxLength(20);
 
@@ -22,6 +23,7 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         builder.Property(invoice => invoice.DiscountTotal).HasPrecision(18, 2);
         builder.Property(invoice => invoice.CouponDiscount).HasPrecision(18, 2);
         builder.Property(invoice => invoice.ManualDiscount).HasPrecision(18, 2);
+        builder.Property(invoice => invoice.BundleDiscount).HasPrecision(18, 2);
         builder.Property(invoice => invoice.TaxTotal).HasPrecision(18, 2);
         builder.Property(invoice => invoice.TotalAmount).HasPrecision(18, 2);
 
@@ -52,6 +54,13 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         builder.HasOne(invoice => invoice.Coupon)
             .WithMany()
             .HasForeignKey(invoice => invoice.CouponId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Restrict: bundles are retired by deactivating them, never deleted, and a
+        // paid invoice must never be rewritten because the bundle row changed.
+        builder.HasOne(invoice => invoice.ServiceBundle)
+            .WithMany(bundle => bundle.Invoices)
+            .HasForeignKey(invoice => invoice.ServiceBundleId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(invoice => invoice.CreatedByUser)

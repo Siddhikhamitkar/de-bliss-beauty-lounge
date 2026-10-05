@@ -8,6 +8,8 @@ function methodLabel(method: string): string {
 
 /** The printable sheet itself, shared by the checkout success step and reprints. */
 export function ReceiptView({ receipt }: { receipt: Receipt }) {
+  const bundleName = receipt.bundleName ?? null
+
   return (
     <article className="receipt-sheet" aria-label={`Receipt ${receipt.invoiceNumber}`}>
       <header className="receipt-head">
@@ -52,6 +54,12 @@ export function ReceiptView({ receipt }: { receipt: Receipt }) {
           <dt>Subtotal</dt>
           <dd>{formatMoney(receipt.currency, receipt.subTotal)}</dd>
         </div>
+        {receipt.bundleDiscount > 0 && (
+          <div>
+            <dt>{bundleName === null ? 'Bundle saving' : `Bundle saving (${bundleName})`}</dt>
+            <dd>−{formatMoney(receipt.currency, receipt.bundleDiscount)}</dd>
+          </div>
+        )}
         {receipt.couponCode !== null && (
           <div>
             <dt>Coupon ({receipt.couponCode})</dt>

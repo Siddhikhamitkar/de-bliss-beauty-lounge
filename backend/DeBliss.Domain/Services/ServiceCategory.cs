@@ -13,4 +13,6 @@ public class ServiceCategory : AuditableEntity
     public bool IsActive { get; set; } = true;
 
     public ICollection<Service> Services { get; set; } = new List<Service>();
+
+    public ICollection<ServiceBundle> Bundles { get; set; } = new List<ServiceBundle>();
 }

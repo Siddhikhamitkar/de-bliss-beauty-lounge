@@ -3,6 +3,9 @@ using DeBliss.Application.Customers;
 using DeBliss.Application.Customers.Dtos;
 using Microsoft.AspNetCore.Mvc;
 
+using DeBliss.Api.Security;
+using Microsoft.AspNetCore.Authorization;
+
 namespace DeBliss.Api.Controllers;
 
 /// <summary>
@@ -13,6 +16,7 @@ namespace DeBliss.Api.Controllers;
 [ApiController]
 [Route("api/customers")]
 [Produces("application/json")]
+[Authorize(Policy = AuthPolicies.Operational)]
 public sealed class CustomersController(ICustomerService customers) : ControllerBase
 {
     /// <remarks>Will require <c>Permissions.Customers.ViewCustomers</c> once authorisation exists.</remarks>

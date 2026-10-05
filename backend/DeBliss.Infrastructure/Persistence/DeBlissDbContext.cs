@@ -39,6 +39,10 @@ public class DeBlissDbContext(DbContextOptions<DeBlissDbContext> options)
 
     public DbSet<Service> Services => Set<Service>();
 
+    public DbSet<ServiceBundle> ServiceBundles => Set<ServiceBundle>();
+
+    public DbSet<ServiceBundleItem> ServiceBundleItems => Set<ServiceBundleItem>();
+
     public DbSet<Appointment> Appointments => Set<Appointment>();
 
     public DbSet<AppointmentService> AppointmentServices => Set<AppointmentService>();

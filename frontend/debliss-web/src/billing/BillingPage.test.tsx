@@ -89,6 +89,7 @@ function detail(overrides: Partial<Invoice> = {}): Invoice {
     couponId: 'cp1',
     couponCode: 'BLISS20',
     subTotal: 200,
+    bundleDiscount: 0,
     couponDiscount: 20,
     manualDiscount: 0,
     discountTotal: 20,
@@ -116,6 +117,7 @@ function receipt(overrides: Partial<Receipt> = {}): Receipt {
       { description: 'Blow dry', quantity: 1, unitPrice: 50, lineTotal: 50 },
     ],
     subTotal: 200,
+    bundleDiscount: 0,
     couponCode: 'BLISS20',
     couponDiscount: 20,
     manualDiscount: 0,
@@ -262,6 +264,36 @@ describe('BillingPage', () => {
     expect(within(drawer).getByText('No payment recorded yet.')).toBeInTheDocument()
   })
 
+  it('shows the bundle name and saving as their own rows in the drawer', async () => {
+    const user = userEvent.setup()
+    // No coupon here: on a bundled visit the 20.00 off is the bundle's saving.
+    vi.mocked(getInvoice).mockResolvedValue(
+      detail({
+        couponId: null,
+        couponCode: null,
+        couponDiscount: 0,
+        bundleName: 'Makeover',
+        bundleDiscount: 20,
+        discountTotal: 20,
+        totalAmount: 180,
+      }),
+    )
+
+    renderPage()
+    await screen.findByText('Lina Mansour')
+
+    await user.click(screen.getByRole('button', { name: 'INV-2026-0001' }))
+
+    const drawer = await screen.findByRole('dialog', { name: 'Invoice INV-2026-0001' })
+    expect(await within(drawer).findByText('Bundle', { selector: 'dt' })).toBeInTheDocument()
+    expect(within(drawer).getByText('Makeover')).toBeInTheDocument()
+    expect(within(drawer).getByText('Bundle saving', { selector: 'dt' })).toBeInTheDocument()
+    expect(within(drawer).getByText('−AED 20.00')).toBeInTheDocument()
+    expect(within(drawer).getByText('AED 180.00')).toBeInTheDocument()
+    // The coupon row stays, showing that no code was applied.
+    expect(within(drawer).getByText('—')).toBeInTheDocument()
+  })
+
   it('resumes checkout for a draft invoice from its drawer', async () => {
     const user = userEvent.setup()
     const { onResumeCheckout } = renderPage()
@@ -310,6 +342,57 @@ describe('BillingPage', () => {
       await screen.findByRole('dialog', { name: 'Receipt INV-2026-0001' }),
     ).toBeInTheDocument()
     expect(getReceipt).toHaveBeenCalledExactlyOnceWith('inv1')
+  })
+
+  it('reprints a receipt that keeps the bundle saving as its own line', async () => {
+    const user = userEvent.setup()
+    vi.mocked(searchInvoices).mockResolvedValue(
+      paged([summary({ status: 'Paid', paymentMethod: 'Cash' })]),
+    )
+    vi.mocked(getInvoice).mockResolvedValue(
+      detail({
+        status: 'Paid',
+        couponId: null,
+        couponCode: null,
+        couponDiscount: 0,
+        bundleName: 'Makeover',
+        bundleDiscount: 20,
+        totalAmount: 180,
+        payments: [
+          {
+            id: 'p1',
+            amount: 180,
+            currency: 'AED',
+            method: 'Cash',
+            status: 'Paid',
+            reference: null,
+            paidAt: '2026-10-04T10:30:00Z',
+          },
+        ],
+      }),
+    )
+    vi.mocked(getReceipt).mockResolvedValue(
+      receipt({
+        bundleName: 'Makeover',
+        bundleDiscount: 20,
+        couponCode: null,
+        couponDiscount: 0,
+        totalAmount: 180,
+      }),
+    )
+
+    renderPage()
+    await screen.findByText('Lina Mansour')
+
+    await user.click(screen.getByRole('button', { name: 'INV-2026-0001' }))
+    await screen.findByText('Summary')
+
+    await user.click(screen.getByRole('button', { name: 'Print receipt' }))
+
+    const receiptDialog = await screen.findByRole('dialog', { name: 'Receipt INV-2026-0001' })
+    expect(within(receiptDialog).getByText('Bundle saving (Makeover)')).toBeInTheDocument()
+    expect(within(receiptDialog).getByText('−AED 20.00')).toBeInTheDocument()
+    expect(within(receiptDialog).getByText('AED 180.00')).toBeInTheDocument()
   })
 
   it('opens the coupons screen from the header', async () => {

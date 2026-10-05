@@ -34,6 +34,8 @@ import type { ComponentType } from 'react'
 interface DashboardPageProps {
   /** Bumped after a checkout elsewhere so the snapshot reloads on next show. */
   revision?: number
+  /** The signed-in user's first name, folded into the greeting. */
+  firstName?: string
   /** Row click: opens the appointment's details on the calendar. */
   onOpenAppointment: (appointmentId: string) => void
   onNewAppointment: () => void
@@ -52,6 +54,7 @@ interface DashboardPageProps {
  */
 export function DashboardPage({
   revision = 0,
+  firstName,
   onOpenAppointment,
   onNewAppointment,
   onAddCustomer,
@@ -80,7 +83,9 @@ export function DashboardPage({
               : `${formatDate(dashboard.data.today.date)} · De Bliss Beauty Lounge`}
           </p>
           <h1 className="dash-greeting">
-            {greetingFor(now.getHours())}{' '}
+            {firstName !== undefined && firstName !== ''
+              ? `${greetingFor(now.getHours())}, ${firstName}`
+              : greetingFor(now.getHours())}{' '}
             <span className="dash-wave" aria-hidden="true">
               👋
             </span>

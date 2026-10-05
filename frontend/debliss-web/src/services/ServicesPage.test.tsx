@@ -1,13 +1,23 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { getService, listCategories, listStaffOptions, searchServices, setServiceStatus } from '../api/catalogue.ts'
-import type { PagedResult, Service, ServiceSummary } from '../api/contracts.ts'
-import { formatDate, formatPrice } from '../format.ts'
+import {
+  getBundle,
+  getService,
+  listCategories,
+  listStaffOptions,
+  searchIndividualServices,
+  searchServices,
+  setBundleStatus,
+  setServiceStatus,
+} from '../api/catalogue.ts'
+import type { Bundle, PagedResult, Service, ServiceSummary } from '../api/contracts.ts'
+import { formatDuration, formatDate, formatPrice } from '../format.ts'
 import { ServicesPage } from './ServicesPage.tsx'
 
 vi.mock('../api/catalogue.ts', () => ({
   searchServices: vi.fn(),
+  searchIndividualServices: vi.fn(),
   getService: vi.fn(),
   createService: vi.fn(),
   updateService: vi.fn(),
@@ -18,6 +28,11 @@ vi.mock('../api/catalogue.ts', () => ({
   updateCategory: vi.fn(),
   setCategoryStatus: vi.fn(),
   listStaffOptions: vi.fn(),
+  listBookableBundles: vi.fn(),
+  getBundle: vi.fn(),
+  createBundle: vi.fn(),
+  updateBundle: vi.fn(),
+  setBundleStatus: vi.fn(),
 }))
 
 function paged(items: ServiceSummary[], overrides: Partial<PagedResult<ServiceSummary>> = {}): PagedResult<ServiceSummary> {
@@ -48,6 +63,9 @@ function service(overrides: Partial<ServiceSummary> = {}): ServiceSummary {
     sortOrder: 0,
     createdAt: '2026-09-01T00:00:00Z',
     updatedAt: null,
+    itemKind: 'Service',
+    serviceCount: null,
+    standardTotalPrice: null,
     ...overrides,
   }
 }
@@ -85,6 +103,48 @@ const details: Service = {
   updatedAt: '2026-09-15T00:00:00Z',
 }
 
+/** The two components the bundle below is made of, in delivery order. */
+const bundleItems: Bundle['items'] = [
+  { serviceId: 's2', name: 'Colour', durationMinutes: 60, price: 80, displayOrder: 0, isActive: true },
+  { serviceId: 's1', name: 'Cut', durationMinutes: 45, price: 40, displayOrder: 1, isActive: true },
+]
+
+const bundleRecord: Bundle = {
+  id: 'b1',
+  name: 'Makeover',
+  description: 'Colour, then the cut.',
+  categoryId: 'cat1',
+  categoryName: 'Hair',
+  isCategoryActive: true,
+  durationMinutes: 105,
+  price: 100,
+  standardTotalPrice: 120,
+  savingsAmount: 20,
+  isActive: true,
+  isBookable: true,
+  sortOrder: 3,
+  items: bundleItems,
+  createdAt: '2026-09-02T00:00:00Z',
+  updatedAt: null,
+}
+
+function bundleRow(overrides: Partial<ServiceSummary> = {}): ServiceSummary {
+  return service({
+    id: 'b1',
+    name: 'Makeover',
+    categoryId: 'cat1',
+    categoryName: 'Hair',
+    durationMinutes: 105,
+    price: 100,
+    isOnlineBookable: false,
+    eligibleStaffCount: 0,
+    itemKind: 'Bundle',
+    serviceCount: 2,
+    standardTotalPrice: 120,
+    ...overrides,
+  })
+}
+
 describe('ServicesPage', () => {
   beforeEach(() => {
     vi.mocked(searchServices).mockResolvedValue(paged([service()]))
@@ -92,6 +152,9 @@ describe('ServicesPage', () => {
     vi.mocked(setServiceStatus).mockResolvedValue(details)
     vi.mocked(listCategories).mockResolvedValue([])
     vi.mocked(listStaffOptions).mockResolvedValue([])
+    vi.mocked(getBundle).mockResolvedValue(bundleRecord)
+    vi.mocked(setBundleStatus).mockResolvedValue(bundleRecord)
+    vi.mocked(searchIndividualServices).mockResolvedValue(paged([service()]))
   })
 
   it('shows a loading state before the first answer', () => {
@@ -158,7 +221,9 @@ describe('ServicesPage', () => {
     ).toBeInTheDocument()
     // The list and its controls are still there behind the drawer.
     expect(screen.getByRole('heading', { name: 'Services' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'New service' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Add to the service menu' }),
+    ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Apply' })).toBeInTheDocument()
   })
 
@@ -371,5 +436,137 @@ describe('ServicesPage', () => {
     expect(screen.getByLabelText('Status')).toHaveValue('Inactive')
     // Closing the drawer reloads nothing: the list keeps its three queries.
     expect(searchServices).toHaveBeenCalledTimes(3)
+  })
+
+  it('renders a bundle row as its own kind of offering', async () => {
+    vi.mocked(searchServices).mockResolvedValue(paged([service(), bundleRow()]))
+
+    render(<ServicesPage />)
+
+    const row = await screen.findByRole('row', { name: /Makeover/ })
+    expect(within(row).getByText('Bundle · 2 services')).toBeInTheDocument()
+    expect(within(row).getByRole('cell', { name: formatDuration(105) })).toBeInTheDocument()
+    // The bundle price leads; what the components cost separately is struck through.
+    expect(within(row).getByText(formatPrice(100))).toBeInTheDocument()
+    expect(
+      within(row).getByText(formatPrice(120), { selector: '.was-price' }),
+    ).toBeInTheDocument()
+    // A bundle has no staff of its own, and it is never offered online.
+    expect(within(row).getAllByRole('cell', { name: '—' })).toHaveLength(2)
+  })
+
+  it('flags an active bundle that cannot be booked', async () => {
+    vi.mocked(searchServices).mockResolvedValue(paged([bundleRow({ isBookable: false })]))
+
+    render(<ServicesPage />)
+
+    expect(await screen.findByText('not bookable')).toBeInTheDocument()
+    expect(screen.getByRole('row', { name: /Makeover/ })).toHaveClass('row-warning')
+  })
+
+  it('opens the bundle drawer with the components in delivery order', async () => {
+    const user = userEvent.setup()
+    vi.mocked(searchServices).mockResolvedValue(paged([bundleRow()]))
+    render(<ServicesPage />)
+
+    await screen.findByText('Makeover')
+    await user.click(screen.getByText('Makeover'))
+
+    const drawer = await screen.findByRole('dialog', { name: 'Bundle Makeover' })
+    expect(within(drawer).getByRole('tablist', { name: 'Bundle sections' })).toBeInTheDocument()
+    expect(within(drawer).getByText('Colour, then the cut.')).toBeInTheDocument()
+    // The saving is the reason a bundle exists, so the overview carries it.
+    expect(within(drawer).getByText(formatPrice(20))).toBeInTheDocument()
+
+    await user.click(within(drawer).getByRole('tab', { name: 'Services' }))
+
+    // The colour goes on first even though the cut sits first on the menu.
+    const [first, second] = within(drawer).getAllByRole('listitem')
+    expect(within(first).getByText('Colour')).toBeInTheDocument()
+    expect(within(second).getByText('Cut')).toBeInTheDocument()
+    expect(within(drawer).getByText('Bought separately')).toBeInTheDocument()
+  })
+
+  it('explains why an active bundle is not bookable', async () => {
+    const user = userEvent.setup()
+    vi.mocked(searchServices).mockResolvedValue(paged([bundleRow({ isBookable: false })]))
+    vi.mocked(getBundle).mockResolvedValue({ ...bundleRecord, isBookable: false })
+    render(<ServicesPage />)
+
+    await screen.findByText('Makeover')
+    await user.click(screen.getByText('Makeover'))
+    const drawer = await screen.findByRole('dialog', { name: 'Bundle Makeover' })
+
+    expect(
+      await within(drawer).findByText(
+        'Not bookable: the category is inactive, or one of the services is no longer active and bookable.',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('deactivates a bundle from the row menu through the bundle endpoint', async () => {
+    const user = userEvent.setup()
+    vi.mocked(searchServices).mockResolvedValue(paged([bundleRow()]))
+    render(<ServicesPage />)
+
+    await screen.findByText('Makeover')
+    await user.click(screen.getByRole('button', { name: 'Actions for Makeover' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('menuitem', { name: 'Deactivate' }))
+
+    await waitFor(() => expect(setBundleStatus).toHaveBeenCalledWith('b1', false))
+    // A bundle shares the list with the services but not their status endpoint.
+    expect(setServiceStatus).not.toHaveBeenCalled()
+    await waitFor(() => expect(searchServices).toHaveBeenCalledTimes(2))
+  })
+
+  it('deactivates from the bundle drawer menu and refreshes the record', async () => {
+    const user = userEvent.setup()
+    vi.mocked(searchServices).mockResolvedValue(paged([bundleRow()]))
+    render(<ServicesPage />)
+
+    await screen.findByText('Makeover')
+    await user.click(screen.getByText('Makeover'))
+    const drawer = await screen.findByRole('dialog', { name: 'Bundle Makeover' })
+    await user.click(within(drawer).getByRole('button', { name: 'More bundle actions' }))
+    await user.click(within(drawer).getByRole('menuitem', { name: 'Deactivate' }))
+
+    await waitFor(() => expect(setBundleStatus).toHaveBeenCalledWith('b1', false))
+    await waitFor(() => expect(getBundle).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(searchServices).toHaveBeenCalledTimes(2))
+    expect(setServiceStatus).not.toHaveBeenCalled()
+  })
+
+  it('opens the bundle editor from the bundle drawer', async () => {
+    const user = userEvent.setup()
+    vi.mocked(searchServices).mockResolvedValue(paged([bundleRow()]))
+    render(<ServicesPage />)
+
+    await screen.findByText('Makeover')
+    await user.click(screen.getByText('Makeover'))
+    const drawer = await screen.findByRole('dialog', { name: 'Bundle Makeover' })
+    await user.click(within(drawer).getByRole('button', { name: 'Edit' }))
+
+    expect(await screen.findByRole('heading', { name: 'Edit Makeover' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(getBundle).toHaveBeenCalledWith('b1')
+  })
+
+  it('starts a new bundle from the add menu, offering services rather than bundles', async () => {
+    const user = userEvent.setup()
+    render(<ServicesPage />)
+
+    await screen.findByText('Gel Manicure')
+    await user.click(screen.getByRole('button', { name: 'Add to the service menu' }))
+    await user.click(screen.getByRole('menuitem', { name: 'New bundle' }))
+
+    expect(await screen.findByRole('heading', { name: 'New bundle' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    // A bundle is made of services, never of other bundles, so the picker reads
+    // the individual-service list — and only active ones can be added to it.
+    await waitFor(() =>
+      expect(searchIndividualServices).toHaveBeenCalledWith({ status: 'Active', pageSize: 200 }),
+    )
+    expect(getBundle).not.toHaveBeenCalled()
   })
 })

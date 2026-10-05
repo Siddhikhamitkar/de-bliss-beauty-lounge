@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { searchStaff, getStaff, getStaffServices, getWeekSchedule, listTimeOff, setStaffStatus } from '../api/staff.ts'
-import { searchServices } from '../api/catalogue.ts'
+import { searchIndividualServices } from '../api/catalogue.ts'
 import type {
   PagedResult,
   ServiceSummary,
@@ -30,7 +30,7 @@ vi.mock('../api/staff.ts', () => ({
 }))
 
 vi.mock('../api/catalogue.ts', () => ({
-  searchServices: vi.fn(),
+  searchIndividualServices: vi.fn(),
 }))
 
 function paged(items: StaffSummary[]): PagedResult<StaffSummary> {
@@ -101,7 +101,7 @@ describe('StaffPage', () => {
     vi.mocked(setStaffStatus).mockResolvedValue(profile())
     vi.mocked(getStaff).mockResolvedValue(profile())
     vi.mocked(getStaffServices).mockResolvedValue([])
-    vi.mocked(searchServices).mockResolvedValue(emptyPagedServices)
+    vi.mocked(searchIndividualServices).mockResolvedValue(emptyPagedServices)
     vi.mocked(getWeekSchedule).mockResolvedValue(emptyWeek)
     vi.mocked(listTimeOff).mockResolvedValue([])
   })

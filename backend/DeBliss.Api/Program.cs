@@ -1,15 +1,17 @@
 using DeBliss.Api.Common;
 using DeBliss.Api.DevData;
+using DeBliss.Api.Security;
 using DeBliss.Application;
 using DeBliss.Infrastructure;
 using DeBliss.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddOpenApi();
+builder.Services.AddDeblissOpenApi();
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddDeblissSecurity(builder.Configuration);
 
 builder.Services.AddControllers();
 
@@ -34,9 +36,14 @@ if (app.Environment.IsDevelopment())
     // Demo scenario for the calendar workspace: only in Development and only
     // while the staff table is empty, so production data is never overwritten.
     await DevDataSeeder.SeedAsync(app);
+    await DevAuthSeeder.SeedAsync(app);
 }
 
 app.UseHttpsRedirection();
+
+// Authentication before authorization before the endpoints they guard.
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapControllers();
 

@@ -77,6 +77,7 @@ describe('request', () => {
     expect(result).toEqual({ id: '1' })
     expect(fetchMock).toHaveBeenCalledWith('/api/services/1', {
       method: 'GET',
+      credentials: 'same-origin',
       headers: undefined,
       body: undefined,
     })
@@ -99,6 +100,7 @@ describe('request', () => {
 
     expect(fetchMock).toHaveBeenCalledWith('/api/services', {
       method: 'POST',
+      credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'Gel Manicure' }),
     })

@@ -13,6 +13,9 @@ public static class ServiceCatalogueLimits
     public const int ServiceNameMaxLength = 150;
     public const int ServiceDescriptionMaxLength = 1000;
 
+    public const int BundleNameMaxLength = 150;
+    public const int BundleDescriptionMaxLength = 1000;
+
     /// <summary>A single appointment line cannot run longer than a day.</summary>
     public const int MaximumDurationMinutes = 1440;
 

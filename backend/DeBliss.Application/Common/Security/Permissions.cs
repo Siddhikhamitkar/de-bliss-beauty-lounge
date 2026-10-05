@@ -63,4 +63,10 @@ public static class Permissions
     {
         public const string ViewReceptionistDashboard = "dashboard.receptionist.read";
     }
+
+    public static class Owner
+    {
+        /// <summary>The future owner workspace (dashboard, reports, settings). Enforced now on the owner landing endpoint.</summary>
+        public const string AccessWorkspace = "owner.workspace.access";
+    }
 }

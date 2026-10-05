@@ -31,6 +31,7 @@ export function InvoiceDrawer({ invoice, onClose, onResumeCheckout }: InvoiceDra
   const [receiptFailure, setReceiptFailure] = useState<string>()
 
   const status = record?.status ?? invoice.status
+  const bundleName = record?.bundleName ?? null
 
   function printReceipt() {
     setReceiptFailure(undefined)
@@ -101,6 +102,12 @@ export function InvoiceDrawer({ invoice, onClose, onResumeCheckout }: InvoiceDra
               <dd>{details.data.issuedAt === null ? '—' : formatDateTime(details.data.issuedAt)}</dd>
               <dt>Status</dt>
               <dd><InvoiceStatusPill status={details.data.status} /></dd>
+              {bundleName !== null && (
+                <>
+                  <dt>Bundle</dt>
+                  <dd>{bundleName}</dd>
+                </>
+              )}
               <dt>Coupon</dt>
               <dd>{details.data.couponCode ?? '—'}</dd>
             </dl>
@@ -141,6 +148,12 @@ export function InvoiceDrawer({ invoice, onClose, onResumeCheckout }: InvoiceDra
                 <dt>Subtotal</dt>
                 <dd>{formatMoney(details.data.currency, details.data.subTotal)}</dd>
               </div>
+              {details.data.bundleDiscount > 0 && (
+                <div>
+                  <dt>Bundle saving</dt>
+                  <dd>−{formatMoney(details.data.currency, details.data.bundleDiscount)}</dd>
+                </div>
+              )}
               {details.data.couponDiscount > 0 && (
                 <div>
                   <dt>Coupon discount</dt>

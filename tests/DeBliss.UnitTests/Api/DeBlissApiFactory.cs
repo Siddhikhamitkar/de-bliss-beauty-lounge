@@ -1,3 +1,5 @@
+using DeBliss.Api.Security;
+using DeBliss.Application.Identity;
 using DeBliss.Infrastructure;
 using DeBliss.Infrastructure.Persistence;
 using DeBliss.Infrastructure.Persistence.Interceptors;
@@ -21,6 +23,10 @@ namespace DeBliss.UnitTests.Api;
 /// </summary>
 internal sealed class DeBlissApiFactory : WebApplicationFactory<Program>
 {
+    /// <summary>Test-only JWT key: random per checkout, never a real secret.</summary>
+    public const string TestSigningKey =
+        "debliss-testing-only-signing-key-5e8b3f12-9c6a-4d2e-b7f0-31a94c8d6e52";
+
     private readonly SqliteTestDatabase _database = new();
 
     public SqliteTestDatabase Database => _database;
@@ -33,6 +39,9 @@ internal sealed class DeBlissApiFactory : WebApplicationFactory<Program>
         builder.UseSetting(
             $"ConnectionStrings:{DependencyInjection.ConnectionStringName}",
             _database.ConnectionString);
+        // ...and for the same reason the development JWT key is absent, so the
+        // tests supply their own throwaway one.
+        builder.UseSetting(AuthToken.SigningKeyConfigPath, TestSigningKey);
 
         builder.ConfigureTestServices(services =>
         {
@@ -82,6 +91,17 @@ internal sealed class DeBlissApiFactory : WebApplicationFactory<Program>
         WithNewContextAsync(context => CatalogueSeed.ServiceAsync(
             context, categoryId, name, price, durationMinutes, isActive, description, staffIds, sortOrder));
 
+    public Task<Guid> SeedBundleAsync(
+        Guid categoryId,
+        string name,
+        decimal price,
+        IReadOnlyList<Guid> serviceIds,
+        bool isActive = true,
+        string? description = null,
+        int sortOrder = 0) =>
+        WithNewContextAsync(context => CatalogueSeed.BundleAsync(
+            context, categoryId, name, price, serviceIds, isActive, description, sortOrder));
+
     public Task<Guid> SeedCustomerAsync(
         string firstName,
         string lastName,
@@ -126,6 +146,38 @@ internal sealed class DeBlissApiFactory : WebApplicationFactory<Program>
         IReadOnlyList<(Guid ServiceId, string SnapshotName, decimal UnitPrice, int SortOrder)>? lines = null) =>
         WithNewContextAsync(context =>
             BillingSeed.AppointmentAsync(context, customerId, startsAt, status, walkInCustomerName, lines));
+
+    /// <summary>Standard owner sign-in most tests use; created once per database.</summary>
+    public const string DefaultUserEmail = "owner@debliss.test";
+    public const string DefaultUserPassword = "Test#Owner123";
+
+    public async Task SeedUserAsync(
+        string email,
+        string password,
+        string roleName,
+        string firstName = "Test",
+        string lastName = "User",
+        bool isActive = true,
+        Guid? linkedStaffId = null)
+    {
+        await using var context = _database.CreateContext();
+        await IdentitySeed.UserAsync(
+            context, email, password, roleName, firstName, lastName, isActive, linkedStaffId);
+    }
+
+    /// <summary>Idempotently creates the default owner account so ApiTestBase can sign in.</summary>
+    public async Task EnsureDefaultUserAsync()
+    {
+        await using var context = _database.CreateContext();
+
+        if (await context.Users.AnyAsync(user => user.Email == DefaultUserEmail))
+        {
+            return;
+        }
+
+        await IdentitySeed.UserAsync(
+            context, DefaultUserEmail, DefaultUserPassword, RoleNames.Owner, "Test", "Owner");
+    }
 
     private async Task<Guid> WithNewContextAsync(Func<DeBlissDbContext, Task<Guid>> seed)
     {

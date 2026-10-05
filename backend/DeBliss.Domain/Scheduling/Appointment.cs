@@ -2,6 +2,7 @@ using DeBliss.Domain.Billing;
 using DeBliss.Domain.Common;
 using DeBliss.Domain.Customers;
 using DeBliss.Domain.Identity;
+using DeBliss.Domain.Services;
 
 namespace DeBliss.Domain.Scheduling;
 
@@ -52,6 +53,18 @@ public class Appointment : AuditableEntity, ISoftDeletable
     public User? CreatedByUser { get; set; }
 
     public DateTimeOffset? DeletedAt { get; set; }
+
+    /// <summary>
+    /// The bundle this booking was made as, when it is a bundle appointment.
+    /// The component services still live on <see cref="Services"/> as ordered
+    /// snapshot lines; this pointer records which offering they were sold as.
+    /// </summary>
+    public Guid? ServiceBundleId { get; set; }
+
+    public ServiceBundle? ServiceBundle { get; set; }
+
+    /// <summary>The bundle's price at booking time, so checkout always charges what was quoted.</summary>
+    public decimal? BundlePriceSnapshot { get; set; }
 
     public ICollection<AppointmentService> Services { get; set; } = new List<AppointmentService>();
 

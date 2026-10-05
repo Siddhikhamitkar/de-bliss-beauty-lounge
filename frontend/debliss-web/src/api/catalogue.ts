@@ -1,6 +1,8 @@
 import { request, toQueryString } from './client.ts'
 import type {
+  Bundle,
   PagedResult,
+  SaveBundleRequest,
   SaveServiceCategoryRequest,
   SaveServiceRequest,
   Service,
@@ -34,6 +36,23 @@ export function searchServices(search: ServiceSearch): Promise<PagedResult<Servi
   )
 }
 
+/**
+ * `searchServices` returns services and bundles interleaved, which is what the
+ * menu wants but not what a picker of individual services wants: a bundle has
+ * no staff of its own and cannot be a component of another bundle. Every
+ * caller that offers services to assign, compose or book one at a time goes
+ * through here. The page counts still describe the merged set, so this is only
+ * correct for the single full-page lookups those pickers make.
+ */
+export function searchIndividualServices(
+  search: ServiceSearch,
+): Promise<PagedResult<ServiceSummary>> {
+  return searchServices(search).then(page => ({
+    ...page,
+    items: page.items.filter(item => item.itemKind === 'Service'),
+  }))
+}
+
 export function getService(id: string): Promise<Service> {
   return request('GET', `/services/${id}`)
 }
@@ -48,6 +67,30 @@ export function updateService(id: string, body: SaveServiceRequest): Promise<Ser
 
 export function setServiceStatus(id: string, isActive: boolean): Promise<Service> {
   return request('PATCH', `/services/${id}/status`, { isActive })
+}
+
+/**
+ * The bundles the booking flow may offer. Management screens list bundles
+ * through `searchServices`, which merges them into the same page.
+ */
+export function listBookableBundles(): Promise<Bundle[]> {
+  return request('GET', '/service-bundles/bookable')
+}
+
+export function getBundle(id: string): Promise<Bundle> {
+  return request('GET', `/service-bundles/${id}`)
+}
+
+export function createBundle(body: SaveBundleRequest): Promise<Bundle> {
+  return request('POST', '/service-bundles', body)
+}
+
+export function updateBundle(id: string, body: SaveBundleRequest): Promise<Bundle> {
+  return request('PUT', `/service-bundles/${id}`, body)
+}
+
+export function setBundleStatus(id: string, isActive: boolean): Promise<Bundle> {
+  return request('PATCH', `/service-bundles/${id}/status`, { isActive })
 }
 
 export function listCategories(status?: ServiceStatusFilter): Promise<ServiceCategory[]> {

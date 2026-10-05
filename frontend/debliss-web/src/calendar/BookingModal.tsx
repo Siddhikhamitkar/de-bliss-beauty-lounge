@@ -3,13 +3,14 @@ import type { FormEvent } from 'react'
 import { ApiError, describeFailure } from '../api/client.ts'
 import type {
   AppointmentServiceLineInput,
+  Bundle,
   CustomerSummary,
   EligibleStaff,
   SaveAppointmentRequest,
   SaveCustomerRequest,
   ServiceSummary,
 } from '../api/contracts.ts'
-import { getService, searchServices } from '../api/catalogue.ts'
+import { getService, listBookableBundles, searchIndividualServices } from '../api/catalogue.ts'
 import { createCustomer, searchCustomers } from '../api/customers.ts'
 import { checkStaffAvailability } from '../api/staff.ts'
 import { createAppointment, updateAppointment } from '../api/scheduling.ts'
@@ -105,6 +106,8 @@ export function BookingModal({ booking, onClose, onSaved }: BookingModalProps) {
   )
   const [serviceQuery, setServiceQuery] = useState('')
   const [menu, setMenu] = useState<ServiceSummary[] | undefined>(undefined)
+  const [bundles, setBundles] = useState<Bundle[] | undefined>(undefined)
+  const [bundleId, setBundleId] = useState<string | null>(appointment?.serviceBundleId ?? null)
 
   const [dateKey, setDateKey] = useState(() =>
     booking.kind === 'create'
@@ -130,10 +133,12 @@ export function BookingModal({ booking, onClose, onSaved }: BookingModalProps) {
   const eligibleRequested = useRef(new Set<string>())
 
   // Bookable menu, fetched once per open so the picker stays snappy; the
-  // search box refilters the cached list client-side.
+  // search box refilters the cached list client-side. Bundles are left out
+  // because they get their own picker below — a bundle books as a whole, so
+  // clicking one here would send its id as a single service line.
   useEffect(() => {
     let cancelled = false
-    searchServices({ bookableOnly: true, status: 'Active', pageSize: 100 })
+    searchIndividualServices({ bookableOnly: true, status: 'Active', pageSize: 100 })
       .then(result => {
         if (!cancelled) {
           setMenu(result.items)
@@ -142,6 +147,24 @@ export function BookingModal({ booking, onClose, onSaved }: BookingModalProps) {
       .catch(() => {
         if (!cancelled) {
           setMenu([])
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    listBookableBundles()
+      .then(result => {
+        if (!cancelled) {
+          setBundles(result)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setBundles([])
         }
       })
     return () => {
@@ -214,12 +237,51 @@ export function BookingModal({ booking, onClose, onSaved }: BookingModalProps) {
     )
   }
 
+  // A line only carries its staff list while it is on the form, so dropping one
+  // also drops the request that filled it — otherwise adding that service again
+  // would be taken as already answered and leave its staff select empty.
   function removeLine(serviceId: string): void {
+    eligibleRequested.current.delete(serviceId)
     setLines(current => current.filter(line => line.serviceId !== serviceId))
+  }
+
+  /**
+   * A bundle books as one appointment whose lines are exactly its components, so
+   * applying one replaces whatever was picked and the individual menu goes away
+   * — the API rejects any other set with "submit exactly those services".
+   */
+  function applyBundle(bundle: Bundle): void {
+    const components = [...bundle.items].sort((a, b) => a.displayOrder - b.displayOrder)
+    for (const item of components) {
+      ensureEligibleStaff(item.serviceId)
+    }
+    setLines(
+      components.map(item => ({
+        serviceId: item.serviceId,
+        serviceName: item.name,
+        durationMinutes: item.durationMinutes,
+        unitPrice: item.price,
+        staffId: null,
+        eligible: [],
+      })),
+    )
+    setBundleId(bundle.id)
+  }
+
+  function clearBundle(): void {
+    eligibleRequested.current.clear()
+    setBundleId(null)
+    setLines([])
   }
 
   const totalMinutes = lines.reduce((sum, line) => sum + line.durationMinutes, 0)
   const totalPrice = lines.reduce((sum, line) => sum + line.unitPrice, 0)
+
+  // In edit mode the booked bundle may have gone unbookable since, so it is no
+  // longer in the list; the appointment's own snapshots keep the header honest.
+  const selectedBundle = bundles?.find(bundle => bundle.id === bundleId) ?? null
+  const bundleName = selectedBundle?.name ?? appointment?.bundleName ?? null
+  const bundlePrice = selectedBundle?.price ?? appointment?.bundlePrice ?? null
   const sharedStaffId = useMemo(() => {
     const ids = new Set(lines.map(line => line.staffId).filter((id): id is string => id !== null))
     return ids.size === 1 ? [...ids][0] : null
@@ -334,6 +396,7 @@ export function BookingModal({ booking, onClose, onSaved }: BookingModalProps) {
       startsAt: start.toISOString(),
       services,
       notes: notes.trim() === '' ? null : notes.trim(),
+      serviceBundleId: bundleId,
     }
   }
 
@@ -533,39 +596,81 @@ export function BookingModal({ booking, onClose, onSaved }: BookingModalProps) {
 
           <fieldset className="booking-section">
             <legend>Services</legend>
-            <input
-              type="search"
-              value={serviceQuery}
-              onChange={event => setServiceQuery(event.target.value)}
-              placeholder="Search services"
-              aria-label="Search services"
-            />
-            {menu === undefined ? (
-              <p className="booking-empty">Loading services…</p>
-            ) : (
-              <div className="booking-menu">
-                {groupedMenu.length === 0 && <p className="booking-empty">No bookable services.</p>}
-                {groupedMenu.map(([category, services]) => (
-                  <div key={category} className="booking-category">
-                    <h4>{category}</h4>
+
+            {bundleId === null ? (
+              <>
+                {bundles !== undefined && bundles.length > 0 && (
+                  <div className="booking-bundles">
+                    <h4>Bundles</h4>
                     <ul>
-                      {services.map(service => (
-                        <li key={service.id}>
+                      {bundles.map(bundle => (
+                        <li key={bundle.id}>
                           <button
                             type="button"
                             className="booking-service"
-                            onClick={() => addService(service)}
+                            onClick={() => applyBundle(bundle)}
                           >
-                            <span className="booking-service-name">{service.name}</span>
+                            <span className="booking-service-name">{bundle.name}</span>
                             <span className="booking-service-meta">
-                              {formatDuration(service.durationMinutes)} · {formatPrice(service.price)}
+                              {bundle.items.length} services · {formatDuration(bundle.durationMinutes)}{' '}
+                              · {formatPrice(bundle.price)}
+                              {bundle.savingsAmount > 0 && ` · save ${formatPrice(bundle.savingsAmount)}`}
                             </span>
                           </button>
                         </li>
                       ))}
                     </ul>
                   </div>
-                ))}
+                )}
+
+                <input
+                  type="search"
+                  value={serviceQuery}
+                  onChange={event => setServiceQuery(event.target.value)}
+                  placeholder="Search services"
+                  aria-label="Search services"
+                />
+                {menu === undefined ? (
+                  <p className="booking-empty">Loading services…</p>
+                ) : (
+                  <div className="booking-menu">
+                    {groupedMenu.length === 0 && <p className="booking-empty">No bookable services.</p>}
+                    {groupedMenu.map(([category, services]) => (
+                      <div key={category} className="booking-category">
+                        <h4>{category}</h4>
+                        <ul>
+                          {services.map(service => (
+                            <li key={service.id}>
+                              <button
+                                type="button"
+                                className="booking-service"
+                                onClick={() => addService(service)}
+                              >
+                                <span className="booking-service-name">{service.name}</span>
+                                <span className="booking-service-meta">
+                                  {formatDuration(service.durationMinutes)} · {formatPrice(service.price)}
+                                </span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="booking-bundle-applied">
+                <div className="booking-line-main">
+                  <span className="booking-service-name">{bundleName}</span>
+                  <span className="booking-service-meta">
+                    {lines.length} services · {formatDuration(totalMinutes)}
+                    {bundlePrice !== null && ` · ${formatPrice(bundlePrice)}`}
+                  </span>
+                </div>
+                <button type="button" className="button button-compact" onClick={clearBundle}>
+                  Remove bundle
+                </button>
               </div>
             )}
 
@@ -595,24 +700,37 @@ export function BookingModal({ booking, onClose, onSaved }: BookingModalProps) {
                         ))}
                       </select>
                     </label>
-                    <button
-                      type="button"
-                      className="button booking-remove"
-                      onClick={() => removeLine(line.serviceId)}
-                      aria-label={`Remove ${line.serviceName}`}
-                    >
-                      ×
-                    </button>
+                    {bundleId === null && (
+                      <button
+                        type="button"
+                        className="button booking-remove"
+                        onClick={() => removeLine(line.serviceId)}
+                        aria-label={`Remove ${line.serviceName}`}
+                      >
+                        ×
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>
             )}
 
-            {lines.length > 0 && (
-              <p className="booking-total">
-                Total {formatDuration(totalMinutes)} · {formatPrice(totalPrice)}
-              </p>
-            )}
+            <FieldErrors messages={fieldErrors.services} />
+            <FieldErrors messages={fieldErrors.serviceBundleId} />
+
+            {lines.length > 0 &&
+              (bundleId !== null && bundlePrice !== null ? (
+                <p className="booking-total">
+                  Bundle price {formatPrice(bundlePrice)} · {formatDuration(totalMinutes)}
+                  {totalPrice > bundlePrice && (
+                    <span className="booking-saving">saves {formatPrice(totalPrice - bundlePrice)}</span>
+                  )}
+                </p>
+              ) : (
+                <p className="booking-total">
+                  Total {formatDuration(totalMinutes)} · {formatPrice(totalPrice)}
+                </p>
+              ))}
           </fieldset>
 
           <fieldset className="booking-section">

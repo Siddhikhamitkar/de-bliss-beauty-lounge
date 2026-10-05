@@ -1,7 +1,9 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { searchServices } from './api/catalogue.ts'
+import { fetchCurrentUser, logout } from './api/auth.ts'
+import type { AuthUser } from './api/auth.ts'
+import { listBookableBundles, searchIndividualServices } from './api/catalogue.ts'
 import {
   getCustomer,
   listCustomerAppointments,
@@ -13,6 +15,12 @@ import { getReceptionistDashboard } from './api/dashboard.ts'
 import { startInvoice, searchInvoices } from './api/billing.ts'
 import { getAppointment, getCalendar } from './api/scheduling.ts'
 import App from './App.tsx'
+
+vi.mock('./api/auth.ts', () => ({
+  login: vi.fn(),
+  fetchCurrentUser: vi.fn(),
+  logout: vi.fn(),
+}))
 
 vi.mock('./api/scheduling.ts', () => ({
   getCalendar: vi.fn(),
@@ -26,6 +34,8 @@ vi.mock('./api/scheduling.ts', () => ({
 vi.mock('./api/catalogue.ts', () => ({
   listCategories: vi.fn(),
   searchServices: vi.fn(),
+  searchIndividualServices: vi.fn(),
+  listBookableBundles: vi.fn(),
   getService: vi.fn(),
   setServiceStatus: vi.fn(),
 }))
@@ -74,6 +84,15 @@ vi.mock('./api/billing.ts', () => ({
 vi.mock('./api/dashboard.ts', () => ({
   getReceptionistDashboard: vi.fn(),
 }))
+
+const receptionistUser: AuthUser = {
+  id: 'u2',
+  firstName: 'Nadia',
+  lastName: 'FrontDesk',
+  email: 'receptionist@debliss.dev',
+  roles: ['RECEPTIONIST'],
+  staffId: null,
+}
 
 const emptyDashboard: ReceptionistDashboard = {
   generatedAt: '2026-10-03T10:00:00+04:00',
@@ -151,6 +170,10 @@ const saraAppointment: Appointment = {
 }
 
 beforeEach(() => {
+  vi.mocked(fetchCurrentUser).mockResolvedValue(receptionistUser)
+  vi.mocked(logout).mockResolvedValue(undefined)
+  // The signed-in receptionist lands on her own dashboard.
+  window.history.pushState({}, '', '/receptionist/dashboard')
   vi.mocked(getReceptionistDashboard).mockResolvedValue(emptyDashboard)
   vi.mocked(getCalendar).mockResolvedValue({
     from: new Date().toISOString(),
@@ -168,10 +191,21 @@ beforeEach(() => {
     hasPreviousPage: false,
     hasNextPage: false,
   })
+  // The booking dialog loads its menu from these two when it opens.
+  vi.mocked(searchIndividualServices).mockResolvedValue({
+    items: [],
+    totalCount: 0,
+    page: 1,
+    pageSize: 100,
+    totalPages: 0,
+    hasPreviousPage: false,
+    hasNextPage: false,
+  })
+  vi.mocked(listBookableBundles).mockResolvedValue([])
 })
 
 describe('App', () => {
-  it('opens on the dashboard with the sidebar marking it active', async () => {
+  it('opens on the receptionist dashboard with the sidebar marking it active', async () => {
     render(<App />)
 
     expect(
@@ -233,15 +267,6 @@ describe('App', () => {
 
   it('opens the booking dialog from the dashboard quick action', async () => {
     const user = userEvent.setup()
-    vi.mocked(searchServices).mockResolvedValue({
-      items: [],
-      totalCount: 0,
-      page: 1,
-      pageSize: 100,
-      totalPages: 0,
-      hasPreviousPage: false,
-      hasNextPage: false,
-    })
     render(<App />)
 
     await user.click(await screen.findByRole('button', { name: /^New appointment/ }))
@@ -334,15 +359,6 @@ describe('App', () => {
     vi.mocked(getCustomer).mockResolvedValue(linaProfile)
     vi.mocked(listCustomerNotes).mockResolvedValue([])
     vi.mocked(listCustomerAppointments).mockResolvedValue([])
-    vi.mocked(searchServices).mockResolvedValue({
-      items: [],
-      totalCount: 0,
-      page: 1,
-      pageSize: 100,
-      totalPages: 0,
-      hasPreviousPage: false,
-      hasNextPage: false,
-    })
 
     render(<App />)
 

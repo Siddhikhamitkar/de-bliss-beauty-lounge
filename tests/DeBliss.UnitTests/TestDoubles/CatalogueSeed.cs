@@ -104,6 +104,49 @@ internal static class CatalogueSeed
     }
 
     /// <summary>
+    /// Writes a bundle straight to the menu. The component list order becomes
+    /// the delivery sequence, the way the application service derives it from
+    /// the submitted request.
+    /// </summary>
+    public static async Task<Guid> BundleAsync(
+        DeBlissDbContext context,
+        Guid categoryId,
+        string name,
+        decimal price,
+        IReadOnlyList<Guid> serviceIds,
+        bool isActive = true,
+        string? description = null,
+        int sortOrder = 0)
+    {
+        var bundle = new ServiceBundle
+        {
+            Id = Guid.NewGuid(),
+            ServiceCategoryId = categoryId,
+            Name = name,
+            Description = description,
+            Price = price,
+            IsActive = isActive,
+            SortOrder = sortOrder
+        };
+
+        for (var position = 0; position < serviceIds.Count; position++)
+        {
+            bundle.Items.Add(new ServiceBundleItem
+            {
+                Id = Guid.NewGuid(),
+                ServiceBundleId = bundle.Id,
+                ServiceId = serviceIds[position],
+                DisplayOrder = position
+            });
+        }
+
+        context.ServiceBundles.Add(bundle);
+        await context.SaveChangesAsync();
+
+        return bundle.Id;
+    }
+
+    /// <summary>
     /// Books a service at a price, the way the future appointment module will.
     /// Used to prove that editing the catalogue never rewrites history.
     /// </summary>

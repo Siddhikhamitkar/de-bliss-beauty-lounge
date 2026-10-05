@@ -4,8 +4,9 @@ using DeBliss.Domain.Staffing;
 namespace DeBliss.Domain.Identity;
 
 /// <summary>
-/// A person who can sign in to the salon platform. Authentication is not
-/// implemented yet, so <see cref="PasswordHash"/> is optional and currently unused.
+/// A person who can sign in to the salon platform. <see cref="PasswordHash"/> holds
+/// the ASP.NET Core Identity PBKDF2 hash; it stays nullable only because legacy rows
+/// may predate the first login being issued.
 /// </summary>
 public class User : AuditableEntity
 {

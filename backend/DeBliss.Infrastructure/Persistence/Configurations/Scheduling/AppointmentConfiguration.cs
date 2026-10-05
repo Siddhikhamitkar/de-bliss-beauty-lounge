@@ -41,5 +41,14 @@ public class AppointmentConfiguration : IEntityTypeConfiguration<Appointment>
             .WithMany()
             .HasForeignKey(appointment => appointment.RecurringSeriesId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Property(appointment => appointment.BundlePriceSnapshot).HasPrecision(18, 2);
+
+        // Restrict: a booking that was sold as a bundle stays resolvable even if the
+        // bundle is later deactivated.
+        builder.HasOne(appointment => appointment.ServiceBundle)
+            .WithMany(bundle => bundle.Appointments)
+            .HasForeignKey(appointment => appointment.ServiceBundleId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

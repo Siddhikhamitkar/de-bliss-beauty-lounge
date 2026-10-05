@@ -20,23 +20,42 @@ namespace DeBliss.Application.ServiceCatalogue;
 /// </summary>
 public sealed class ServiceCatalogueService(
     IServiceRepository services,
+    IServiceBundleRepository serviceBundles,
     IServiceCategoryRepository categories,
     IStaffDirectory staffDirectory,
     IUnitOfWork unitOfWork) : IServiceCatalogueService
 {
+    /// <summary>
+    /// The menu lists services and bundles together, interleaved within their
+    /// category. Both repositories return their full filtered set; the merge
+    /// and the paging happen here so a page can never straddle the two
+    /// halves incorrectly.
+    /// </summary>
     public async Task<PagedResult<ServiceSummaryDto>> SearchAsync(
         ServiceQuery query,
         CancellationToken cancellationToken = default)
     {
         var normalized = query.Normalized();
 
-        var (items, totalCount) = await services.SearchAsync(normalized, cancellationToken);
+        var serviceItems = await services.SearchAsync(normalized, cancellationToken);
+        var bundleItems = await serviceBundles.SearchAsync(normalized, cancellationToken);
 
-        return new PagedResult<ServiceSummaryDto>(
-            [.. items.Select(MapSummary)],
-            totalCount,
-            normalized.Page,
-            normalized.PageSize);
+        var merged = serviceItems
+            .Select(service => new MenuEntry(service.ServiceCategory?.SortOrder ?? int.MaxValue, MapSummary(service)))
+            .Concat(bundleItems.Select(bundle => new MenuEntry(bundle.ServiceCategory?.SortOrder ?? int.MaxValue, MapBundleSummary(bundle))))
+            .OrderBy(entry => entry.CategorySortOrder)
+            .ThenBy(entry => entry.Summary.SortOrder)
+            .ThenBy(entry => entry.Summary.Name, StringComparer.Ordinal)
+            .ThenBy(entry => entry.Summary.ItemKind, StringComparer.Ordinal)
+            .ToList();
+
+        var page = merged
+            .Skip((normalized.Page - 1) * normalized.PageSize)
+            .Take(normalized.PageSize)
+            .Select(entry => entry.Summary)
+            .ToList();
+
+        return new PagedResult<ServiceSummaryDto>(page, merged.Count, normalized.Page, normalized.PageSize);
     }
 
     public async Task<ServiceDto> GetAsync(Guid id, CancellationToken cancellationToken = default)
@@ -347,7 +366,30 @@ public sealed class ServiceCatalogueService(
         service.StaffServices.Count(staffService => staffService.Staff.IsActive),
         service.SortOrder,
         service.CreatedAt,
-        service.UpdatedAt);
+        service.UpdatedAt,
+        "Service",
+        null,
+        null);
+
+    private static ServiceSummaryDto MapBundleSummary(ServiceBundle bundle) => new(
+        bundle.Id,
+        bundle.Name,
+        bundle.ServiceCategoryId,
+        bundle.ServiceCategory?.Name,
+        bundle.TotalDurationMinutes,
+        bundle.Price,
+        bundle.IsActive,
+        IsOnlineBookable: false,
+        bundle.CanBeBooked(),
+        EligibleStaffCount: 0,
+        bundle.SortOrder,
+        bundle.CreatedAt,
+        bundle.UpdatedAt,
+        "Bundle",
+        bundle.Items.Count,
+        bundle.StandardTotalPrice);
+
+    private sealed record MenuEntry(int CategorySortOrder, ServiceSummaryDto Summary);
 
     private static ServiceDto Map(Service service) => new(
         service.Id,

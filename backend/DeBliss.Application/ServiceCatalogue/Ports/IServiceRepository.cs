@@ -12,7 +12,12 @@ public interface IServiceRepository
     /// </summary>
     Task<Service?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
-    Task<(IReadOnlyList<Service> Items, int TotalCount)> SearchAsync(
+    /// <summary>
+    /// Every service matching the menu filters, ordered like the service menu.
+    /// Returned unpaged: the catalogue service merges services with bundles
+    /// into one ordered, paged menu.
+    /// </summary>
+    Task<IReadOnlyList<Service>> SearchAsync(
         ServiceQuery query,
         CancellationToken cancellationToken = default);
 

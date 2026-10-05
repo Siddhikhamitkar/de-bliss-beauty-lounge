@@ -1,14 +1,5 @@
 import type { ReactNode } from 'react'
-
-export type Section =
-  | 'dashboard'
-  | 'calendar'
-  | 'services'
-  | 'categories'
-  | 'staff'
-  | 'customers'
-  | 'billing'
-  | 'coupons'
+import type { AuthUser, RoleName } from '../api/auth.ts'
 
 type IconName =
   | 'dashboard'
@@ -29,29 +20,40 @@ interface NavItem {
   key: string
   label: string
   icon: IconName
-  section?: Section
+  /** The route a click navigates to. Items without one are not built yet. */
+  path?: string
+  /** Which roles may see the item at all. The sidebar is a courtesy filter —
+   *  the API is the actual gate. */
+  roles: readonly RoleName[]
 }
 
 /**
- * The full salon roadmap, in operational order. Items without a section are
- * not built yet: they stay visible but disabled so the shape of the product
- * reads at a glance without leading anywhere dead.
+ * The full salon roadmap, in operational order. The receptionist's rail shows
+ * only the built operational modules; the owner additionally sees the future
+ * modules as disabled "Soon" rows so the product shape reads at a glance.
+ * Staff have no modules yet, so their rail is brand plus identity alone.
  */
 const NAV_ITEMS: NavItem[] = [
-  { key: 'dashboard', label: 'Dashboard', icon: 'dashboard', section: 'dashboard' },
-  { key: 'calendar', label: 'Calendar', icon: 'calendar', section: 'calendar' },
-  { key: 'customers', label: 'Customers', icon: 'customers', section: 'customers' },
-  { key: 'services', label: 'Services', icon: 'services', section: 'services' },
-  { key: 'staff', label: 'Staff', icon: 'staff', section: 'staff' },
-  { key: 'billing', label: 'Billing', icon: 'billing', section: 'billing' },
-  { key: 'packages', label: 'Packages', icon: 'packages' },
-  { key: 'loyalty', label: 'Loyalty', icon: 'loyalty' },
-  { key: 'inventory', label: 'Inventory', icon: 'inventory' },
-  { key: 'expenses', label: 'Expenses', icon: 'expenses' },
-  { key: 'reports', label: 'Reports', icon: 'reports' },
-  { key: 'marketing', label: 'Marketing', icon: 'marketing' },
-  { key: 'settings', label: 'Settings', icon: 'settings' },
+  { key: 'dashboard', label: 'Dashboard', icon: 'dashboard', path: '/receptionist/dashboard', roles: ['OWNER', 'RECEPTIONIST'] },
+  { key: 'calendar', label: 'Calendar', icon: 'calendar', path: '/calendar', roles: ['OWNER', 'RECEPTIONIST'] },
+  { key: 'customers', label: 'Customers', icon: 'customers', path: '/customers', roles: ['OWNER', 'RECEPTIONIST'] },
+  { key: 'services', label: 'Services', icon: 'services', path: '/services', roles: ['OWNER', 'RECEPTIONIST'] },
+  { key: 'staff', label: 'Staff', icon: 'staff', path: '/staff', roles: ['OWNER', 'RECEPTIONIST'] },
+  { key: 'billing', label: 'Billing', icon: 'billing', path: '/billing', roles: ['OWNER', 'RECEPTIONIST'] },
+  { key: 'packages', label: 'Packages', icon: 'packages', roles: ['OWNER'] },
+  { key: 'loyalty', label: 'Loyalty', icon: 'loyalty', roles: ['OWNER'] },
+  { key: 'inventory', label: 'Inventory', icon: 'inventory', roles: ['OWNER'] },
+  { key: 'expenses', label: 'Expenses', icon: 'expenses', roles: ['OWNER'] },
+  { key: 'reports', label: 'Reports', icon: 'reports', roles: ['OWNER'] },
+  { key: 'marketing', label: 'Marketing', icon: 'marketing', roles: ['OWNER'] },
+  { key: 'settings', label: 'Settings', icon: 'settings', roles: ['OWNER'] },
 ]
+
+/** Sub-screens that belong to a rail item even though they live on their own path. */
+const ACTIVE_ALIASES: Record<string, string> = {
+  '/categories': '/services',
+  '/coupons': '/billing',
+}
 
 const ICON_PATHS: Record<IconName, ReactNode> = {
   dashboard: (
@@ -169,17 +171,26 @@ function NavIcon({ name }: { name: IconName }) {
 }
 
 /**
- * The application shell's left rail: brand plus the salon's section
- * navigation. Shared by every module; the current section is marked with
- * aria-current so tests and assistive tech read the active item.
+ * The application shell's left rail: brand, role-filtered section navigation
+ * and the signed-in identity with sign-out. The active item is marked with
+ * aria-current so tests and assistive tech read it.
  */
 export function AppSidebar({
-  current,
+  currentPath,
+  user,
   onNavigate,
+  onSignOut,
 }: {
-  current: Section
-  onNavigate: (section: Section) => void
+  currentPath: string
+  user: AuthUser
+  onNavigate: (path: string) => void
+  onSignOut: () => void
 }) {
+  const items = NAV_ITEMS.filter(item => item.roles.some(role => user.roles.includes(role)))
+  const activePath = ACTIVE_ALIASES[currentPath] ?? currentPath
+  const displayName = `${user.firstName} ${user.lastName}`.trim()
+  const primaryRole = user.roles[0] ?? 'STAFF'
+
   return (
     <aside className="app-sidebar" aria-label="Main navigation">
       <div className="side-brand">
@@ -193,13 +204,8 @@ export function AppSidebar({
       </div>
 
       <nav className="side-nav">
-        {NAV_ITEMS.map(item => {
-          // Categories is reached through Services while it has no rail entry;
-          // coupons likewise hang off Billing.
-          const isActive =
-            item.section === current ||
-            (item.section === 'services' && current === 'categories') ||
-            (item.section === 'billing' && current === 'coupons')
+        {items.map(item => {
+          const isActive = item.path === activePath
 
           return (
             <button
@@ -207,16 +213,16 @@ export function AppSidebar({
               type="button"
               className="side-nav-item"
               aria-current={isActive ? 'page' : undefined}
-              disabled={item.section === undefined}
+              disabled={item.path === undefined}
               onClick={() => {
-                if (item.section !== undefined) {
-                  onNavigate(item.section)
+                if (item.path !== undefined) {
+                  onNavigate(item.path)
                 }
               }}
             >
               <NavIcon name={item.icon} />
               <span className="side-nav-label">{item.label}</span>
-              {item.section === undefined && (
+              {item.path === undefined && (
                 <>
                   {' '}
                   <span className="side-nav-soon">Soon</span>
@@ -226,6 +232,16 @@ export function AppSidebar({
           )
         })}
       </nav>
+
+      <div className="side-user">
+        <div className="side-user-text">
+          <span className="side-user-name">{displayName}</span>
+          <span className="side-user-role">{primaryRole}</span>
+        </div>
+        <button type="button" className="side-signout" onClick={onSignOut}>
+          Sign out
+        </button>
+      </div>
     </aside>
   )
 }

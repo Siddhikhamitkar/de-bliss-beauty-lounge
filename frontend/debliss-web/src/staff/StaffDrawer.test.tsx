@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { searchServices } from '../api/catalogue.ts'
+import { searchIndividualServices } from '../api/catalogue.ts'
 import {
   getStaff,
   getStaffServices,
@@ -38,7 +38,7 @@ vi.mock('../api/staff.ts', () => ({
 }))
 
 vi.mock('../api/catalogue.ts', () => ({
-  searchServices: vi.fn(),
+  searchIndividualServices: vi.fn(),
 }))
 
 const summary: StaffSummary = {
@@ -102,7 +102,7 @@ describe('StaffDrawer', () => {
     vi.mocked(getStaff).mockResolvedValue(profile)
     vi.mocked(setStaffStatus).mockResolvedValue(profile)
     vi.mocked(getStaffServices).mockResolvedValue([])
-    vi.mocked(searchServices).mockResolvedValue(emptyPagedServices)
+    vi.mocked(searchIndividualServices).mockResolvedValue(emptyPagedServices)
     vi.mocked(getWeekSchedule).mockResolvedValue(emptyWeek)
     vi.mocked(listTimeOff).mockResolvedValue([])
   })

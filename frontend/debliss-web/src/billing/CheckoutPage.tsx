@@ -104,15 +104,22 @@ export function CheckoutPage({ appointmentId, onClose, onPaid }: CheckoutPagePro
 
   const subtotal = record?.subTotal ?? 0
   const currency = record?.currency ?? ''
+  const bundleName = record?.bundleName ?? null
+  const bundleDiscount = record?.bundleDiscount ?? 0
+
+  // The bundle's saving comes off first, so a percentage coupon or manual
+  // discount is computed against what is still owed — the same base the server
+  // validates against. It is zero for a visit that was not booked as a bundle.
+  const discountable = round2(subtotal - bundleDiscount)
   const couponDiscount = coupon?.discountAmount ?? 0
   const discountNumber = parseNumber(discountValue)
   const manualDiscount =
     discountNumber !== null && discountNumber > 0
       ? discountType === 'Percentage'
-        ? round2((discountNumber / 100) * subtotal)
+        ? round2((discountNumber / 100) * discountable)
         : discountNumber
       : 0
-  const total = round2(Math.max(0, subtotal - couponDiscount - manualDiscount))
+  const total = round2(Math.max(0, discountable - couponDiscount - manualDiscount))
 
   // The amount tracks the live total until the receptionist overtypes it.
   const amount = amountOverride ?? total.toFixed(2)
@@ -127,7 +134,7 @@ export function CheckoutPage({ appointmentId, onClose, onPaid }: CheckoutPagePro
     setCouponBusy(true)
     setCouponFailure(undefined)
 
-    validateCoupon({ code, subtotal })
+    validateCoupon({ code, subtotal: discountable })
       .then(setCoupon)
       .catch((error: unknown) => {
         if (error instanceof ApiError && error.errors['code']?.[0] !== undefined) {
@@ -231,6 +238,12 @@ export function CheckoutPage({ appointmentId, onClose, onPaid }: CheckoutPagePro
                   <dt>Subtotal</dt>
                   <dd>{formatMoney(currency, subtotal)}</dd>
                 </div>
+                {bundleDiscount > 0 && (
+                  <div>
+                    <dt>{bundleName === null ? 'Bundle saving' : `Bundle saving (${bundleName})`}</dt>
+                    <dd>−{formatMoney(currency, bundleDiscount)}</dd>
+                  </div>
+                )}
               </div>
 
               <div className="field">

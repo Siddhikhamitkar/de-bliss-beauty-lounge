@@ -64,11 +64,24 @@ internal sealed class BillingHarness : IDisposable
         DateTimeOffset startsAt,
         AppointmentStatus status = AppointmentStatus.Completed,
         string? walkInCustomerName = null,
-        IReadOnlyList<(Guid ServiceId, string SnapshotName, decimal UnitPrice, int SortOrder)>? lines = null)
+        IReadOnlyList<(Guid ServiceId, string SnapshotName, decimal UnitPrice, int SortOrder)>? lines = null,
+        Guid? serviceBundleId = null,
+        decimal? bundlePriceSnapshot = null)
     {
         await using var context = Reopen();
         var id = await BillingSeed.AppointmentAsync(
-            context, customerId, startsAt, status, walkInCustomerName, lines);
+            context, customerId, startsAt, status, walkInCustomerName, lines,
+            serviceBundleId, bundlePriceSnapshot);
+        Context.ChangeTracker.Clear();
+        return id;
+    }
+
+    public async Task<Guid> SeedBundleAsync(string name, decimal price, IReadOnlyList<Guid> serviceIds)
+    {
+        await using var context = Reopen();
+        // Category names are unique, so the bundle gets its own.
+        var categoryId = await CatalogueSeed.CategoryAsync(context, $"{name} Category");
+        var id = await CatalogueSeed.BundleAsync(context, categoryId, name, price, serviceIds);
         Context.ChangeTracker.Clear();
         return id;
     }

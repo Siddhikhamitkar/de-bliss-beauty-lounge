@@ -21,6 +21,9 @@ export interface PagedResult<T> {
   hasNextPage: boolean
 }
 
+/** Which kind of menu offering a list row is. Bundles merge into the service list. */
+export type ServiceItemKind = 'Service' | 'Bundle'
+
 /** A row in the service list: enough to recognise and triage a service. */
 export interface ServiceSummary {
   id: string
@@ -40,6 +43,11 @@ export interface ServiceSummary {
   sortOrder: number
   createdAt: string
   updatedAt: string | null
+  itemKind: ServiceItemKind
+  /** Bundles only: how many component services the offering contains. */
+  serviceCount: number | null
+  /** Bundles only: what the components would cost bought separately. */
+  standardTotalPrice: number | null
 }
 
 /** A staff member already attached to a service. */
@@ -114,6 +122,55 @@ export interface SaveServiceCategoryRequest {
   description: string | null
   sortOrder: number
   isActive: boolean
+}
+
+/** One component of a bundle, in delivery sequence. */
+export interface BundleItem {
+  serviceId: string
+  name: string
+  durationMinutes: number
+  price: number
+  displayOrder: number
+  isActive: boolean
+}
+
+/**
+ * A bundle as the API returns it. Duration, standard total and savings are all
+ * derived from the current component catalogue values, so editing a service shows
+ * up here without the bundle being re-saved.
+ */
+export interface Bundle {
+  id: string
+  name: string
+  description: string | null
+  categoryId: string | null
+  categoryName: string | null
+  isCategoryActive: boolean
+  durationMinutes: number
+  price: number
+  standardTotalPrice: number
+  savingsAmount: number
+  isActive: boolean
+  isBookable: boolean
+  sortOrder: number
+  items: BundleItem[]
+  createdAt: string
+  updatedAt: string | null
+}
+
+/**
+ * Payload for creating and editing a bundle. `items` is the whole component set
+ * in delivery order — the list position becomes the sequence, so reordering is
+ * just resubmitting the list in the new order.
+ */
+export interface SaveBundleRequest {
+  name: string | null
+  categoryId: string | null
+  description: string | null
+  price: number
+  isActive: boolean
+  sortOrder: number
+  items: string[]
 }
 
 /** How a staff list is narrowed by record state. Sent by name, as the API binds it. */
@@ -349,7 +406,9 @@ export interface AppointmentServiceLineInput {
 /**
  * Payload for creating and editing an appointment. Exactly one of customerId
  * (an existing customer) or walkInCustomerName must be set. The end instant is
- * never sent: the server computes it from the snapshot durations.
+ * never sent: the server computes it from the snapshot durations. When
+ * serviceBundleId is set, the services must be exactly the bundle's components
+ * (one line each); the server re-orders them and snapshots the bundle price.
  */
 export interface SaveAppointmentRequest {
   customerId: string | null
@@ -358,6 +417,7 @@ export interface SaveAppointmentRequest {
   startsAt: string
   services: AppointmentServiceLineInput[]
   notes: string | null
+  serviceBundleId?: string | null
 }
 
 /** Partial schedule change from a calendar drag or resize; any subset may be sent. */
@@ -385,7 +445,12 @@ export interface AppointmentServiceLine {
   staffColor: string | null
 }
 
-/** One appointment as the calendar and the details panel render it. */
+/**
+ * One appointment as the calendar and the details panel render it. When it was
+ * booked as a bundle, serviceBundleId/bundleName identify the offering and
+ * bundlePrice is the price snapshotted at booking — the line prices still sum
+ * to the standard total, so the saving is the difference, never a stored value.
+ */
 export interface Appointment {
   id: string
   customerId: string | null
@@ -402,6 +467,9 @@ export interface Appointment {
   totalDurationMinutes: number
   createdAt: string
   updatedAt: string | null
+  serviceBundleId?: string | null
+  bundleName?: string | null
+  bundlePrice?: number | null
 }
 
 /**
@@ -507,7 +575,12 @@ export interface InvoicePayment {
   paidAt: string
 }
 
-/** A full invoice, including its snapshot line items and recorded payments. */
+/**
+ * A full invoice, including its snapshot line items and recorded payments.
+ * Bundle invoices keep every component line at its standard price and carry the
+ * bundle's saving as `bundleDiscount`, which is always part of `discountTotal`;
+ * coupons and manual discounts are capped against subtotal minus that saving.
+ */
 export interface Invoice {
   id: string
   invoiceNumber: string
@@ -519,7 +592,10 @@ export interface Invoice {
   walkInCustomerName: string | null
   couponId: string | null
   couponCode: string | null
+  serviceBundleId?: string | null
+  bundleName?: string | null
   subTotal: number
+  bundleDiscount: number
   couponDiscount: number
   manualDiscount: number
   discountTotal: number
@@ -557,6 +633,8 @@ export interface Receipt {
   customerName: string
   items: ReceiptLine[]
   subTotal: number
+  bundleName?: string | null
+  bundleDiscount: number
   couponCode: string | null
   couponDiscount: number
   manualDiscount: number

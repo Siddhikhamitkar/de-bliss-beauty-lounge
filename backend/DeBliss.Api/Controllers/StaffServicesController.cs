@@ -2,6 +2,9 @@ using DeBliss.Application.Staffing;
 using DeBliss.Application.Staffing.Dtos;
 using Microsoft.AspNetCore.Mvc;
 
+using DeBliss.Api.Security;
+using Microsoft.AspNetCore.Authorization;
+
 namespace DeBliss.Api.Controllers;
 
 /// <summary>
@@ -11,6 +14,7 @@ namespace DeBliss.Api.Controllers;
 [ApiController]
 [Route("api/staff/{staffId:guid}/services")]
 [Produces("application/json")]
+[Authorize(Policy = AuthPolicies.Operational)]
 public sealed class StaffServicesController(IStaffService staff) : ControllerBase
 {
     /// <remarks>Will require <c>Permissions.Staffing.ViewStaff</c> once authorisation exists.</remarks>

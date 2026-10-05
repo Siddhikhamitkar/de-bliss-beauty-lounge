@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../api/client.ts'
 import type { Appointment, CalendarData, CalendarStaff } from '../api/contracts.ts'
-import { getService, searchServices } from '../api/catalogue.ts'
+import { getService, listBookableBundles, searchIndividualServices } from '../api/catalogue.ts'
 import { createCustomer, searchCustomers } from '../api/customers.ts'
 import {
   createAppointment,
@@ -27,7 +27,8 @@ vi.mock('../api/scheduling.ts', () => ({
 }))
 
 vi.mock('../api/catalogue.ts', () => ({
-  searchServices: vi.fn(),
+  searchIndividualServices: vi.fn(),
+  listBookableBundles: vi.fn(),
   getService: vi.fn(),
 }))
 
@@ -165,7 +166,7 @@ beforeAll(() => {
 beforeEach(() => {
   vi.mocked(getCalendar).mockResolvedValue(calendarData)
   vi.mocked(getAppointment).mockResolvedValue(calendarData.appointments[0])
-  vi.mocked(searchServices).mockResolvedValue({
+  vi.mocked(searchIndividualServices).mockResolvedValue({
     items: [],
     totalCount: 0,
     page: 1,
@@ -174,6 +175,7 @@ beforeEach(() => {
     hasPreviousPage: false,
     hasNextPage: false,
   })
+  vi.mocked(listBookableBundles).mockResolvedValue([])
   vi.mocked(getService).mockRejectedValue(new Error('not used'))
   vi.mocked(searchCustomers).mockResolvedValue({
     items: [],
@@ -287,6 +289,61 @@ describe('CalendarPage', () => {
     )
     // The panel asks the calendar to refresh after the action lands.
     await waitFor(() => expect(getCalendar).toHaveBeenCalledTimes(2))
+  })
+
+  it('presents a bundle booking with its price, saving and retained component lines', async () => {
+    const user = userEvent.setup()
+    const start = todayAt(10, 0)
+    vi.mocked(getAppointment).mockResolvedValue({
+      ...calendarData.appointments[0],
+      endsAt: new Date(start.getTime() + 105 * 60_000).toISOString(),
+      services: [
+        {
+          serviceId: 'svc2',
+          serviceName: 'Gloss Colour',
+          durationMinutes: 60,
+          unitPrice: 80,
+          staffId: 's1',
+          staffFirstName: 'Ava',
+          staffLastName: 'Test',
+          staffColor: '#8a4f56',
+        },
+        {
+          serviceId: 'svc1',
+          serviceName: 'Signature Cut',
+          durationMinutes: 45,
+          unitPrice: 40,
+          staffId: 's1',
+          staffFirstName: 'Ava',
+          staffLastName: 'Test',
+          staffColor: '#8a4f56',
+        },
+      ],
+      totalDurationMinutes: 105,
+      totalPrice: 120,
+      serviceBundleId: 'b1',
+      bundleName: 'Makeover',
+      bundlePrice: 100,
+    })
+    render(<CalendarPage />)
+
+    await user.click(await screen.findByRole('button', { name: /Lina Mansour/ }))
+
+    const panel = await screen.findByRole('dialog', { name: 'Appointment details' })
+    expect(
+      within(panel).getByRole('heading', { name: 'Bundle · Makeover' }),
+    ).toBeInTheDocument()
+    // Both component lines stay on display, each at its own standard price.
+    expect(within(panel).getByText('Gloss Colour')).toBeInTheDocument()
+    expect(within(panel).getByText('Signature Cut')).toBeInTheDocument()
+    // The bundle price is what is owed; the standard total sits beside it.
+    expect(within(panel).getByText('100.00')).toBeInTheDocument()
+    expect(within(panel).getByText('120.00')).toHaveClass('was-price')
+    expect(
+      within(panel).getByText(
+        /Bundle saving 20\.00 — the services above are still performed and billed as one visit\./,
+      ),
+    ).toBeInTheDocument()
   })
 
   it('opens the booking dialog from the toolbar without leaving the page', async () => {

@@ -26,7 +26,8 @@ public class AppointmentServiceTests
         Guid CustomerId,
         Guid StaffId,
         Guid ServiceId,
-        Guid SecondServiceId);
+        Guid SecondServiceId,
+        Guid CategoryId);
 
     private static async Task<Fixture> ArrangeAsync()
     {
@@ -38,7 +39,7 @@ public class AppointmentServiceTests
         var serviceId = await harness.SeedServiceAsync(categoryId, "Haircut", durationMinutes: 30, price: 100m, staffIds: [staffId]);
         var secondServiceId = await harness.SeedServiceAsync(categoryId, "Colour", durationMinutes: 60, price: 150m, staffIds: [staffId]);
 
-        return new Fixture(harness, customerId, staffId, serviceId, secondServiceId);
+        return new Fixture(harness, customerId, staffId, serviceId, secondServiceId, categoryId);
     }
 
     private static SaveAppointmentRequest Request(
@@ -47,8 +48,9 @@ public class AppointmentServiceTests
         IReadOnlyList<AppointmentServiceLineInput>? services = null,
         string? walkInCustomerName = null,
         string? walkInCustomerPhone = null,
-        string? notes = null) =>
-        new(customerId, walkInCustomerName, walkInCustomerPhone, startsAt ?? At(10), services ?? [], notes);
+        string? notes = null,
+        Guid? serviceBundleId = null) =>
+        new(customerId, walkInCustomerName, walkInCustomerPhone, startsAt ?? At(10), services ?? [], notes, serviceBundleId);
 
     private static async Task<Appointment> ReloadAsync(SchedulingHarness harness, Guid appointmentId)
     {
@@ -56,6 +58,7 @@ public class AppointmentServiceTests
 
         return await context.Appointments
             .Include(appointment => appointment.StatusHistory)
+            .Include(appointment => appointment.Services)
             .SingleAsync(appointment => appointment.Id == appointmentId);
     }
 
@@ -316,6 +319,199 @@ public class AppointmentServiceTests
         var line = Assert.Single(updated.Services);
         Assert.Equal("Colour", line.ServiceName);
         Assert.Equal(150m, updated.TotalPrice);
+    }
+
+    /// <summary>
+    /// The bundle over the two fixture services, listed Colour first so a
+    /// booking submitted the other way round has to be put back in sequence.
+    /// The components total 250, so 220 leaves a 30 saving.
+    /// </summary>
+    private static async Task<Guid> SeedMakeoverBundleAsync(Fixture fixture) =>
+        await fixture.Harness.SeedBundleAsync(
+            fixture.CategoryId, "Full Makeover", 220m, [fixture.SecondServiceId, fixture.ServiceId]);
+
+    private static SaveAppointmentRequest BundleRequest(Fixture fixture, Guid bundleId, DateTimeOffset? startsAt = null) =>
+        Request(fixture.CustomerId, startsAt,
+        [
+            new(fixture.ServiceId, fixture.StaffId),
+            new(fixture.SecondServiceId, fixture.StaffId)
+        ], serviceBundleId: bundleId);
+
+    [Fact]
+    public async Task A_bundle_booking_keeps_every_component_in_the_bundle_sequence()
+    {
+        var fixture = await ArrangeAsync();
+        using var _ = fixture.Harness;
+        var bundleId = await SeedMakeoverBundleAsync(fixture);
+
+        var created = await fixture.Harness.Appointments.CreateAsync(BundleRequest(fixture, bundleId));
+
+        Assert.Equal(bundleId, created.ServiceBundleId);
+        Assert.Equal("Full Makeover", created.BundleName);
+        Assert.Equal(220m, created.BundlePrice);
+        Assert.Equal(At(10), created.StartsAt);
+        Assert.Equal(At(11, 30), created.EndsAt);
+        Assert.Equal(90, created.TotalDurationMinutes);
+
+        // Each line keeps its own price, so the lines still sum to the standard
+        // total the bundle saving is measured against.
+        Assert.Equal(250m, created.TotalPrice);
+        Assert.Equal("Colour", created.Services[0].ServiceName);
+        Assert.Equal("Haircut", created.Services[1].ServiceName);
+
+        var saved = await ReloadAsync(fixture.Harness, created.Id);
+
+        Assert.Equal(bundleId, saved.ServiceBundleId);
+        Assert.Equal(220m, saved.BundlePriceSnapshot);
+        Assert.Equal(
+            new[] { "Colour", "Haircut" },
+            saved.Services.OrderBy(line => line.SortOrder).Select(line => line.ServiceNameSnapshot).ToArray());
+    }
+
+    [Fact]
+    public async Task A_bundle_booking_must_submit_every_component()
+    {
+        var fixture = await ArrangeAsync();
+        using var _ = fixture.Harness;
+        var bundleId = await SeedMakeoverBundleAsync(fixture);
+
+        var failure = await Assert.ThrowsAsync<ValidationFailedException>(() =>
+            fixture.Harness.Appointments.CreateAsync(
+                Request(fixture.CustomerId,
+                    services: [new(fixture.ServiceId, fixture.StaffId)],
+                    serviceBundleId: bundleId)));
+
+        Assert.Equal(
+            "Bundle 'Full Makeover' contains: Colour, Haircut. Submit exactly those services.",
+            Assert.Single(failure.Errors["services"]));
+    }
+
+    [Fact]
+    public async Task A_bundle_booking_may_not_swap_a_component_for_another_service()
+    {
+        var fixture = await ArrangeAsync();
+        using var _ = fixture.Harness;
+        var bundleId = await SeedMakeoverBundleAsync(fixture);
+        var facialId = await fixture.Harness.SeedServiceAsync(
+            await fixture.Harness.SeedCategoryAsync("Skin"),
+            "Facial",
+            durationMinutes: 60,
+            price: 150m,
+            staffIds: [fixture.StaffId]);
+
+        var failure = await Assert.ThrowsAsync<ValidationFailedException>(() =>
+            fixture.Harness.Appointments.CreateAsync(
+                Request(fixture.CustomerId,
+                    services:
+                    [
+                        new(fixture.ServiceId, fixture.StaffId),
+                        new(facialId, fixture.StaffId)
+                    ],
+                    serviceBundleId: bundleId)));
+
+        Assert.Contains(
+            failure.Errors["services"],
+            message => message.Contains("Submit exactly those services.", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task A_bundle_component_may_only_be_booked_once()
+    {
+        var fixture = await ArrangeAsync();
+        using var _ = fixture.Harness;
+        var bundleId = await SeedMakeoverBundleAsync(fixture);
+
+        var failure = await Assert.ThrowsAsync<ValidationFailedException>(() =>
+            fixture.Harness.Appointments.CreateAsync(
+                Request(fixture.CustomerId,
+                    services:
+                    [
+                        new(fixture.ServiceId, fixture.StaffId),
+                        new(fixture.ServiceId, fixture.StaffId)
+                    ],
+                    serviceBundleId: bundleId)));
+
+        Assert.Equal(
+            "Each service of a bundle may only be booked once.",
+            Assert.Single(failure.Errors["services"]));
+    }
+
+    [Fact]
+    public async Task Booking_an_unknown_bundle_is_a_404()
+    {
+        var fixture = await ArrangeAsync();
+        using var _ = fixture.Harness;
+
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            fixture.Harness.Appointments.CreateAsync(
+                Request(fixture.CustomerId,
+                    services: [new(fixture.ServiceId, fixture.StaffId)],
+                    serviceBundleId: Guid.NewGuid())));
+    }
+
+    [Fact]
+    public async Task A_bundle_that_has_been_taken_off_the_menu_cannot_be_booked()
+    {
+        var fixture = await ArrangeAsync();
+        using var _ = fixture.Harness;
+        var bundleId = await SeedMakeoverBundleAsync(fixture);
+
+        await using (var context = fixture.Harness.Reopen())
+        {
+            var bundle = await context.ServiceBundles.SingleAsync(candidate => candidate.Id == bundleId);
+            bundle.IsActive = false;
+            await context.SaveChangesAsync();
+        }
+
+        fixture.Harness.Context.ChangeTracker.Clear();
+
+        var failure = await Assert.ThrowsAsync<ValidationFailedException>(() =>
+            fixture.Harness.Appointments.CreateAsync(BundleRequest(fixture, bundleId)));
+
+        Assert.Equal(
+            "'Full Makeover' is no longer bookable.",
+            Assert.Single(failure.Errors["serviceBundleId"]));
+    }
+
+    [Fact]
+    public async Task A_bundle_booking_needs_the_whole_component_window_to_be_free()
+    {
+        var fixture = await ArrangeAsync();
+        using var _ = fixture.Harness;
+        var bundleId = await SeedMakeoverBundleAsync(fixture);
+
+        // Only overlaps the last half hour, which exists because Colour is part
+        // of the bundle: the window is the sum of the component durations.
+        await fixture.Harness.SeedTimeOffAsync(fixture.StaffId, At(11), At(11, 30), reason: "Break");
+
+        var failure = await Assert.ThrowsAsync<ConflictException>(() =>
+            fixture.Harness.Appointments.CreateAsync(BundleRequest(fixture, bundleId)));
+
+        Assert.Contains("Jasmin Rae is not available at the selected time.", failure.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Editing_a_bundle_booking_back_to_single_services_clears_the_bundle_snapshot()
+    {
+        var fixture = await ArrangeAsync();
+        using var _ = fixture.Harness;
+        var bundleId = await SeedMakeoverBundleAsync(fixture);
+        var created = await fixture.Harness.Appointments.CreateAsync(BundleRequest(fixture, bundleId));
+
+        var updated = await fixture.Harness.Appointments.UpdateAsync(
+            created.Id,
+            Request(fixture.CustomerId, At(13), [new(fixture.ServiceId, fixture.StaffId)]));
+
+        Assert.Null(updated.ServiceBundleId);
+        Assert.Null(updated.BundleName);
+        Assert.Null(updated.BundlePrice);
+        Assert.Equal(At(13, 30), updated.EndsAt);
+        Assert.Equal("Haircut", Assert.Single(updated.Services).ServiceName);
+
+        var saved = await ReloadAsync(fixture.Harness, created.Id);
+
+        Assert.Null(saved.ServiceBundleId);
+        Assert.Null(saved.BundlePriceSnapshot);
     }
 
     [Fact]

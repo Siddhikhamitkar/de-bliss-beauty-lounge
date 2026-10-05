@@ -48,4 +48,7 @@ public class Service : AuditableEntity
     public ICollection<StaffService> StaffServices { get; set; } = new List<StaffService>();
 
     public ICollection<AppointmentService> AppointmentServices { get; set; } = new List<AppointmentService>();
+
+    /// <summary>Restrict: a component that has ever been sold in a bundle stays resolvable.</summary>
+    public ICollection<ServiceBundleItem> BundleItems { get; set; } = new List<ServiceBundleItem>();
 }

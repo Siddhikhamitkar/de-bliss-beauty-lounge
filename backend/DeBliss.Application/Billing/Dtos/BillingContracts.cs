@@ -90,7 +90,12 @@ public sealed record InvoicePaymentDto(
     string? Reference,
     DateTimeOffset PaidAt);
 
-/// <summary>The full invoice as the details drawer and the checkout screen render it.</summary>
+/// <summary>
+/// The full invoice as the details drawer and the checkout screen render it.
+/// A bundle booking bills its components as ordinary lines and carries the
+/// bundle's own saving in <see cref="BundleDiscount"/>, so the components stay
+/// visible on the bill while the amount owed is the bundle price.
+/// </summary>
 public sealed record InvoiceDto(
     Guid Id,
     string InvoiceNumber,
@@ -102,7 +107,10 @@ public sealed record InvoiceDto(
     string? WalkInCustomerName,
     Guid? CouponId,
     string? CouponCode,
+    Guid? ServiceBundleId,
+    string? BundleName,
     decimal SubTotal,
+    decimal BundleDiscount,
     decimal CouponDiscount,
     decimal ManualDiscount,
     decimal DiscountTotal,
@@ -151,7 +159,9 @@ public sealed record ReceiptLineDto(
 
 /// <summary>
 /// The printable receipt. Assembled server-side from the stored invoice and its
-/// completed payment so the numbers are exactly the ones that were charged.
+/// completed payment so the numbers are exactly the ones that were charged. A
+/// bundle booking prints its component lines and then the bundle saving as its
+/// own reduction, so the customer sees what they received and what it cost.
 /// </summary>
 public sealed record ReceiptDto(
     string SalonName,
@@ -160,6 +170,8 @@ public sealed record ReceiptDto(
     string? CustomerName,
     IReadOnlyList<ReceiptLineDto> Items,
     decimal SubTotal,
+    string? BundleName,
+    decimal BundleDiscount,
     string? CouponCode,
     decimal CouponDiscount,
     decimal ManualDiscount,

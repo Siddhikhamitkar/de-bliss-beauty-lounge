@@ -26,9 +26,11 @@ export function ServiceList({ services, onOpen, onToggleStatus }: ServiceListPro
       </thead>
       <tbody>
         {services.map(service => {
-          // An active service that cannot actually be booked is the case
-          // worth flagging: its category went inactive, or everybody who
-          // could perform it left. An inactive one is simply switched off.
+          const isBundle = service.itemKind === 'Bundle'
+          // An active offering that cannot actually be booked is the case worth
+          // flagging: its category went inactive, or — for a bundle — one of its
+          // services did, or everybody who could perform it left. An inactive one
+          // is simply switched off.
           const stuck = service.isActive && !service.isBookable
 
           return (
@@ -47,15 +49,27 @@ export function ServiceList({ services, onOpen, onToggleStatus }: ServiceListPro
                   }}
                 >
                   {service.name}
+                  {isBundle && (
+                    <span className="kind-note">
+                      Bundle · {service.serviceCount} services
+                    </span>
+                  )}
                   {stuck && <span className="row-note">not bookable</span>}
                 </button>
               </th>
               <td>{service.categoryName ?? '—'}</td>
               <td>{formatDuration(service.durationMinutes)}</td>
-              <td className="numeric">{formatPrice(service.price)}</td>
-              <td className="numeric">{service.eligibleStaffCount}</td>
+              <td className="numeric">
+                {formatPrice(service.price)}
+                {isBundle && service.standardTotalPrice !== null && (
+                  <span className="was-price">{formatPrice(service.standardTotalPrice)}</span>
+                )}
+              </td>
+              {/* A bundle has no staff of its own: each component is assigned at
+                  booking time, and it is never offered online. */}
+              <td className="numeric">{isBundle ? '—' : service.eligibleStaffCount}</td>
               <td><StatusPill isActive={service.isActive} /></td>
-              <td>{service.isOnlineBookable ? 'Yes' : 'No'}</td>
+              <td>{isBundle ? '—' : service.isOnlineBookable ? 'Yes' : 'No'}</td>
               <td className="actions">
                 <RowActionMenu
                   label={`Actions for ${service.name}`}

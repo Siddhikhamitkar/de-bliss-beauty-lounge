@@ -46,6 +46,9 @@ internal static class AppointmentMapping
             lines.Sum(line => line.UnitPrice),
             lines.Sum(line => line.DurationMinutes),
             appointment.CreatedAt,
-            appointment.UpdatedAt);
+            appointment.UpdatedAt,
+            appointment.ServiceBundleId,
+            appointment.ServiceBundle?.Name,
+            appointment.BundlePriceSnapshot);
     }
 }

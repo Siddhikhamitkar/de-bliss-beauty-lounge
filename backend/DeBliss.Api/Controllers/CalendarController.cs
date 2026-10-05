@@ -2,6 +2,9 @@ using DeBliss.Application.Scheduling;
 using DeBliss.Application.Scheduling.Dtos;
 using Microsoft.AspNetCore.Mvc;
 
+using DeBliss.Api.Security;
+using Microsoft.AspNetCore.Authorization;
+
 namespace DeBliss.Api.Controllers;
 
 /// <summary>
@@ -12,6 +15,7 @@ namespace DeBliss.Api.Controllers;
 [ApiController]
 [Route("api/calendar")]
 [Produces("application/json")]
+[Authorize(Policy = AuthPolicies.Operational)]
 public sealed class CalendarController(ICalendarService calendar) : ControllerBase
 {
     /// <summary>

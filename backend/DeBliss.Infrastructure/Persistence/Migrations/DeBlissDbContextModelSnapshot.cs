@@ -76,6 +76,14 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("AppointmentId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<decimal>("BundleDiscount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("BundleNameSnapshot")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
                     b.Property<string>("CouponCode")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
@@ -127,6 +135,9 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 
+                    b.Property<Guid?>("ServiceBundleId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -159,6 +170,8 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("InvoiceNumber")
                         .IsUnique();
+
+                    b.HasIndex("ServiceBundleId");
 
                     b.HasIndex("Status");
 
@@ -508,6 +521,10 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<decimal?>("BundlePriceSnapshot")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<string>("CancellationReason")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
@@ -532,6 +549,9 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(2000)");
 
                     b.Property<Guid?>("RecurringSeriesId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ServiceBundleId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Source")
@@ -563,6 +583,8 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                     b.HasIndex("CreatedByUserId");
 
                     b.HasIndex("RecurringSeriesId");
+
+                    b.HasIndex("ServiceBundleId");
 
                     b.HasIndex("Status");
 
@@ -752,6 +774,83 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                     b.HasIndex("IsActive", "IsOnlineBookable");
 
                     b.ToTable("Services", (string)null);
+                });
+
+            modelBuilder.Entity("DeBliss.Domain.Services.ServiceBundle", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<decimal>("Price")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid?>("ServiceCategoryId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ServiceCategoryId");
+
+                    b.HasIndex("IsActive", "ServiceCategoryId");
+
+                    b.ToTable("ServiceBundles", (string)null);
+                });
+
+            modelBuilder.Entity("DeBliss.Domain.Services.ServiceBundleItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("ServiceBundleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ServiceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ServiceId");
+
+                    b.HasIndex("ServiceBundleId", "ServiceId")
+                        .IsUnique();
+
+                    b.ToTable("ServiceBundleItems", (string)null);
                 });
 
             modelBuilder.Entity("DeBliss.Domain.Services.ServiceCategory", b =>
@@ -971,6 +1070,11 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                         .HasForeignKey("CustomerId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("DeBliss.Domain.Services.ServiceBundle", "ServiceBundle")
+                        .WithMany("Invoices")
+                        .HasForeignKey("ServiceBundleId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Appointment");
 
                     b.Navigation("Coupon");
@@ -978,6 +1082,8 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                     b.Navigation("CreatedByUser");
 
                     b.Navigation("Customer");
+
+                    b.Navigation("ServiceBundle");
                 });
 
             modelBuilder.Entity("DeBliss.Domain.Billing.InvoiceItem", b =>
@@ -1094,11 +1200,18 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                         .HasForeignKey("RecurringSeriesId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("DeBliss.Domain.Services.ServiceBundle", "ServiceBundle")
+                        .WithMany("Appointments")
+                        .HasForeignKey("ServiceBundleId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("CreatedByUser");
 
                     b.Navigation("Customer");
 
                     b.Navigation("RecurringSeries");
+
+                    b.Navigation("ServiceBundle");
                 });
 
             modelBuilder.Entity("DeBliss.Domain.Scheduling.AppointmentService", b =>
@@ -1170,6 +1283,35 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("ServiceCategory");
+                });
+
+            modelBuilder.Entity("DeBliss.Domain.Services.ServiceBundle", b =>
+                {
+                    b.HasOne("DeBliss.Domain.Services.ServiceCategory", "ServiceCategory")
+                        .WithMany("Bundles")
+                        .HasForeignKey("ServiceCategoryId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("ServiceCategory");
+                });
+
+            modelBuilder.Entity("DeBliss.Domain.Services.ServiceBundleItem", b =>
+                {
+                    b.HasOne("DeBliss.Domain.Services.ServiceBundle", "ServiceBundle")
+                        .WithMany("Items")
+                        .HasForeignKey("ServiceBundleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("DeBliss.Domain.Services.Service", "Service")
+                        .WithMany("BundleItems")
+                        .HasForeignKey("ServiceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Service");
+
+                    b.Navigation("ServiceBundle");
                 });
 
             modelBuilder.Entity("DeBliss.Domain.Staffing.Staff", b =>
@@ -1262,11 +1404,24 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                 {
                     b.Navigation("AppointmentServices");
 
+                    b.Navigation("BundleItems");
+
                     b.Navigation("StaffServices");
+                });
+
+            modelBuilder.Entity("DeBliss.Domain.Services.ServiceBundle", b =>
+                {
+                    b.Navigation("Appointments");
+
+                    b.Navigation("Invoices");
+
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("DeBliss.Domain.Services.ServiceCategory", b =>
                 {
+                    b.Navigation("Bundles");
+
                     b.Navigation("Services");
                 });
 

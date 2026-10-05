@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ApiError, describeFailure } from '../api/client.ts'
-import { searchServices } from '../api/catalogue.ts'
+import { searchIndividualServices } from '../api/catalogue.ts'
 import { getStaffServices, setStaffServices } from '../api/staff.ts'
 import { useAsync } from '../useAsync.ts'
 import { FieldErrors } from '../components/FieldErrors.tsx'
@@ -23,8 +23,9 @@ export function ServiceAssignment({ staffId }: { staffId: string }) {
   const assigned = useAsync(() => getStaffServices(staffId), [staffId])
   // The picker shows the whole catalogue so an inactive service stays visible
   // on the member it is assigned to; the salon runs fewer services than one
-  // page holds, so a single max-size page is enough for now.
-  const catalogue = useAsync(() => searchServices({ pageSize: 200 }), [])
+  // page holds, so a single max-size page is enough for now. Bundles are left
+  // out because eligibility is a property of a service, not of a bundle.
+  const catalogue = useAsync(() => searchIndividualServices({ pageSize: 200 }), [])
 
   function startManaging() {
     setSelectedIds((assigned.data ?? []).map(service => service.serviceId))

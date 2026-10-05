@@ -2,6 +2,9 @@ using DeBliss.Application.ServiceCatalogue;
 using DeBliss.Application.ServiceCatalogue.Dtos;
 using Microsoft.AspNetCore.Mvc;
 
+using DeBliss.Api.Security;
+using Microsoft.AspNetCore.Authorization;
+
 namespace DeBliss.Api.Controllers;
 
 /// <summary>
@@ -11,6 +14,7 @@ namespace DeBliss.Api.Controllers;
 [ApiController]
 [Route("api/service-categories")]
 [Produces("application/json")]
+[Authorize(Policy = AuthPolicies.Operational)]
 public sealed class ServiceCategoriesController(IServiceCategoryService serviceCategories) : ControllerBase
 {
     /// <remarks>Will require <c>Permissions.ServiceCatalogue.ManageCategories</c> once authorisation exists.</remarks>

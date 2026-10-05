@@ -1,6 +1,11 @@
 namespace DeBliss.Application.ServiceCatalogue.Dtos;
 
-/// <summary>A row in the service list: enough to recognise and triage a service.</summary>
+/// <summary>
+/// A row in the merged service menu: enough to recognise and triage an entry.
+/// Bundles share this shape with services so the menu can list both without a
+/// second table; <see cref="ItemKind"/> says which one a row is, and the
+/// bundle-only fields are null for a plain service.
+/// </summary>
 public sealed record ServiceSummaryDto(
     Guid Id,
     string Name,
@@ -14,7 +19,10 @@ public sealed record ServiceSummaryDto(
     int EligibleStaffCount,
     int SortOrder,
     DateTimeOffset CreatedAt,
-    DateTimeOffset? UpdatedAt);
+    DateTimeOffset? UpdatedAt,
+    string ItemKind,
+    int? ServiceCount,
+    decimal? StandardTotalPrice);
 
 /// <summary>The full record behind one service, including who may perform it.</summary>
 public sealed record ServiceDto(

@@ -23,8 +23,14 @@ internal sealed class CatalogueHarness : IDisposable
         Categories = new ServiceCategoryService(categoryRepository, Context);
         Catalogue = new ServiceCatalogueService(
             new ServiceRepository(Context),
+            new ServiceBundleRepository(Context),
             categoryRepository,
             new StaffDirectory(Context),
+            Context);
+        Bundles = new ServiceBundleService(
+            new ServiceBundleRepository(Context),
+            new ServiceRepository(Context),
+            categoryRepository,
             Context);
     }
 
@@ -35,6 +41,8 @@ internal sealed class CatalogueHarness : IDisposable
     public IServiceCategoryService Categories { get; }
 
     public IServiceCatalogueService Catalogue { get; }
+
+    public IServiceBundleService Bundles { get; }
 
     public IUnitOfWork UnitOfWork => Context;
 
@@ -64,11 +72,28 @@ internal sealed class CatalogueHarness : IDisposable
         int durationMinutes = 30,
         bool isActive = true,
         string? description = null,
-        IReadOnlyList<Guid>? staffIds = null)
+        IReadOnlyList<Guid>? staffIds = null,
+        int sortOrder = 0)
     {
         await using var context = Reopen();
         var id = await CatalogueSeed.ServiceAsync(
-            context, categoryId, name, price, durationMinutes, isActive, description, staffIds);
+            context, categoryId, name, price, durationMinutes, isActive, description, staffIds, sortOrder);
+        Context.ChangeTracker.Clear();
+        return id;
+    }
+
+    public async Task<Guid> SeedBundleAsync(
+        Guid categoryId,
+        string name,
+        decimal price,
+        IReadOnlyList<Guid> serviceIds,
+        bool isActive = true,
+        string? description = null,
+        int sortOrder = 0)
+    {
+        await using var context = Reopen();
+        var id = await CatalogueSeed.BundleAsync(
+            context, categoryId, name, price, serviceIds, isActive, description, sortOrder);
         Context.ChangeTracker.Clear();
         return id;
     }

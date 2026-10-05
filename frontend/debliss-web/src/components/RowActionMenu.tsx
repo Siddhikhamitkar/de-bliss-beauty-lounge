@@ -11,13 +11,22 @@ interface RowActionMenuProps {
   /** Distinguishes the trigger per record, e.g. "Actions for Nadia Al Zaabi". */
   label: string
   actions: RowAction[]
+  /** Trigger caption. Defaults to the ⋯ glyph the row menus use. */
+  triggerText?: string
+  /** Replaces the trigger's styling wholesale, for panel-level menus like "Add". */
+  triggerClassName?: string
 }
 
 /**
- * The compact ⋯ menu that replaced per-row button strips. It swallows clicks
- * and Escape while open so the row (or drawer) underneath stays untouched.
+ * A click-outside/Escape-aware dropdown. It swallows clicks and Escape while
+ * open so the row (or drawer) underneath stays untouched.
  */
-export function RowActionMenu({ label, actions }: RowActionMenuProps) {
+export function RowActionMenu({
+  label,
+  actions,
+  triggerText,
+  triggerClassName,
+}: RowActionMenuProps) {
   const [isOpen, setIsOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
 
@@ -53,13 +62,13 @@ export function RowActionMenu({ label, actions }: RowActionMenuProps) {
     <div className="row-menu" ref={rootRef} onClick={event => event.stopPropagation()}>
       <button
         type="button"
-        className="row-menu-trigger"
+        className={triggerClassName ?? 'row-menu-trigger'}
         aria-haspopup="menu"
         aria-expanded={isOpen}
         aria-label={label}
         onClick={() => setIsOpen(open => !open)}
       >
-        ⋯
+        {triggerText ?? '⋯'}
       </button>
       {isOpen && (
         <ul className="row-menu-list" role="menu">

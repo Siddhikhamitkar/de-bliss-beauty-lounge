@@ -25,6 +25,7 @@ public sealed class AppointmentService(
     IAppointmentRepository appointments,
     ICustomerRepository customers,
     IServiceRepository services,
+    IServiceBundleRepository bundles,
     IStaffRepository staff,
     IStaffAvailabilityService availability,
     IUnitOfWork unitOfWork,
@@ -60,7 +61,7 @@ public sealed class AppointmentService(
         SaveAppointmentRequest request,
         CancellationToken cancellationToken = default)
     {
-        var (start, lines, notes) = await ValidateBookingAsync(request, excludeId: null, cancellationToken);
+        var (start, lines, notes, bundle) = await ValidateBookingAsync(request, excludeId: null, cancellationToken);
 
         var appointment = new Appointment
         {
@@ -71,7 +72,9 @@ public sealed class AppointmentService(
             EndsAt = start.AddMinutes(lines.Sum(line => line.Service.DurationMinutes)),
             Status = AppointmentStatus.Confirmed,
             Source = AppointmentSource.Reception,
-            Notes = notes
+            Notes = notes,
+            ServiceBundleId = bundle?.Id,
+            BundlePriceSnapshot = bundle?.Price
         };
 
         AddLines(appointment, lines);
@@ -99,7 +102,7 @@ public sealed class AppointmentService(
 
         EnsureEditable(appointment);
 
-        var (start, lines, notes) = await ValidateBookingAsync(request, excludeId: id, cancellationToken);
+        var (start, lines, notes, bundle) = await ValidateBookingAsync(request, excludeId: id, cancellationToken);
 
         appointment.CustomerId = request.CustomerId;
         appointment.WalkInCustomerName = request.CustomerId is null ? request.WalkInCustomerName?.Trim() : null;
@@ -107,6 +110,8 @@ public sealed class AppointmentService(
         appointment.StartsAt = start;
         appointment.EndsAt = start.AddMinutes(lines.Sum(line => line.Service.DurationMinutes));
         appointment.Notes = notes;
+        appointment.ServiceBundleId = bundle?.Id;
+        appointment.BundlePriceSnapshot = bundle?.Price;
 
         // A full update replaces the service lines wholesale — the same
         // replace-set convention the service and staff assignment forms use.
@@ -292,12 +297,19 @@ public sealed class AppointmentService(
 
     /// <summary>
     /// Validates a create or full update and returns the resolved start, the
-    /// snapshot lines and the trimmed notes. Syntactic problems are collected
-    /// into one 400; missing records are 404; bookable/assignment problems are
-    /// a second 400 pass; availability is the 409 gate that only fully valid
-    /// input reaches.
+    /// snapshot lines, the trimmed notes and the bundle when the booking is a
+    /// bundle booking. Syntactic problems are collected into one 400; missing
+    /// records are 404; bookable/assignment problems are a second 400 pass;
+    /// availability is the 409 gate that only fully valid input reaches. A
+    /// bundle booking must submit exactly the bundle's components, one line
+    /// each; the lines are returned in the bundle's sequence, so the stored
+    /// lines render in performing order.
     /// </summary>
-    private async Task<(DateTimeOffset Start, IReadOnlyList<ValidatedLine> Lines, string? Notes)> ValidateBookingAsync(
+    private async Task<(
+        DateTimeOffset Start,
+        IReadOnlyList<ValidatedLine> Lines,
+        string? Notes,
+        ServiceBundle? Bundle)> ValidateBookingAsync(
         SaveAppointmentRequest request,
         Guid? excludeId,
         CancellationToken cancellationToken)
@@ -351,6 +363,14 @@ public sealed class AppointmentService(
                 ?? throw new NotFoundException($"Customer '{customerId}' was not found.");
         }
 
+        ServiceBundle? bundle = null;
+
+        if (request.ServiceBundleId is { } bundleId)
+        {
+            bundle = await bundles.GetByIdAsync(bundleId, cancellationToken)
+                ?? throw new NotFoundException($"Service bundle '{bundleId}' was not found.");
+        }
+
         var start = request.StartsAt!.Value;
         var lines = new List<ValidatedLine>();
         var semanticErrors = new ValidationErrorBuilder();
@@ -377,13 +397,46 @@ public sealed class AppointmentService(
             lines.Add(new ValidatedLine(service, member));
         }
 
+        if (bundle is not null)
+        {
+            if (!bundle.CanBeBooked())
+            {
+                semanticErrors.Add("serviceBundleId", $"'{bundle.Name}' is no longer bookable.");
+            }
+
+            var componentIds = bundle.Items.Select(item => item.ServiceId).ToList();
+            var requestedIds = lines.Select(line => line.Service.Id).ToList();
+
+            if (requestedIds.Distinct().Count() != requestedIds.Count)
+            {
+                semanticErrors.Add("services", "Each service of a bundle may only be booked once.");
+            }
+            else if (requestedIds.Count != componentIds.Count || componentIds.Except(requestedIds).Any())
+            {
+                var names = string.Join(", ", bundle.Items
+                    .OrderBy(item => item.DisplayOrder)
+                    .Select(item => item.Service.Name));
+                semanticErrors.Add(
+                    "services",
+                    $"Bundle '{bundle.Name}' contains: {names}. Submit exactly those services.");
+            }
+        }
+
         semanticErrors.ThrowIfInvalid();
+
+        if (bundle is not null)
+        {
+            lines = bundle.Items
+                .OrderBy(item => item.DisplayOrder)
+                .Select(item => lines.First(line => line.Service.Id == item.ServiceId))
+                .ToList();
+        }
 
         var end = start.AddMinutes(lines.Sum(line => line.Service.DurationMinutes));
 
         await EnsureAvailableAsync(excludeId, lines, start, end, cancellationToken);
 
-        return (start, lines, request.Notes?.Trim());
+        return (start, lines, request.Notes?.Trim(), bundle);
     }
 
     /// <summary>The availability gate: every distinct staff member on the lines must be free for the whole window.</summary>

@@ -2,6 +2,7 @@ using DeBliss.Domain.Common;
 using DeBliss.Domain.Customers;
 using DeBliss.Domain.Identity;
 using DeBliss.Domain.Scheduling;
+using DeBliss.Domain.Services;
 
 namespace DeBliss.Domain.Billing;
 
@@ -39,6 +40,18 @@ public class Invoice : AuditableEntity, ISoftDeletable
     /// </summary>
     public string? CouponCode { get; set; }
 
+    /// <summary>
+    /// The bundle the checked-out appointment was booked as, when it was one.
+    /// The component services are still billed as their own lines; this keeps
+    /// the bundle as the purchased offering for history and reporting.
+    /// </summary>
+    public Guid? ServiceBundleId { get; set; }
+
+    public ServiceBundle? ServiceBundle { get; set; }
+
+    /// <summary>The bundle name as it was on the day of checkout, like <see cref="CouponCode"/>.</summary>
+    public string? BundleNameSnapshot { get; set; }
+
     public InvoiceStatus Status { get; set; }
 
     /// <summary>ISO 4217 code. Set by the application from salon configuration.</summary>
@@ -46,7 +59,10 @@ public class Invoice : AuditableEntity, ISoftDeletable
 
     public decimal SubTotal { get; set; }
 
-    /// <summary>Total of every discount on the invoice; see <see cref="CouponDiscount"/> and <see cref="ManualDiscount"/> for the split.</summary>
+    /// <summary>
+    /// Total of every discount on the invoice; see <see cref="BundleDiscount"/>,
+    /// <see cref="CouponDiscount"/> and <see cref="ManualDiscount"/> for the split.
+    /// </summary>
     public decimal DiscountTotal { get; set; }
 
     /// <summary>Discount from the applied coupon. Stored separately from the manual discount by design.</summary>
@@ -54,6 +70,13 @@ public class Invoice : AuditableEntity, ISoftDeletable
 
     /// <summary>Discount entered by reception. Stored separately from the coupon discount by design.</summary>
     public decimal ManualDiscount { get; set; }
+
+    /// <summary>
+    /// The saving a booked bundle carries against its component subtotal. Part of
+    /// the offering's own price, never a manually keyed discount, so it is split
+    /// out like <see cref="CouponDiscount"/> and <see cref="ManualDiscount"/>.
+    /// </summary>
+    public decimal BundleDiscount { get; set; }
 
     public decimal TaxTotal { get; set; }
 

@@ -8,7 +8,10 @@ public sealed record AppointmentServiceLineInput(Guid ServiceId, Guid StaffId);
 /// <see cref="CustomerId"/> (an existing customer) or
 /// <see cref="WalkInCustomerName"/> (a walk-in with no record) must be set.
 /// The end instant is never sent: the server computes it from the snapshot
-/// durations, so the stored window and the lines can never disagree.
+/// durations, so the stored window and the lines can never disagree. When
+/// <see cref="ServiceBundleId"/> is set, the services must be exactly the
+/// bundle's components (one line each) and are re-ordered to the bundle's
+/// sequence; the bundle price is snapshotted onto the appointment.
 /// </summary>
 public sealed record SaveAppointmentRequest(
     Guid? CustomerId,
@@ -16,7 +19,8 @@ public sealed record SaveAppointmentRequest(
     string? WalkInCustomerPhone,
     DateTimeOffset? StartsAt,
     IReadOnlyList<AppointmentServiceLineInput>? Services,
-    string? Notes);
+    string? Notes,
+    Guid? ServiceBundleId = null);
 
 /// <summary>
 /// Partial schedule change from a calendar drag or resize. Any subset may be
@@ -45,7 +49,13 @@ public sealed record AppointmentServiceLineDto(
     string StaffLastName,
     string? StaffColor);
 
-/// <summary>One appointment as the calendar and the details panel render it.</summary>
+/// <summary>
+/// One appointment as the calendar and the details panel render it. When the
+/// appointment was booked as a bundle, ServiceBundleId/BundleName identify
+/// the offering and BundlePrice is the price snapshotted at booking time —
+/// the line prices still sum to the standard total, so the saving is the
+/// difference and never a stored value.
+/// </summary>
 public sealed record AppointmentDto(
     Guid Id,
     Guid? CustomerId,
@@ -61,7 +71,10 @@ public sealed record AppointmentDto(
     decimal TotalPrice,
     int TotalDurationMinutes,
     DateTimeOffset CreatedAt,
-    DateTimeOffset? UpdatedAt);
+    DateTimeOffset? UpdatedAt,
+    Guid? ServiceBundleId = null,
+    string? BundleName = null,
+    decimal? BundlePrice = null);
 
 /// <summary>The range the calendar asks for. Normalised before it reaches the database.</summary>
 public sealed record CalendarQuery(DateTimeOffset? From, DateTimeOffset? To)

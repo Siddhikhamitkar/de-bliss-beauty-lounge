@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../api/client.ts'
-import { searchServices } from '../api/catalogue.ts'
+import { searchIndividualServices } from '../api/catalogue.ts'
 import { getStaffServices, setStaffServices } from '../api/staff.ts'
 import type { PagedResult, ServiceSummary, StaffServiceItem } from '../api/contracts.ts'
 import { ServiceAssignment } from './ServiceAssignment.tsx'
@@ -25,7 +25,7 @@ vi.mock('../api/staff.ts', () => ({
 }))
 
 vi.mock('../api/catalogue.ts', () => ({
-  searchServices: vi.fn(),
+  searchIndividualServices: vi.fn(),
 }))
 
 function paged(items: ServiceSummary[]): PagedResult<ServiceSummary> {
@@ -55,6 +55,9 @@ function service(overrides: Partial<ServiceSummary> = {}): ServiceSummary {
     sortOrder: 0,
     createdAt: '2026-10-03T00:00:00Z',
     updatedAt: null,
+    itemKind: 'Service',
+    serviceCount: null,
+    standardTotalPrice: null,
     ...overrides,
   }
 }
@@ -72,7 +75,7 @@ function assignment(overrides: Partial<StaffServiceItem> = {}): StaffServiceItem
 describe('ServiceAssignment', () => {
   beforeEach(() => {
     vi.mocked(getStaffServices).mockResolvedValue([assignment()])
-    vi.mocked(searchServices).mockResolvedValue(paged([service()]))
+    vi.mocked(searchIndividualServices).mockResolvedValue(paged([service()]))
     vi.mocked(setStaffServices).mockResolvedValue([])
   })
 
@@ -101,7 +104,7 @@ describe('ServiceAssignment', () => {
 
   it('replaces the assignment set with the checked services', async () => {
     const user = userEvent.setup()
-    vi.mocked(searchServices).mockResolvedValue(
+    vi.mocked(searchIndividualServices).mockResolvedValue(
       paged([
         service(),
         service({ id: 'v2', name: 'Cut & Blow Dry', categoryName: 'Hair' }),
@@ -122,7 +125,7 @@ describe('ServiceAssignment', () => {
   it('marks an inactive service in the picker so it stays visible', async () => {
     const user = userEvent.setup()
     vi.mocked(getStaffServices).mockResolvedValue([])
-    vi.mocked(searchServices).mockResolvedValue(
+    vi.mocked(searchIndividualServices).mockResolvedValue(
       paged([service({ id: 'v3', name: 'Old Perm Treatment', isActive: false })]),
     )
     render(<ServiceAssignment staffId="s1" />)

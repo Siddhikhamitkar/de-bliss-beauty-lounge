@@ -30,6 +30,7 @@ public sealed class AppointmentRepository(DeBlissDbContext context)
             .Include(appointment => appointment.Services)
             .ThenInclude(line => line.Staff)
             .Include(appointment => appointment.Customer)
+            .Include(appointment => appointment.ServiceBundle)
             .FirstOrDefaultAsync(appointment => appointment.Id == id, ct);
     }
 
@@ -44,6 +45,7 @@ public sealed class AppointmentRepository(DeBlissDbContext context)
             .Include(appointment => appointment.Services)
             .ThenInclude(line => line.Staff)
             .Include(appointment => appointment.Customer)
+            .Include(appointment => appointment.ServiceBundle)
             .ToListAsync(ct);
 
         // DateTimeOffset comparisons do not translate to SQLite; the
