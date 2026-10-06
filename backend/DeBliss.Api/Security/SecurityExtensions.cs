@@ -14,6 +14,12 @@ public static class AuthPolicies
 
     /// <summary>Day-to-day operations the front desk runs: calendar, customers, services, staff, billing.</summary>
     public const string Operational = nameof(Operational);
+
+    /// <summary>
+    /// A signed-in user reading or writing only their own staff record — the
+    /// surface the future staff mobile app consumes.
+    /// </summary>
+    public const string StaffSelf = nameof(StaffSelf);
 }
 
 public static class SecurityExtensions
@@ -79,7 +85,12 @@ public static class SecurityExtensions
             options.AddPolicy(
                 AuthPolicies.Operational,
                 policy => policy.RequireRole(RoleNames.Owner, RoleNames.Receptionist));
+            options.AddPolicy(
+                AuthPolicies.StaffSelf,
+                policy => policy.RequireAuthenticatedUser().AddRequirements(new StaffLinkRequirement()));
         });
+
+        services.AddSingleton<IAuthorizationHandler, StaffLinkHandler>();
 
         services.AddSingleton(issuer);
         services.AddSingleton(revocations);

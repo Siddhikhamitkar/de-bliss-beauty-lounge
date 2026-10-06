@@ -11,17 +11,19 @@ import { RowActionMenu } from '../components/RowActionMenu.tsx'
 import { StatusPill } from '../components/StatusPill.tsx'
 import { formatDate } from '../format.ts'
 import { useAsync } from '../useAsync.ts'
+import { AttendanceSection } from './AttendanceSection.tsx'
 import { ServiceAssignment } from './ServiceAssignment.tsx'
 import { TimeOffSection } from './TimeOffSection.tsx'
 import { WorkingHoursEditor } from './WorkingHoursEditor.tsx'
 
-type StaffTabId = 'overview' | 'services' | 'hours' | 'timeoff' | 'details'
+type StaffTabId = 'overview' | 'services' | 'hours' | 'timeoff' | 'attendance' | 'details'
 
 const TABS: { id: StaffTabId; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'services', label: 'Services' },
   { id: 'hours', label: 'Working hours' },
   { id: 'timeoff', label: 'Time off' },
+  { id: 'attendance', label: 'Attendance' },
   { id: 'details', label: 'Staff details' },
 ]
 
@@ -30,6 +32,8 @@ interface StaffDrawerProps {
   onClose: () => void
   onEdit: (staffId: string) => void
   onChanged: () => void
+  /** Attendance is owner-only; receptionists keep the operational roster. */
+  canViewAttendance?: boolean
 }
 
 /**
@@ -38,10 +42,11 @@ interface StaffDrawerProps {
  * and the roster panels fetch when their tab first opens. Their weekly
  * intervals already express breaks, so no separate break editor exists.
  */
-export function StaffDrawer({ member, onClose, onEdit, onChanged }: StaffDrawerProps) {
+export function StaffDrawer({ member, onClose, onEdit, onChanged, canViewAttendance = false }: StaffDrawerProps) {
   const profile = useAsync(() => getStaff(member.id), [member.id])
   const [actionFailure, setActionFailure] = useState<string>()
   const [activeTab, setActiveTab] = useState<StaffTabId>('overview')
+  const tabs = canViewAttendance ? TABS : TABS.filter(tab => tab.id !== 'attendance')
 
   const isActive = profile.data?.isActive ?? member.isActive
 
@@ -121,6 +126,8 @@ export function StaffDrawer({ member, onClose, onEdit, onChanged }: StaffDrawerP
         return <WorkingHoursEditor staffId={member.id} />
       case 'timeoff':
         return <TimeOffSection staffId={member.id} />
+      case 'attendance':
+        return <AttendanceSection staffId={member.id} />
       case 'details':
         return renderProfileTab(profileData => (
           <section className="tab-section" aria-label="Staff details">
@@ -219,7 +226,7 @@ export function StaffDrawer({ member, onClose, onEdit, onChanged }: StaffDrawerP
         aria-label="Staff sections"
         onKeyDown={handleTabKeys}
       >
-        {TABS.map(tab => (
+        {tabs.map(tab => (
           <button
             key={tab.id}
             type="button"

@@ -20,7 +20,7 @@ interface Editor {
   staffId: string | null
 }
 
-export function StaffPage() {
+export function StaffPage({ canViewAttendance = false }: { canViewAttendance?: boolean }) {
   const [search, setSearch] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [status, setStatus] = useState<StaffStatusFilter>('All')
@@ -63,7 +63,12 @@ export function StaffPage() {
   return (
     <section className="panel">
       <div className="panel-header">
-        <h2>Staff</h2>
+        <div className="panel-heading">
+          <h2>Staff</h2>
+          <p className="panel-lede">
+            The team behind De Bliss — roles, schedules and working hours.
+          </p>
+        </div>
         <button
           type="button"
           className="button button-primary"
@@ -122,6 +127,7 @@ export function StaffPage() {
             setEditor({ staffId })
           }}
           onChanged={staff.reload}
+          canViewAttendance={canViewAttendance}
         />
       )}
     </section>

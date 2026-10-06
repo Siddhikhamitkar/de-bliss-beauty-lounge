@@ -63,7 +63,12 @@ export function RemindersPage() {
   return (
     <section className="panel" aria-label="Reminders">
       <div className="panel-header">
-        <h2>Reminders</h2>
+        <div className="panel-heading">
+          <h2>Reminders</h2>
+          <p className="panel-lede">
+            Appointment reminders over WhatsApp — delivery history and settings.
+          </p>
+        </div>
       </div>
 
       <div className="page-tabs" role="tablist" aria-label="Reminder views" onKeyDown={handleTabKeys}>

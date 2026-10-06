@@ -125,4 +125,31 @@ internal static class StaffingSeed
 
         return block.Id;
     }
+
+    /// <summary>
+    /// An attendance row with its timestamps already set, so a test can arrange a
+    /// day the clock-in flow could not have produced (a past shift, a closed day).
+    /// </summary>
+    public static async Task<Guid> AttendanceAsync(
+        DeBlissDbContext context,
+        Guid staffId,
+        DateOnly workDate,
+        DateTimeOffset checkInAt,
+        DateTimeOffset? checkOutAt = null)
+    {
+        var entry = new StaffAttendance
+        {
+            Id = Guid.NewGuid(),
+            StaffId = staffId,
+            WorkDate = workDate,
+            CheckInAt = checkInAt,
+            CheckOutAt = checkOutAt,
+            Status = checkOutAt is null ? AttendanceStatus.CheckedIn : AttendanceStatus.CheckedOut
+        };
+
+        context.StaffAttendances.Add(entry);
+        await context.SaveChangesAsync();
+
+        return entry.Id;
+    }
 }

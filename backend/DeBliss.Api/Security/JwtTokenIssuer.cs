@@ -29,11 +29,11 @@ public sealed class JwtTokenIssuer(IConfiguration configuration, TimeProvider cl
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
         };
 
-        claims.AddRange(user.Roles.Select(role => new Claim("role", role)));
+        claims.AddRange(user.Roles.Select(role => new Claim(AuthClaimNames.Role, role)));
 
         if (user.StaffId is { } staffId)
         {
-            claims.Add(new Claim("staff_id", staffId.ToString()));
+            claims.Add(new Claim(AuthClaimNames.StaffId, staffId.ToString()));
         }
 
         var credentials = new SigningCredentials(SigningKey(), SecurityAlgorithms.HmacSha256);

@@ -36,6 +36,8 @@ public class DeBlissDbContext(DbContextOptions<DeBlissDbContext> options)
 
     public DbSet<StaffTimeOff> StaffTimeOff => Set<StaffTimeOff>();
 
+    public DbSet<StaffAttendance> StaffAttendances => Set<StaffAttendance>();
+
     public DbSet<ServiceCategory> ServiceCategories => Set<ServiceCategory>();
 
     public DbSet<Service> Services => Set<Service>();

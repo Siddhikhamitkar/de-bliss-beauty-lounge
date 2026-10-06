@@ -1,7 +1,7 @@
 :root {
   color-scheme: light dark;
 
-  --surface: light-dark(#fdfbf9, #1c1917);
+  --surface: light-dark(#fbf8f4, #1c1917);
   --raised: light-dark(#f5f1ec, #26211e);
   --text: light-dark(#262019, #efe9e3);
   --muted: light-dark(#6f6357, #a89a8d);
@@ -10,6 +10,12 @@
   --accent-contrast: #fffaf6;
   --danger: light-dark(#a2342c, #e08d87);
   --ok: light-dark(#31683f, #8fca9d);
+  --warn: light-dark(#a5741c, #d8b36a);
+
+  /* Georgia on headings is the salon's one editorial touch; everything else
+     stays in the OS sans so the app reads operational, not decorative. */
+  --font-display: Georgia, 'Times New Roman', serif;
+  --shadow-soft: 0 1px 2px rgb(41 29 24 / 0.05), 0 4px 14px rgb(41 29 24 / 0.05);
 
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
@@ -86,8 +92,9 @@ p {
 }
 
 .side-brand-name {
-  font-size: 1rem;
-  font-weight: 650;
+  font-family: var(--font-display);
+  font-size: 1.08rem;
+  font-weight: 600;
   letter-spacing: 0.01em;
 }
 
@@ -101,7 +108,23 @@ p {
 .side-nav {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 1.05rem;
+}
+
+.side-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.side-group-label {
+  padding: 0 0.6rem 0.22rem;
+  color: var(--muted);
+  font-size: 0.63rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.11em;
+  opacity: 0.85;
 }
 
 .side-nav-item {
@@ -109,15 +132,16 @@ p {
   align-items: center;
   gap: 0.6rem;
   width: 100%;
-  padding: 0.45rem 0.55rem;
+  padding: 0.5rem 0.6rem;
   border: none;
-  border-radius: 0.5rem;
+  border-radius: 0.55rem;
   background: transparent;
   color: var(--text);
   font: inherit;
   font-size: 0.9rem;
   text-align: left;
   cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
 }
 
 .side-nav-item:hover:not(:disabled) {
@@ -125,9 +149,9 @@ p {
 }
 
 .side-nav-item[aria-current='page'] {
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
   color: var(--accent);
-  font-weight: 600;
+  font-weight: 650;
 }
 
 .side-nav-item:disabled {
@@ -138,6 +162,11 @@ p {
 
 .side-nav-icon {
   flex-shrink: 0;
+  opacity: 0.8;
+}
+
+.side-nav-item[aria-current='page'] .side-nav-icon {
+  opacity: 1;
 }
 
 .side-nav-label {
@@ -169,8 +198,9 @@ p {
 .panel {
   background: var(--raised);
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
-  padding: 1.25rem;
+  border-radius: 0.9rem;
+  padding: 1.3rem 1.4rem;
+  box-shadow: var(--shadow-soft);
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
@@ -185,7 +215,28 @@ p {
 }
 
 .panel-header h2 {
-  font-size: 1.15rem;
+  font-family: var(--font-display);
+  font-size: 1.12rem;
+  font-weight: 600;
+  letter-spacing: 0.005em;
+}
+
+/* The page title of a top-level panel is the one heading that gets real size. */
+.app-main > .panel > .panel-header h2 {
+  font-size: 1.42rem;
+  line-height: 1.2;
+}
+
+.panel-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.panel-lede {
+  color: var(--muted);
+  font-size: 0.87rem;
+  max-width: 46ch;
 }
 
 .panel-actions {
@@ -197,16 +248,18 @@ p {
 .button {
   font: inherit;
   font-size: 0.9rem;
-  padding: 0.4rem 0.9rem;
-  border-radius: 0.5rem;
+  padding: 0.42rem 0.95rem;
+  border-radius: 0.55rem;
   border: 1px solid var(--line);
   background: var(--surface);
   color: var(--text);
   cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
 }
 
 .button:hover:not(:disabled) {
-  border-color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
 }
 
 .button:disabled {
@@ -218,6 +271,12 @@ p {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--accent-contrast);
+  box-shadow: 0 1px 2px rgb(41 29 24 / 0.12);
+}
+
+.button-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 87%, var(--text));
+  border-color: color-mix(in srgb, var(--accent) 87%, var(--text));
 }
 
 .filters {
@@ -225,8 +284,10 @@ p {
   flex-wrap: wrap;
   align-items: flex-end;
   gap: 0.9rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--line);
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+  background: color-mix(in srgb, var(--surface) 55%, var(--raised));
 }
 
 .field {
@@ -260,8 +321,9 @@ textarea {
   color: var(--text);
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 0.45rem;
-  padding: 0.4rem 0.6rem;
+  border-radius: 0.5rem;
+  padding: 0.45rem 0.65rem;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
 }
 
 input:focus-visible,
@@ -269,8 +331,14 @@ select:focus-visible,
 textarea:focus-visible,
 .button:focus-visible,
 .side-nav-item:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
   outline-offset: 1px;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  border-color: var(--accent);
 }
 
 textarea {
@@ -420,17 +488,21 @@ textarea {
 .grid th,
 .grid td {
   text-align: left;
-  padding: 0.55rem 0.6rem;
-  border-bottom: 1px solid var(--line);
+  padding: 0.68rem 0.65rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 65%, transparent);
   vertical-align: middle;
 }
 
 .grid thead th {
   color: var(--muted);
-  font-size: 0.78rem;
-  font-weight: 600;
+  font-size: 0.72rem;
+  font-weight: 650;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.07em;
+}
+
+.grid tbody tr {
+  transition: background-color 120ms ease;
 }
 
 .grid tbody tr:last-child th,
@@ -441,18 +513,19 @@ textarea {
 .grid .numeric {
   text-align: right;
   font-variant-numeric: tabular-nums;
+  font-weight: 600;
 }
 
 .row-warning > th {
-  border-left: 3px solid var(--warn, #b8860b);
+  border-left: 3px solid var(--warn);
   background: var(--surface);
 }
 
 .row-note {
   display: block;
   font-size: 0.72rem;
-  font-weight: 400;
-  color: #a5741c;
+  font-weight: 500;
+  color: var(--warn);
   text-transform: none;
   letter-spacing: normal;
 }
@@ -460,11 +533,12 @@ textarea {
 /* Second line under a menu row's name: what kind of offering it is. */
 .kind-note {
   display: block;
-  font-size: 0.72rem;
-  font-weight: 400;
+  margin-top: 0.12rem;
+  font-size: 0.66rem;
+  font-weight: 650;
   color: var(--muted);
-  text-transform: none;
-  letter-spacing: normal;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
 }
 
 /* What a bundle's services cost separately, struck through beside its price. */
@@ -477,19 +551,22 @@ textarea {
 
 .pill {
   display: inline-block;
-  font-size: 0.75rem;
-  padding: 0.15rem 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.14rem 0.55rem;
   border-radius: 999px;
   border: 1px solid var(--line);
+  color: var(--muted);
 }
 
 .pill-active {
   color: var(--ok);
-  border-color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 38%, transparent);
+  background: color-mix(in srgb, var(--ok) 10%, transparent);
 }
 
 .pill-inactive {
-  color: var(--muted);
+  background: color-mix(in srgb, var(--muted) 8%, transparent);
 }
 
 .actions {
@@ -522,18 +599,24 @@ textarea {
 }
 
 .banner {
-  background: color-mix(in srgb, var(--danger) 12%, transparent);
-  border: 1px solid var(--danger);
+  background: color-mix(in srgb, var(--danger) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
   color: var(--danger);
-  border-radius: 0.5rem;
-  padding: 0.6rem 0.8rem;
+  border-radius: 0.6rem;
+  padding: 0.65rem 0.85rem;
   font-size: 0.9rem;
 }
 
+/* An empty region is a designed moment, not dead space: quiet, centered, and
+   clearly a placeholder rather than content. */
 .empty {
   color: var(--muted);
   font-size: 0.9rem;
-  padding: 0.5rem 0;
+  padding: 1.5rem 1.25rem;
+  text-align: center;
+  border: 1px dashed color-mix(in srgb, var(--line) 90%, transparent);
+  border-radius: 0.7rem;
+  background: color-mix(in srgb, var(--surface) 40%, transparent);
 }
 
 /* ------------------------------------------------------------------ */
@@ -541,7 +624,7 @@ textarea {
 /* ------------------------------------------------------------------ */
 
 .dash {
-  --dash-serif: Georgia, 'Times New Roman', serif;
+  --dash-serif: var(--font-display);
   --dash-champagne: light-dark(#a8843f, #d8b36a);
   display: flex;
   flex-direction: column;
@@ -1321,7 +1404,7 @@ textarea {
   display: grid;
   place-items: center;
   padding: 1rem;
-  background: rgb(0 0 0 / 45%);
+  background: rgb(31 25 20 / 45%);
 }
 
 .dialog {
@@ -1642,7 +1725,7 @@ textarea {
   line-height: 1.25;
   overflow: hidden;
   opacity: 0.92;
-  box-shadow: 0 10px 24px rgb(0 0 0 / 0.18);
+  box-shadow: 0 10px 24px rgb(41 29 24 / 0.18);
 }
 
 /* Booking blocks. Height follows duration; the left stripe carries status,
@@ -1750,7 +1833,8 @@ textarea {
 
 .status-pill {
   color: var(--status-color, var(--muted));
-  border-color: var(--status-color, var(--line));
+  border-color: color-mix(in srgb, var(--status-color, var(--line)) 40%, transparent);
+  background: color-mix(in srgb, var(--status-color, var(--muted)) 10%, transparent);
 }
 
 /* Month overview: triage, not decoration. */
@@ -1862,7 +1946,7 @@ textarea {
   z-index: 10;
   display: flex;
   justify-content: flex-end;
-  background: rgb(0 0 0 / 25%);
+  background: rgb(31 25 20 / 25%);
 }
 
 .cal-details {
@@ -2303,7 +2387,7 @@ textarea {
   z-index: 10;
   display: flex;
   justify-content: flex-end;
-  background: rgb(0 0 0 / 25%);
+  background: rgb(31 25 20 / 28%);
 }
 
 .drawer {
@@ -2312,7 +2396,7 @@ textarea {
   overflow-y: auto;
   background: var(--raised);
   border-left: 1px solid var(--line);
-  box-shadow: -18px 0 40px rgb(0 0 0 / 12%);
+  box-shadow: -18px 0 40px rgb(41 29 24 / 12%);
   display: flex;
   flex-direction: column;
   animation: drawer-in 200ms ease-out;
@@ -2359,7 +2443,9 @@ textarea {
 
 .drawer-head-text h3 {
   margin: 0;
-  font-size: 1.15rem;
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 600;
   line-height: 1.3;
 }
 
@@ -2511,7 +2597,7 @@ textarea {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 0.65rem;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
+  box-shadow: var(--shadow-soft);
 }
 
 .tab-section-head {
@@ -2792,7 +2878,7 @@ textarea {
   background: var(--raised);
   border: 1px solid var(--line);
   border-radius: 0.5rem;
-  box-shadow: 0 8px 20px rgb(0 0 0 / 15%);
+  box-shadow: 0 8px 20px rgb(41 29 24 / 15%);
 }
 
 .row-menu-item {
@@ -2878,14 +2964,23 @@ textarea {
   align-items: baseline;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.6rem 0.75rem;
-  background: var(--raised);
-  border-radius: 0.5rem;
+  padding: 0.7rem 0.85rem;
+  background: color-mix(in srgb, var(--accent) 8%, var(--raised));
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border-radius: 0.6rem;
   font-weight: 600;
 }
 
+.checkout-total-row > span:first-child {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+}
+
 .checkout-total-row .checkout-total-value {
-  font-size: 1.15rem;
+  font-size: 1.3rem;
+  font-weight: 650;
 }
 
 .checkout-discount-row {
@@ -2979,7 +3074,7 @@ textarea {
   justify-content: center;
   overflow-y: auto;
   padding: 2rem 1rem;
-  background: rgb(0 0 0 / 45%);
+  background: rgb(31 25 20 / 45%);
 }
 
 .receipt-panel {
@@ -3187,8 +3282,9 @@ textarea {
 }
 
 .login-brand-name {
-  font-size: 1.05rem;
-  font-weight: 650;
+  font-family: var(--font-display);
+  font-size: 1.08rem;
+  font-weight: 600;
   letter-spacing: 0.01em;
 }
 
@@ -3201,8 +3297,9 @@ textarea {
 
 .login-heading {
   margin: 0;
-  font-size: 1.45rem;
-  font-weight: 650;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 600;
   text-align: center;
 }
 
@@ -3445,7 +3542,7 @@ textarea {
 }
 
 .banner-success {
-  background: color-mix(in srgb, var(--ok) 12%, transparent);
-  border-color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 9%, transparent);
+  border-color: color-mix(in srgb, var(--ok) 45%, transparent);
   color: var(--ok);
 }

@@ -23,12 +23,16 @@ internal sealed class StaffingHarness : IDisposable
         var staffRepository = new StaffRepository(Context);
         var serviceRepository = new ServiceRepository(Context);
         var scheduleRepository = new ScheduleRepository(Context);
+        var attendanceRepository = new StaffAttendanceRepository(Context);
         Appointments = new AppointmentRepository(Context);
 
         Staff = new StaffManagementService(staffRepository, serviceRepository, Context);
         Schedule = new StaffScheduleService(staffRepository, scheduleRepository, Database.Clock, Context);
         Availability = new StaffAvailabilityService(
             staffRepository, serviceRepository, scheduleRepository, Appointments);
+        Attendance = new StaffAttendanceService(
+            staffRepository, attendanceRepository, Database.Clock, Context);
+        Mobile = new StaffMobileService(staffRepository, Schedule, Appointments, Database.Clock);
     }
 
     public SqliteTestDatabase Database { get; }
@@ -40,6 +44,10 @@ internal sealed class StaffingHarness : IDisposable
     public IStaffScheduleService Schedule { get; }
 
     public IStaffAvailabilityService Availability { get; }
+
+    public IStaffAttendanceService Attendance { get; }
+
+    public IStaffMobileService Mobile { get; }
 
     /// <summary>The appointment repository the availability service checks conflicts through.</summary>
     public AppointmentRepository Appointments { get; }
@@ -129,6 +137,43 @@ internal sealed class StaffingHarness : IDisposable
     {
         await using var context = Reopen();
         var id = await StaffingSeed.BlockedTimeAsync(context, staffId, startsAt, endsAt, type);
+        Context.ChangeTracker.Clear();
+        return id;
+    }
+
+    public async Task<Guid> SeedCustomerAsync(string firstName, string lastName)
+    {
+        await using var context = Reopen();
+        var id = await CustomerSeed.CustomerAsync(context, firstName, lastName);
+        Context.ChangeTracker.Clear();
+        return id;
+    }
+
+    /// <summary>
+    /// A booking with per-line staff assignments, which is how the mobile read side
+    /// decides whose appointment it is.
+    /// </summary>
+    public async Task<Guid> SeedAppointmentAsync(
+        Guid customerId,
+        DateTimeOffset startsAt,
+        AppointmentStatus status = AppointmentStatus.Confirmed,
+        IReadOnlyList<(Guid ServiceId, Guid? StaffId, string SnapshotName)>? lines = null)
+    {
+        await using var context = Reopen();
+        var id = await CustomerSeed.AppointmentAsync(context, customerId, startsAt, status, lines);
+        Context.ChangeTracker.Clear();
+        return id;
+    }
+
+    /// <summary>An attendance row written directly, for history the clock-in flow cannot produce.</summary>
+    public async Task<Guid> SeedAttendanceAsync(
+        Guid staffId,
+        DateOnly workDate,
+        DateTimeOffset checkInAt,
+        DateTimeOffset? checkOutAt = null)
+    {
+        await using var context = Reopen();
+        var id = await StaffingSeed.AttendanceAsync(context, staffId, workDate, checkInAt, checkOutAt);
         Context.ChangeTracker.Clear();
         return id;
     }

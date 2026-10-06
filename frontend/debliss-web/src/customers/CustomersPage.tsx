@@ -87,7 +87,12 @@ export function CustomersPage({
     <>
       <section className="panel">
         <div className="panel-header">
-          <h2>Customers</h2>
+          <div className="panel-heading">
+            <h2>Customers</h2>
+            <p className="panel-lede">
+              Profiles, visit history and notes for every guest of De Bliss.
+            </p>
+          </div>
           <button
             type="button"
             className="button button-primary"

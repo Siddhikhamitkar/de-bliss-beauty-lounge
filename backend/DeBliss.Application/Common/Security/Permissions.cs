@@ -29,6 +29,12 @@ public static class Permissions
         public const string ManageWorkingHours = "staff.working-hours";
         public const string ManageTimeOff = "staff.time-off";
         public const string CheckAvailability = "staff.availability";
+
+        /// <summary>
+        /// A staff member's clock-in/clock-out history. Owner only: it is private
+        /// staff data, and the front desk does not need it to run the day.
+        /// </summary>
+        public const string ViewAttendance = "staff.attendance.read";
     }
 
     public static class Customers

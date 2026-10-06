@@ -369,9 +369,7 @@ public sealed class StaffScheduleService(
                 days.Add(new DayScheduleDto(
                     Enum.GetName(weekDay)!,
                     IsWorkingDay: true,
-                    [.. dayRows
-                        .OrderBy(row => row.StartTime)
-                        .Select(row => new WorkingIntervalDto(FormatTime(row.StartTime), FormatTime(row.EndTime)))]));
+                    WorkingHourIntervals.For(dayRows)));
             }
             else
             {
@@ -380,13 +378,6 @@ public sealed class StaffScheduleService(
         }
 
         return new WeekScheduleDto(days);
-    }
-
-    private static string FormatTime(TimeSpan value)
-    {
-        var totalMinutes = (int)value.TotalMinutes;
-
-        return string.Create(CultureInfo.InvariantCulture, $"{totalMinutes / 60:D2}:{totalMinutes % 60:D2}");
     }
 
     private static StaffTimeOffDto Map(StaffTimeOff entry) => new(

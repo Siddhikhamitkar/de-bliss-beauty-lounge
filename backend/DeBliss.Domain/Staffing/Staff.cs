@@ -38,6 +38,8 @@ public class Staff : AuditableEntity
 
     public ICollection<StaffTimeOff> TimeOff { get; set; } = new List<StaffTimeOff>();
 
+    public ICollection<StaffAttendance> Attendances { get; set; } = new List<StaffAttendance>();
+
     public ICollection<AppointmentService> AppointmentServices { get; set; } = new List<AppointmentService>();
 
     public ICollection<BlockedTime> BlockedTimes { get; set; } = new List<BlockedTime>();

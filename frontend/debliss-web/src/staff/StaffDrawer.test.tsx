@@ -7,6 +7,7 @@ import {
   getStaff,
   getStaffServices,
   getWeekSchedule,
+  listStaffAttendance,
   listTimeOff,
   setStaffStatus,
 } from '../api/staff.ts'
@@ -35,6 +36,7 @@ vi.mock('../api/staff.ts', () => ({
   updateTimeOff: vi.fn(),
   deleteTimeOff: vi.fn(),
   checkStaffAvailability: vi.fn(),
+  listStaffAttendance: vi.fn(),
 }))
 
 vi.mock('../api/catalogue.ts', () => ({
@@ -91,6 +93,7 @@ function renderDrawer(overrides: Partial<ComponentProps<typeof StaffDrawer>> = {
     onClose: vi.fn(),
     onEdit: vi.fn(),
     onChanged: vi.fn(),
+    canViewAttendance: true,
     ...overrides,
   }
   render(<StaffDrawer {...props} />)
@@ -105,6 +108,7 @@ describe('StaffDrawer', () => {
     vi.mocked(searchIndividualServices).mockResolvedValue(emptyPagedServices)
     vi.mocked(getWeekSchedule).mockResolvedValue(emptyWeek)
     vi.mocked(listTimeOff).mockResolvedValue([])
+    vi.mocked(listStaffAttendance).mockResolvedValue([])
   })
 
   it('shows the row header immediately and the overview once it loads', async () => {
@@ -146,6 +150,7 @@ describe('StaffDrawer', () => {
     expect(getStaffServices).not.toHaveBeenCalled()
     expect(getWeekSchedule).not.toHaveBeenCalled()
     expect(listTimeOff).not.toHaveBeenCalled()
+    expect(listStaffAttendance).not.toHaveBeenCalled()
 
     const drawer = screen.getByRole('dialog', { name: 'Staff Jasmin Rae' })
 
@@ -162,6 +167,21 @@ describe('StaffDrawer', () => {
     await user.click(within(drawer).getByRole('tab', { name: 'Time off' }))
     expect(await within(drawer).findByText('No time-off records yet.')).toBeInTheDocument()
     expect(listTimeOff).toHaveBeenCalledTimes(1)
+
+    await user.click(within(drawer).getByRole('tab', { name: 'Attendance' }))
+    expect(await within(drawer).findByText('No attendance records yet.')).toBeInTheDocument()
+    expect(listStaffAttendance).toHaveBeenCalledTimes(1)
+  })
+
+  it('hides the Attendance tab unless the viewer may see attendance', async () => {
+    renderDrawer({ canViewAttendance: false })
+
+    await screen.findByText('jasmin.rae@debliss.example')
+
+    const drawer = screen.getByRole('dialog', { name: 'Staff Jasmin Rae' })
+    expect(within(drawer).queryByRole('tab', { name: 'Attendance' })).not.toBeInTheDocument()
+    expect(within(drawer).getByRole('tab', { name: 'Staff details' })).toBeInTheDocument()
+    expect(listStaffAttendance).not.toHaveBeenCalled()
   })
 
   it('keeps the header while the profile is still loading', () => {

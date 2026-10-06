@@ -11,11 +11,13 @@ namespace DeBliss.Infrastructure.Persistence.Repositories;
 /// application service mutates what it loads; the range queries do not track.
 /// DateTimeOffset predicates run in memory because SQLite cannot translate
 /// them; the translatable filters (soft-delete) narrow the candidate set
-/// first. Also implements the availability module's conflict port: a booking
-/// still holds its slot unless it is cancelled, no-show or completed.
+/// first. Also implements two ports declared by other modules: the
+/// availability module's conflict check — a booking still holds its slot
+/// unless it is cancelled, no-show or completed — and the staffing module's
+/// "which bookings is this person on?" read for the staff mobile app.
 /// </summary>
 public sealed class AppointmentRepository(DeBlissDbContext context)
-    : IAppointmentRepository, IAppointmentConflictPort
+    : IAppointmentRepository, IAppointmentConflictPort, IStaffAppointmentPort
 {
     private static readonly AppointmentStatus[] SlotFreeingStatuses =
     [
@@ -98,4 +100,25 @@ public sealed class AppointmentRepository(DeBlissDbContext context)
     }
 
     public void Add(Appointment appointment) => context.Appointments.Add(appointment);
+
+    public async Task<IReadOnlyList<Appointment>> GetForStaffInRangeAsync(
+        Guid staffId,
+        DateTimeOffset from,
+        DateTimeOffset to,
+        CancellationToken ct = default)
+    {
+        var candidates = await context.Appointments
+            .AsNoTracking()
+            .Where(appointment => appointment.DeletedAt == null)
+            .Include(appointment => appointment.Services)
+            .Include(appointment => appointment.Customer)
+            .Include(appointment => appointment.ServiceBundle)
+            .ToListAsync(ct);
+
+        return candidates
+            .Where(appointment => appointment.StartsAt >= from && appointment.StartsAt < to)
+            .Where(appointment => appointment.Services.Any(line => line.StaffId == staffId))
+            .OrderBy(appointment => appointment.StartsAt)
+            .ToList();
+    }
 }

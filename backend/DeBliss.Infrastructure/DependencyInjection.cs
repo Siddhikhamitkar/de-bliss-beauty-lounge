@@ -46,9 +46,11 @@ public static class DependencyInjection
         services.AddScoped<IStaffDirectory, StaffDirectory>();
         services.AddScoped<IStaffRepository, StaffRepository>();
         services.AddScoped<IScheduleRepository, ScheduleRepository>();
+        services.AddScoped<IStaffAttendanceRepository, StaffAttendanceRepository>();
         services.AddScoped<ICustomerRepository, CustomerRepository>();
         services.AddScoped<IAppointmentRepository, AppointmentRepository>();
         services.AddScoped<IAppointmentConflictPort, AppointmentRepository>();
+        services.AddScoped<IStaffAppointmentPort, AppointmentRepository>();
         services.AddScoped<IInvoiceRepository, InvoiceRepository>();
         services.AddScoped<ICouponRepository, CouponRepository>();
         services.AddScoped<IDashboardReadStore, DashboardReadStore>();

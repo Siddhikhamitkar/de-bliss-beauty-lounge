@@ -267,6 +267,28 @@ export interface SaveStaffTimeOffRequest {
   reason: string | null
 }
 
+/**
+ * One attendance day for a staff member, mirrored from the staff mobile API.
+ * Check-in and check-out are the server's own timestamps — the future mobile app
+ * never supplies them — and the scheduled shift comes from the owner-maintained
+ * weekly pattern, not a second roster system.
+ */
+export interface StaffAttendance {
+  id: string
+  staffId: string
+  /** The calendar day the record belongs to, as an "yyyy-MM-dd" string. */
+  workDate: string
+  checkInAt: string
+  checkOutAt: string | null
+  /** "CheckedIn" or "CheckedOut" — the AttendanceStatus name the API sends. */
+  status: string
+  isScheduledWorkingDay: boolean
+  /** The working intervals the weekly pattern plans for that weekday, "HH:mm". */
+  scheduledIntervals: WorkingInterval[]
+  createdAt: string
+  updatedAt: string | null
+}
+
 /** Answer to a single "can this staff member take this slot?" question. */
 export interface StaffAvailabilityCheck {
   staffId: string

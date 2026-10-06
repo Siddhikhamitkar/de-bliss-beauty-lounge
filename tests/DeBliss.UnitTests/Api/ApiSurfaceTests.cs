@@ -55,6 +55,14 @@ public sealed class ApiSurfaceTests : ApiTestBase
         ["POST api/staff/{staffId:guid}/time-off"] = [Permissions.Staffing.ManageTimeOff],
         ["PUT api/staff/{staffId:guid}/time-off/{timeOffId:guid}"] = [Permissions.Staffing.ManageTimeOff],
         ["DELETE api/staff/{staffId:guid}/time-off/{timeOffId:guid}"] = [Permissions.Staffing.ManageTimeOff],
+        ["GET api/staff/{staffId:guid}/attendance"] = [Permissions.Staffing.ViewAttendance],
+        ["GET api/staff/me"] = [StaffSelf],
+        ["GET api/staff/me/appointments"] = [StaffSelf],
+        ["GET api/staff/me/schedule"] = [StaffSelf],
+        ["GET api/staff/me/attendance"] = [StaffSelf],
+        ["GET api/staff/me/attendance/today"] = [StaffSelf],
+        ["POST api/staff/me/attendance/check-in"] = [StaffSelf],
+        ["POST api/staff/me/attendance/check-out"] = [StaffSelf],
         ["GET api/customers"] = [Permissions.Customers.ViewCustomers],
         ["POST api/customers"] = [Permissions.Customers.CreateCustomer],
         ["GET api/customers/{id:guid}"] = [Permissions.Customers.ViewCustomers],
@@ -108,6 +116,9 @@ public sealed class ApiSurfaceTests : ApiTestBase
 
     /// <summary>Endpoints any authenticated user can reach, regardless of role.</summary>
     private const string Authenticated = "authenticated:any-role";
+
+    /// <summary>Endpoints a signed-in user reaches only through the Staff record linked to their login.</summary>
+    private const string StaffSelf = "authenticated:staff-self";
 
     [Fact]
     public void Every_api_endpoint_declares_the_permissions_it_will_require()

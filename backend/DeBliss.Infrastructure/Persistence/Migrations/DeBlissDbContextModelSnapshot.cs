@@ -1116,6 +1116,43 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                     b.ToTable("Staff", (string)null);
                 });
 
+            modelBuilder.Entity("DeBliss.Domain.Staffing.StaffAttendance", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CheckInAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("CheckOutAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("StaffId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateOnly>("WorkDate")
+                        .HasColumnType("date");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StaffId", "WorkDate")
+                        .IsUnique();
+
+                    b.ToTable("StaffAttendance", (string)null);
+                });
+
             modelBuilder.Entity("DeBliss.Domain.Staffing.StaffService", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1513,6 +1550,17 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("DeBliss.Domain.Staffing.StaffAttendance", b =>
+                {
+                    b.HasOne("DeBliss.Domain.Staffing.Staff", "Staff")
+                        .WithMany("Attendances")
+                        .HasForeignKey("StaffId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Staff");
+                });
+
             modelBuilder.Entity("DeBliss.Domain.Staffing.StaffService", b =>
                 {
                     b.HasOne("DeBliss.Domain.Services.Service", "Service")
@@ -1617,6 +1665,8 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("DeBliss.Domain.Staffing.Staff", b =>
                 {
                     b.Navigation("AppointmentServices");
+
+                    b.Navigation("Attendances");
 
                     b.Navigation("BlockedTimes");
 

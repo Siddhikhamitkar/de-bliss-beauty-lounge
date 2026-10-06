@@ -47,7 +47,12 @@ export function BillingPage({ revision, onResumeCheckout, onManageCoupons }: Bil
     <>
       <section className="panel" aria-label="Invoices">
         <div className="panel-header">
-          <h2>Billing</h2>
+          <div className="panel-heading">
+            <h2>Billing</h2>
+            <p className="panel-lede">
+              Invoices, payments and coupon usage across the salon.
+            </p>
+          </div>
           {onManageCoupons !== undefined && (
             <div className="panel-actions">
               <button type="button" className="button" onClick={onManageCoupons}>

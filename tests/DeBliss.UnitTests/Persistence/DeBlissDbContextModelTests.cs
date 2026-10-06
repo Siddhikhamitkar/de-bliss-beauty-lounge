@@ -24,6 +24,7 @@ public class DeBlissDbContextModelTests
         typeof(StaffService),
         typeof(StaffWorkingHour),
         typeof(StaffTimeOff),
+        typeof(StaffAttendance),
         typeof(ServiceCategory),
         typeof(Service),
         typeof(ServiceBundle),
@@ -41,9 +42,9 @@ public class DeBlissDbContextModelTests
     };
 
     [Fact]
-    public void The_model_maps_exactly_the_twenty_three_core_entities()
+    public void The_model_maps_exactly_the_twenty_four_core_entities()
     {
-        Assert.Equal(23, TestModel.Model.GetEntityTypes().Count());
+        Assert.Equal(24, TestModel.Model.GetEntityTypes().Count());
     }
 
     [Theory]
@@ -76,6 +77,7 @@ public class DeBlissDbContextModelTests
     [InlineData(typeof(StaffService), "StaffServices")]
     [InlineData(typeof(StaffWorkingHour), "StaffWorkingHours")]
     [InlineData(typeof(StaffTimeOff), "StaffTimeOff")]
+    [InlineData(typeof(StaffAttendance), "StaffAttendance")]
     [InlineData(typeof(ServiceCategory), "ServiceCategories")]
     [InlineData(typeof(Service), "Services")]
     [InlineData(typeof(ServiceBundle), "ServiceBundles")]
@@ -146,6 +148,7 @@ public class DeBlissDbContextModelTests
     [InlineData(typeof(AppointmentStatusHistory), nameof(AppointmentStatusHistory.ToStatus))]
     [InlineData(typeof(BlockedTime), nameof(BlockedTime.Type))]
     [InlineData(typeof(StaffTimeOff), nameof(StaffTimeOff.Type))]
+    [InlineData(typeof(StaffAttendance), nameof(StaffAttendance.Status))]
     [InlineData(typeof(StaffWorkingHour), nameof(StaffWorkingHour.DayOfWeek))]
     [InlineData(typeof(Invoice), nameof(Invoice.Status))]
     [InlineData(typeof(InvoiceItem), nameof(InvoiceItem.ItemType))]
@@ -171,12 +174,23 @@ public class DeBlissDbContextModelTests
     [InlineData(typeof(Payment), nameof(Payment.PaidAt))]
     [InlineData(typeof(User), nameof(User.CreatedAt))]
     [InlineData(typeof(AppointmentReminder), nameof(AppointmentReminder.ScheduledAt))]
+    [InlineData(typeof(StaffAttendance), nameof(StaffAttendance.CheckInAt))]
     public void Timestamps_are_stored_as_datetimeoffset(Type entityType, string propertyName)
     {
         var property = TestModel.Entity(entityType).FindProperty(propertyName)!;
 
         Assert.Equal(typeof(DateTimeOffset), property.ClrType);
         Assert.Equal("datetimeoffset", property.GetColumnType());
+    }
+
+    [Fact]
+    public void A_check_out_timestamp_is_optional_but_still_a_datetimeoffset()
+    {
+        var property = TestModel.Entity(typeof(StaffAttendance)).FindProperty(nameof(StaffAttendance.CheckOutAt))!;
+
+        Assert.Equal(typeof(DateTimeOffset?), property.ClrType);
+        Assert.Equal("datetimeoffset", property.GetColumnType());
+        Assert.True(property.IsNullable);
     }
 
     [Fact]
@@ -292,6 +306,7 @@ public class DeBlissDbContextModelTests
     [InlineData(typeof(Payment), nameof(Payment.InvoiceId))]
     [InlineData(typeof(CustomerNote), nameof(CustomerNote.CustomerId))]
     [InlineData(typeof(StaffWorkingHour), nameof(StaffWorkingHour.StaffId))]
+    [InlineData(typeof(StaffAttendance), nameof(StaffAttendance.StaffId))]
     [InlineData(typeof(ServiceBundleItem), nameof(ServiceBundleItem.ServiceBundleId))]
     [InlineData(typeof(UserRole), nameof(UserRole.UserId))]
     [InlineData(typeof(AppointmentReminder), nameof(AppointmentReminder.AppointmentId))]
@@ -358,6 +373,24 @@ public class DeBlissDbContextModelTests
             .Single(i => i.Properties.Select(p => p.Name).SequenceEqual([nameof(StaffService.StaffId), nameof(StaffService.ServiceId)]));
 
         Assert.True(index.IsUnique);
+    }
+
+    [Fact]
+    public void One_attendance_record_exists_per_staff_member_per_work_date()
+    {
+        var index = TestModel.Entity(typeof(StaffAttendance)).GetIndexes()
+            .Single(i => i.Properties.Select(p => p.Name).SequenceEqual([nameof(StaffAttendance.StaffId), nameof(StaffAttendance.WorkDate)]));
+
+        Assert.True(index.IsUnique);
+    }
+
+    [Fact]
+    public void An_attendance_work_date_is_a_calendar_date()
+    {
+        var property = TestModel.Entity(typeof(StaffAttendance)).FindProperty(nameof(StaffAttendance.WorkDate))!;
+
+        Assert.Equal(typeof(DateOnly), property.ClrType);
+        Assert.Equal("date", property.GetColumnType());
     }
 
     [Fact]

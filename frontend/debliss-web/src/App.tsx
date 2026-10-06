@@ -111,7 +111,7 @@ function AppRoutes() {
         )}
         {path === '/services' && <ServicesPage onManageCategories={() => navigateTo('/categories')} />}
         {path === '/categories' && <CategoriesPage />}
-        {path === '/staff' && <StaffPage />}
+        {path === '/staff' && <StaffPage canViewAttendance={user.roles.includes('OWNER')} />}
         {path === '/customers' && (
           <CustomersPage
             pendingCreate={pendingCustomerCreate}

@@ -4,6 +4,7 @@ import type {
   PagedResult,
   SaveStaffRequest,
   SaveStaffTimeOffRequest,
+  StaffAttendance,
   StaffAvailabilityCheck,
   StaffProfile,
   StaffServiceItem,
@@ -95,6 +96,19 @@ export function updateTimeOff(
  */
 export function deleteTimeOff(staffId: string, timeOffId: string): Promise<void> {
   return request('DELETE', `/staff/${staffId}/time-off/${timeOffId}`)
+}
+
+/**
+ * One member's attendance history for the owner's staff view. An empty from/to
+ * lets the server apply its default window (the last 90 days ending today); an
+ * inverted or overly wide range comes back as a 400 on "to".
+ */
+export function listStaffAttendance(
+  staffId: string,
+  from?: string,
+  to?: string,
+): Promise<StaffAttendance[]> {
+  return request('GET', `/staff/${staffId}/attendance${toQueryString({ from, to })}`)
 }
 
 /**

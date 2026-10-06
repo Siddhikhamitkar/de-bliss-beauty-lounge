@@ -21,6 +21,8 @@ public static class DependencyInjection
         services.AddScoped<IStaffService, StaffService>();
         services.AddScoped<IStaffScheduleService, StaffScheduleService>();
         services.AddScoped<IStaffAvailabilityService, StaffAvailabilityService>();
+        services.AddScoped<IStaffAttendanceService, StaffAttendanceService>();
+        services.AddScoped<IStaffMobileService, StaffMobileService>();
         services.AddScoped<ICustomerService, CustomerService>();
         services.AddScoped<IAppointmentService, AppointmentService>();
         services.AddScoped<ICalendarService, CalendarService>();

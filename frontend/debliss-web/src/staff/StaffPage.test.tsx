@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { searchStaff, getStaff, getStaffServices, getWeekSchedule, listTimeOff, setStaffStatus } from '../api/staff.ts'
+import { searchStaff, getStaff, getStaffServices, getWeekSchedule, listTimeOff, listStaffAttendance, setStaffStatus } from '../api/staff.ts'
 import { searchIndividualServices } from '../api/catalogue.ts'
 import type {
   PagedResult,
@@ -27,6 +27,7 @@ vi.mock('../api/staff.ts', () => ({
   updateTimeOff: vi.fn(),
   deleteTimeOff: vi.fn(),
   checkStaffAvailability: vi.fn(),
+  listStaffAttendance: vi.fn(),
 }))
 
 vi.mock('../api/catalogue.ts', () => ({
@@ -220,6 +221,26 @@ describe('StaffPage', () => {
     expect(screen.getByRole('heading', { name: 'Staff', level: 2 })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'New staff member' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Apply' })).toBeInTheDocument()
+  })
+
+  it('shows the drawer attendance tab only when the viewer may see it', async () => {
+    const user = userEvent.setup()
+    const receptionistView = render(<StaffPage />)
+
+    await screen.findByText('Aisha Khan')
+    await user.click(screen.getByText('Aisha Khan'))
+    let drawer = await screen.findByRole('dialog', { name: 'Staff Aisha Khan' })
+    expect(within(drawer).queryByRole('tab', { name: 'Attendance' })).not.toBeInTheDocument()
+    expect(listStaffAttendance).not.toHaveBeenCalled()
+
+    receptionistView.unmount()
+
+    render(<StaffPage canViewAttendance />)
+
+    await screen.findByText('Aisha Khan')
+    await user.click(screen.getByText('Aisha Khan'))
+    drawer = await screen.findByRole('dialog', { name: 'Staff Aisha Khan' })
+    expect(within(drawer).getByRole('tab', { name: 'Attendance' })).toBeInTheDocument()
   })
 
   it('opens the editor from the drawer', async () => {

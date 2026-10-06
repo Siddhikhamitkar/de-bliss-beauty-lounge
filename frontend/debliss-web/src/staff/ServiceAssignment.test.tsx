@@ -22,6 +22,7 @@ vi.mock('../api/staff.ts', () => ({
   updateTimeOff: vi.fn(),
   deleteTimeOff: vi.fn(),
   checkStaffAvailability: vi.fn(),
+  listStaffAttendance: vi.fn(),
 }))
 
 vi.mock('../api/catalogue.ts', () => ({

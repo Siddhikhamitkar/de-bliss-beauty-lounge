@@ -17,10 +17,14 @@ type IconName =
   | 'marketing'
   | 'settings'
 
+type NavGroup = 'workspace' | 'catalog' | 'operations' | 'soon'
+
 interface NavItem {
   key: string
   label: string
   icon: IconName
+  /** Which visual section of the rail the item belongs to. */
+  group: NavGroup
   /** The route a click navigates to. Items without one are not built yet. */
   path?: string
   /** Which roles may see the item at all. The sidebar is a courtesy filter —
@@ -28,27 +32,36 @@ interface NavItem {
   roles: readonly RoleName[]
 }
 
+/** Sidebar section order. Groups left with no visible items are skipped. */
+const NAV_GROUPS: { key: NavGroup; label: string }[] = [
+  { key: 'workspace', label: 'Workspace' },
+  { key: 'catalog', label: 'Catalog' },
+  { key: 'operations', label: 'Operations' },
+  { key: 'soon', label: 'Coming soon' },
+]
+
 /**
- * The full salon roadmap, in operational order. The receptionist's rail shows
- * only the built operational modules; the owner additionally sees the future
- * modules as disabled "Soon" rows so the product shape reads at a glance.
- * Staff have no modules yet, so their rail is brand plus identity alone.
+ * The full salon roadmap, grouped in operational order. The receptionist's
+ * rail shows only the built operational modules; the owner additionally sees
+ * the future modules as disabled "Soon" rows so the product shape reads at a
+ * glance. Staff have no modules yet, so their rail is brand plus identity
+ * alone.
  */
 const NAV_ITEMS: NavItem[] = [
-  { key: 'dashboard', label: 'Dashboard', icon: 'dashboard', path: '/receptionist/dashboard', roles: ['OWNER', 'RECEPTIONIST'] },
-  { key: 'calendar', label: 'Calendar', icon: 'calendar', path: '/calendar', roles: ['OWNER', 'RECEPTIONIST'] },
-  { key: 'customers', label: 'Customers', icon: 'customers', path: '/customers', roles: ['OWNER', 'RECEPTIONIST'] },
-  { key: 'services', label: 'Services', icon: 'services', path: '/services', roles: ['OWNER', 'RECEPTIONIST'] },
-  { key: 'staff', label: 'Staff', icon: 'staff', path: '/staff', roles: ['OWNER', 'RECEPTIONIST'] },
-  { key: 'billing', label: 'Billing', icon: 'billing', path: '/billing', roles: ['OWNER', 'RECEPTIONIST'] },
-  { key: 'reminders', label: 'Reminders', icon: 'reminders', path: '/reminders', roles: ['OWNER', 'RECEPTIONIST'] },
-  { key: 'packages', label: 'Packages', icon: 'packages', roles: ['OWNER'] },
-  { key: 'loyalty', label: 'Loyalty', icon: 'loyalty', roles: ['OWNER'] },
-  { key: 'inventory', label: 'Inventory', icon: 'inventory', roles: ['OWNER'] },
-  { key: 'expenses', label: 'Expenses', icon: 'expenses', roles: ['OWNER'] },
-  { key: 'reports', label: 'Reports', icon: 'reports', roles: ['OWNER'] },
-  { key: 'marketing', label: 'Marketing', icon: 'marketing', roles: ['OWNER'] },
-  { key: 'settings', label: 'Settings', icon: 'settings', roles: ['OWNER'] },
+  { key: 'dashboard', label: 'Dashboard', icon: 'dashboard', group: 'workspace', path: '/receptionist/dashboard', roles: ['OWNER', 'RECEPTIONIST'] },
+  { key: 'calendar', label: 'Calendar', icon: 'calendar', group: 'workspace', path: '/calendar', roles: ['OWNER', 'RECEPTIONIST'] },
+  { key: 'customers', label: 'Customers', icon: 'customers', group: 'workspace', path: '/customers', roles: ['OWNER', 'RECEPTIONIST'] },
+  { key: 'services', label: 'Services', icon: 'services', group: 'catalog', path: '/services', roles: ['OWNER', 'RECEPTIONIST'] },
+  { key: 'staff', label: 'Staff', icon: 'staff', group: 'catalog', path: '/staff', roles: ['OWNER', 'RECEPTIONIST'] },
+  { key: 'billing', label: 'Billing', icon: 'billing', group: 'operations', path: '/billing', roles: ['OWNER', 'RECEPTIONIST'] },
+  { key: 'reminders', label: 'Reminders', icon: 'reminders', group: 'operations', path: '/reminders', roles: ['OWNER', 'RECEPTIONIST'] },
+  { key: 'packages', label: 'Packages', icon: 'packages', group: 'soon', roles: ['OWNER'] },
+  { key: 'loyalty', label: 'Loyalty', icon: 'loyalty', group: 'soon', roles: ['OWNER'] },
+  { key: 'inventory', label: 'Inventory', icon: 'inventory', group: 'soon', roles: ['OWNER'] },
+  { key: 'expenses', label: 'Expenses', icon: 'expenses', group: 'soon', roles: ['OWNER'] },
+  { key: 'reports', label: 'Reports', icon: 'reports', group: 'soon', roles: ['OWNER'] },
+  { key: 'marketing', label: 'Marketing', icon: 'marketing', group: 'soon', roles: ['OWNER'] },
+  { key: 'settings', label: 'Settings', icon: 'settings', group: 'soon', roles: ['OWNER'] },
 ]
 
 /** Sub-screens that belong to a rail item even though they live on their own path. */
@@ -212,31 +225,43 @@ export function AppSidebar({
       </div>
 
       <nav className="side-nav">
-        {items.map(item => {
-          const isActive = item.path === activePath
+        {NAV_GROUPS.map(group => {
+          const groupItems = items.filter(item => item.group === group.key)
+          if (groupItems.length === 0) {
+            return null
+          }
 
           return (
-            <button
-              key={item.key}
-              type="button"
-              className="side-nav-item"
-              aria-current={isActive ? 'page' : undefined}
-              disabled={item.path === undefined}
-              onClick={() => {
-                if (item.path !== undefined) {
-                  onNavigate(item.path)
-                }
-              }}
-            >
-              <NavIcon name={item.icon} />
-              <span className="side-nav-label">{item.label}</span>
-              {item.path === undefined && (
-                <>
-                  {' '}
-                  <span className="side-nav-soon">Soon</span>
-                </>
-              )}
-            </button>
+            <div key={group.key} className="side-group">
+              <span className="side-group-label">{group.label}</span>
+              {groupItems.map(item => {
+                const isActive = item.path === activePath
+
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    className="side-nav-item"
+                    aria-current={isActive ? 'page' : undefined}
+                    disabled={item.path === undefined}
+                    onClick={() => {
+                      if (item.path !== undefined) {
+                        onNavigate(item.path)
+                      }
+                    }}
+                  >
+                    <NavIcon name={item.icon} />
+                    <span className="side-nav-label">{item.label}</span>
+                    {item.path === undefined && (
+                      <>
+                        {' '}
+                        <span className="side-nav-soon">Soon</span>
+                      </>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
           )
         })}
       </nav>

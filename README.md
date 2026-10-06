@@ -33,7 +33,9 @@ the Appointments & Calendar module is described in
 the Billing & Payments module is described in
 [docs/BILLING-PAYMENTS-SPECIFICATION.md](docs/BILLING-PAYMENTS-SPECIFICATION.md);
 the Appointment Reminders module is described in
-[docs/APPOINTMENT-REMINDERS-SPECIFICATION.md](docs/APPOINTMENT-REMINDERS-SPECIFICATION.md).
+[docs/APPOINTMENT-REMINDERS-SPECIFICATION.md](docs/APPOINTMENT-REMINDERS-SPECIFICATION.md);
+the staff mobile backend foundation (self-service API + attendance) is described in
+[docs/STAFF-MOBILE-BACKEND-SPECIFICATION.md](docs/STAFF-MOBILE-BACKEND-SPECIFICATION.md).
 
 The system is built as a **modular monolith**: a single deployable backend
 composed of independent, cleanly separated modules, with a layered architecture
@@ -160,6 +162,12 @@ Currently exposes:
   assignment, working hours, time off and the availability check (see
   [docs/STAFF-MANAGEMENT-SPECIFICATION.md](docs/STAFF-MANAGEMENT-SPECIFICATION.md)).
   `/api/staff-members` remains the read-only lookup the service form uses
+- `/api/staff/me/*` — the staff mobile backend foundation: a linked staff
+  user's own profile, appointments, weekly schedule and attendance
+  (check-in/check-out, server-stamped), plus the owner's per-staff attendance
+  history route. The staff's own view is privacy-narrowed — no prices, no
+  other staff, no business analytics (see
+  [docs/STAFF-MOBILE-BACKEND-SPECIFICATION.md](docs/STAFF-MOBILE-BACKEND-SPECIFICATION.md))
 - `/api/customers` — the Customers / CRM module: paged search, profiles,
   the soft status toggle, reception notes and the appointment history and
   visit summary the profile page renders (see
@@ -437,8 +445,11 @@ Three stable role names gate the API via authorization policies:
 - `OWNER` — full access, including the future owner workspace (`OwnerOnly` policy)
 - `RECEPTIONIST` — day-to-day operations (`Operational` policy: dashboard, calendar,
   customers, services, staff, billing)
-- `STAFF` — the role exists and can authenticate, but it is granted no module access
-  yet; its permissions are defined with the future staff workspace
+- `STAFF` — self-service only (`StaffSelf` policy): the linked staff member's
+  own profile, appointments, schedule and attendance via `/api/staff/me/*`.
+  No admin web pages; the surface is the foundation for the future staff
+  mobile app (see
+  [docs/STAFF-MOBILE-BACKEND-SPECIFICATION.md](docs/STAFF-MOBILE-BACKEND-SPECIFICATION.md))
 
 Policies are the extension point for finer permissions (reports, campaigns, revenue).
 

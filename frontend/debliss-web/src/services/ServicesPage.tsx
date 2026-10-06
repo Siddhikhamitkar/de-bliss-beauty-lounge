@@ -95,7 +95,12 @@ export function ServicesPage({ onManageCategories }: { onManageCategories?: () =
   return (
     <section className="panel">
       <div className="panel-header">
-        <h2>Services</h2>
+        <div className="panel-heading">
+          <h2>Services</h2>
+          <p className="panel-lede">
+            Manage the services and service bundles offered at De Bliss.
+          </p>
+        </div>
         <div className="panel-actions">
           {onManageCategories !== undefined && (
             <button type="button" className="button" onClick={onManageCategories}>
