@@ -68,6 +68,19 @@ public static class Permissions
         public const string ManageCoupons = "coupons.manage";
     }
 
+    public static class Inventory
+    {
+        /// <summary>The stock list, product details and movement history. Owner and receptionist.</summary>
+        public const string ViewInventory = "inventory.read";
+
+        /// <summary>
+        /// Everything that changes a product or its stock: create, edit,
+        /// activate/deactivate, receive, usage, adjustments, reversals. Owner
+        /// only — the front desk sells but never restocks.
+        /// </summary>
+        public const string ManageInventory = "inventory.manage";
+    }
+
     public static class Dashboard
     {
         public const string ViewReceptionistDashboard = "dashboard.receptionist.read";

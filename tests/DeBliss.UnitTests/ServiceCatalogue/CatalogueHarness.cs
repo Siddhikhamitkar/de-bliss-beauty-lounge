@@ -73,11 +73,12 @@ internal sealed class CatalogueHarness : IDisposable
         bool isActive = true,
         string? description = null,
         IReadOnlyList<Guid>? staffIds = null,
-        int sortOrder = 0)
+        int sortOrder = 0,
+        bool isOnlineBookable = false)
     {
         await using var context = Reopen();
         var id = await CatalogueSeed.ServiceAsync(
-            context, categoryId, name, price, durationMinutes, isActive, description, staffIds, sortOrder);
+            context, categoryId, name, price, durationMinutes, isActive, description, staffIds, sortOrder, isOnlineBookable);
         Context.ChangeTracker.Clear();
         return id;
     }

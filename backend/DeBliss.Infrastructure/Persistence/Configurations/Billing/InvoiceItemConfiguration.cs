@@ -43,5 +43,12 @@ public class InvoiceItemConfiguration : IEntityTypeConfiguration<InvoiceItem>
             .WithMany()
             .HasForeignKey(item => item.ServiceId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // Restrict so a financial line can never be deleted by retiring the
+        // product it sold, and stock history keeps its invoice link intact.
+        builder.HasOne(item => item.Product)
+            .WithMany()
+            .HasForeignKey(item => item.ProductId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

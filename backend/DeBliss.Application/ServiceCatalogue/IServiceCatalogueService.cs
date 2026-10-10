@@ -20,6 +20,12 @@ public interface IServiceCatalogueService
     /// </summary>
     Task<IReadOnlyList<ServiceDto>> GetBookableAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// The projection the public customer website consumes: every service a
+    /// customer may book online right now, carrying only customer-facing fields.
+    /// </summary>
+    Task<IReadOnlyList<PublicServiceDto>> GetPublicCatalogueAsync(CancellationToken cancellationToken = default);
+
     Task<ServiceDto> CreateAsync(SaveServiceRequest request, CancellationToken cancellationToken = default);
 
     Task<ServiceDto> UpdateAsync(Guid id, SaveServiceRequest request, CancellationToken cancellationToken = default);

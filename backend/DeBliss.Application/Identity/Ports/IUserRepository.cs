@@ -1,3 +1,5 @@
+using DeBliss.Domain.Identity;
+
 namespace DeBliss.Application.Identity.Ports;
 
 /// <summary>
@@ -11,6 +13,18 @@ public interface IUserRepository
     Task<AuthUserReadModel?> FindByIdAsync(Guid userId, CancellationToken cancellationToken);
 
     Task MarkLoggedInAsync(Guid userId, DateTimeOffset at, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Id of the role with the given name, or null when the platform has not been
+    /// seeded with it. Registration refuses to run against an unseeded role store.
+    /// </summary>
+    Task<Guid?> GetRoleIdAsync(string roleName, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Tracks a new user — including any role assignments — in the current unit of
+    /// work. Nothing is written until the application service saves.
+    /// </summary>
+    void Add(User user);
 }
 
 /// <summary>
@@ -25,4 +39,5 @@ public sealed record AuthUserReadModel(
     string? PasswordHash,
     bool IsActive,
     IReadOnlyList<string> RoleNames,
-    Guid? StaffId);
+    Guid? StaffId,
+    Guid? CustomerId = null);

@@ -7,4 +7,20 @@ namespace DeBliss.Application.Common.Interfaces;
 public interface IUnitOfWork
 {
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Begins a serializable transaction on the underlying connection, so a use
+    /// case that must re-check and then write (booking) cannot interleave with a
+    /// concurrent one. Commit explicitly; disposing without committing rolls back.
+    /// </summary>
+    Task<IUnitOfWorkTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// One serializable unit-of-work transaction. Disposing without
+/// <see cref="CommitAsync"/> rolls everything in it back.
+/// </summary>
+public interface IUnitOfWorkTransaction : IAsyncDisposable
+{
+    Task CommitAsync(CancellationToken cancellationToken = default);
 }

@@ -14,6 +14,7 @@ import { DashboardPage } from './dashboard/DashboardPage.tsx'
 import { OwnerDashboardPage } from './dashboard/OwnerDashboardPage.tsx'
 import { StaffDashboardPage } from './dashboard/StaffDashboardPage.tsx'
 import { AppSidebar } from './layout/AppSidebar.tsx'
+import { InventoryPage } from './inventory/InventoryPage.tsx'
 import { RemindersPage } from './reminders/RemindersPage.tsx'
 import { ServicesPage } from './services/ServicesPage.tsx'
 import { StaffPage } from './staff/StaffPage.tsx'
@@ -42,6 +43,8 @@ function AppRoutes() {
   const [pendingCustomerCreate, setPendingCustomerCreate] = useState(false)
   // Checkout is a full-screen workspace over whatever the user was doing.
   const [checkoutAppointmentId, setCheckoutAppointmentId] = useState<string | null>(null)
+  // A walk-in retail draft opens checkout by invoice, not appointment.
+  const [checkoutInvoiceId, setCheckoutInvoiceId] = useState<string | null>(null)
   // Bumped whenever a payment lands so dashboard and billing reload on next show.
   const [dataRevision, setDataRevision] = useState(0)
 
@@ -125,11 +128,13 @@ function AppRoutes() {
         {path === '/billing' && (
           <BillingPage
             revision={dataRevision}
-            onResumeCheckout={setCheckoutAppointmentId}
+            onResumeCheckout={setCheckoutInvoiceId}
+            onStartRetailSale={setCheckoutInvoiceId}
             onManageCoupons={() => navigateTo('/coupons')}
           />
         )}
         {path === '/coupons' && <CouponsPage />}
+        {path === '/inventory' && <InventoryPage canManageInventory={user.roles.includes('OWNER')} />}
         {path === '/reminders' && <RemindersPage />}
       </main>
 
@@ -138,6 +143,15 @@ function AppRoutes() {
           key={checkoutAppointmentId}
           appointmentId={checkoutAppointmentId}
           onClose={() => setCheckoutAppointmentId(null)}
+          onPaid={() => setDataRevision(revision => revision + 1)}
+        />
+      )}
+
+      {checkoutInvoiceId !== null && (
+        <CheckoutPage
+          key={checkoutInvoiceId}
+          invoiceId={checkoutInvoiceId}
+          onClose={() => setCheckoutInvoiceId(null)}
           onPaid={() => setDataRevision(revision => revision + 1)}
         />
       )}

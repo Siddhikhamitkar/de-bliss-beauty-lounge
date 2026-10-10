@@ -15,8 +15,8 @@ interface InvoiceDrawerProps {
   /** The row that was opened; paints the header before the full record loads. */
   invoice: InvoiceSummary
   onClose: () => void
-  /** Draft invoices only: reopens the checkout screen for the appointment. */
-  onResumeCheckout: (appointmentId: string) => void
+  /** Draft invoices only: reopens the checkout screen for the invoice. */
+  onResumeCheckout: (invoiceId: string) => void
 }
 
 function methodLabel(method: string): string {
@@ -60,7 +60,7 @@ export function InvoiceDrawer({ invoice, onClose, onResumeCheckout }: InvoiceDra
             <button
               type="button"
               className="button button-primary"
-              onClick={() => onResumeCheckout(record.appointmentId)}
+              onClick={() => onResumeCheckout(record.id)}
             >
               Resume checkout
             </button>

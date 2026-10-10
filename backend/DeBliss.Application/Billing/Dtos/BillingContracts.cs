@@ -78,6 +78,7 @@ public sealed record InvoiceItemDto(
     decimal LineTotal,
     Guid? ServiceId,
     Guid? AppointmentServiceId,
+    Guid? ProductId,
     int SortOrder);
 
 /// <summary>One tendered payment against an invoice.</summary>
@@ -122,11 +123,26 @@ public sealed record InvoiceDto(
     IReadOnlyList<InvoicePaymentDto> Payments);
 
 /// <summary>
-/// Body of "start a checkout for this appointment". The checkout screen posts
-/// this on load; the backend returns the existing open invoice if there is one,
-/// so refreshing mid-checkout never creates a duplicate bill.
+/// Body of "start a checkout". The appointment form posts just the
+/// <see cref="AppointmentId"/>; the backend returns the existing open invoice if
+/// there is one, so refreshing mid-checkout never creates a duplicate bill. A
+/// retail sale that is not tied to a booking posts no appointment: the draft
+/// starts empty and the receptionist adds product lines before paying.
 /// </summary>
-public sealed record CreateInvoiceRequest(Guid AppointmentId);
+public sealed record CreateInvoiceRequest(
+    Guid? AppointmentId,
+    Guid? CustomerId = null,
+    string? WalkInCustomerName = null);
+
+/// <summary>
+/// Body of "add a product to the bill". Only retail products can be added, at
+/// their catalogue price; service lines come from the booking and are never
+/// added by hand.
+/// </summary>
+public sealed record AddInvoiceLineRequest(Guid? ProductId, decimal? Quantity);
+
+/// <summary>Body of "change how many of this product the customer is buying". Product lines only.</summary>
+public sealed record UpdateInvoiceLineRequest(decimal? Quantity);
 
 /// <summary>
 /// The result of starting a checkout. <see cref="WasCreated"/> tells the caller

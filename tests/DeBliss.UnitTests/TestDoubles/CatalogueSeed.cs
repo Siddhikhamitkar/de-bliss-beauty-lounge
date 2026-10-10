@@ -73,7 +73,8 @@ internal static class CatalogueSeed
         bool isActive = true,
         string? description = null,
         IReadOnlyList<Guid>? staffIds = null,
-        int sortOrder = 0)
+        int sortOrder = 0,
+        bool isOnlineBookable = false)
     {
         var service = new Service
         {
@@ -84,6 +85,7 @@ internal static class CatalogueSeed
             DurationMinutes = durationMinutes,
             Price = price,
             IsActive = isActive,
+            IsOnlineBookable = isOnlineBookable,
             SortOrder = sortOrder
         };
 

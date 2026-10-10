@@ -20,6 +20,13 @@ public static class AuthPolicies
     /// surface the future staff mobile app consumes.
     /// </summary>
     public const string StaffSelf = nameof(StaffSelf);
+
+    /// <summary>
+    /// A signed-in customer reading or writing only their own profile — the
+    /// surface the customer website consumes. Identity comes from the token's
+    /// customer link, never from request data.
+    /// </summary>
+    public const string CustomerSelf = nameof(CustomerSelf);
 }
 
 public static class SecurityExtensions
@@ -88,9 +95,13 @@ public static class SecurityExtensions
             options.AddPolicy(
                 AuthPolicies.StaffSelf,
                 policy => policy.RequireAuthenticatedUser().AddRequirements(new StaffLinkRequirement()));
+            options.AddPolicy(
+                AuthPolicies.CustomerSelf,
+                policy => policy.RequireAuthenticatedUser().AddRequirements(new CustomerLinkRequirement()));
         });
 
         services.AddSingleton<IAuthorizationHandler, StaffLinkHandler>();
+        services.AddSingleton<IAuthorizationHandler, CustomerLinkHandler>();
 
         services.AddSingleton(issuer);
         services.AddSingleton(revocations);

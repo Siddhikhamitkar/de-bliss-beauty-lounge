@@ -7,11 +7,10 @@ export default defineConfig({
   server: {
     proxy: {
       // The dev server serves the UI on http://localhost:5173 and forwards API
-      // calls to the API's HTTPS URL. `secure: false` accepts the ASP.NET Core
-      // development certificate, which is not in Node's trust store.
+      // calls to the API. The API runs phone-testing mode: HTTP on 5132, bound
+      // for the LAN so the staff mobile app can reach it too.
       '/api': {
-        target: 'https://localhost:7019',
-        secure: false,
+        target: 'http://localhost:5132',
         changeOrigin: true,
       },
     },

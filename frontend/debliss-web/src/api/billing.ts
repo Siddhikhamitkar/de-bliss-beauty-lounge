@@ -1,8 +1,10 @@
 import { request, toQueryString } from './client.ts'
 import type {
+  AddInvoiceLineRequest,
   CheckoutInvoiceRequest,
   Coupon,
   CouponStatusFilter,
+  CouponValidation,
   Invoice,
   InvoicePaymentMethodFilter,
   InvoiceStatusFilter,
@@ -10,8 +12,8 @@ import type {
   PagedResult,
   Receipt,
   SaveCouponRequest,
+  UpdateInvoiceLineRequest,
   ValidateCouponRequest,
-  CouponValidation,
 } from './contracts.ts'
 
 /** Everything the invoice list can be narrowed by. Omitted keys are not sent. */
@@ -45,6 +47,30 @@ export function getInvoice(id: string): Promise<Invoice> {
 /** Starts a draft invoice from a completed appointment; a repeat call resumes it. */
 export function startInvoice(appointmentId: string): Promise<Invoice> {
   return request('POST', '/invoices', { appointmentId })
+}
+
+/** Starts a standalone retail draft for a walk-in, untied to any booking. */
+export function createRetailInvoice(walkInCustomerName: string): Promise<Invoice> {
+  return request('POST', '/invoices', { walkInCustomerName })
+}
+
+/** Adds a retail product to a draft bill; the server prices it from the catalogue. */
+export function addInvoiceLine(id: string, body: AddInvoiceLineRequest): Promise<Invoice> {
+  return request('POST', `/invoices/${id}/lines`, body)
+}
+
+/** Changes how many of a product the customer is buying; product lines only. */
+export function updateInvoiceLine(
+  id: string,
+  lineId: string,
+  body: UpdateInvoiceLineRequest,
+): Promise<Invoice> {
+  return request('PUT', `/invoices/${id}/lines/${lineId}`, body)
+}
+
+/** Removes a product line from a draft bill; service lines come from the booking and stay. */
+export function removeInvoiceLine(id: string, lineId: string): Promise<Invoice> {
+  return request('DELETE', `/invoices/${id}/lines/${lineId}`)
 }
 
 /** Records the payment and closes the invoice; returns the receipt to print. */

@@ -14,15 +14,17 @@ namespace DeBliss.UnitTests.Billing;
 /// </summary>
 internal sealed class BillingHarness : IDisposable
 {
-    public BillingHarness()
+    public BillingHarness(SqliteTestDatabase? database = null)
     {
-        Database = new SqliteTestDatabase();
+        Database = database ?? new SqliteTestDatabase();
         Context = Database.CreateContext();
 
         Invoices = new InvoiceService(
             new InvoiceRepository(Context),
             new CouponRepository(Context),
             new AppointmentRepository(Context),
+            new CustomerRepository(Context),
+            new InventoryRepository(Context),
             Context,
             Database.Clock);
 

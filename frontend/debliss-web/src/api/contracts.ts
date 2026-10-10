@@ -574,8 +574,9 @@ export interface InvoiceSummary {
   id: string
   invoiceNumber: string
   customerId: string | null
-  customerName: string
-  appointmentId: string
+  /** Null when the bill belongs to no registered customer and carries no walk-in name. */
+  customerName: string | null
+  appointmentId: string | null
   status: string
   currency: string
   subTotal: number
@@ -595,6 +596,7 @@ export interface InvoiceItem {
   lineTotal: number
   serviceId: string | null
   appointmentServiceId: string | null
+  productId: string | null
   sortOrder: number
 }
 
@@ -619,9 +621,10 @@ export interface Invoice {
   invoiceNumber: string
   status: string
   currency: string
-  appointmentId: string
+  appointmentId: string | null
   customerId: string | null
-  customerName: string
+  /** Null when the bill belongs to no registered customer and carries no walk-in name. */
+  customerName: string | null
   walkInCustomerName: string | null
   couponId: string | null
   couponCode: string | null
@@ -795,4 +798,137 @@ export interface DashboardNote {
 export interface DashboardPopularService {
   name: string
   count: number
+}
+
+/* ------------------------------------------------------------------ */
+/* Inventory                                                           */
+/* ------------------------------------------------------------------ */
+
+export type InventoryType = 'Retail' | 'SalonUse'
+
+export type InventoryTypeFilter = 'All' | InventoryType
+
+export type InventoryProductStatusFilter = 'All' | 'Active' | 'Inactive'
+
+export type StockStatus = 'InStock' | 'LowStock' | 'OutOfStock'
+
+export type InventoryStockStatusFilter = 'All' | StockStatus
+
+export type StockMovementType =
+  | 'OpeningStock'
+  | 'StockReceived'
+  | 'RetailSale'
+  | 'Consumption'
+  | 'Wastage'
+  | 'Adjustment'
+  | 'Reversal'
+
+export type StockMovementTypeFilter = 'All' | StockMovementType
+
+/**
+ * One row of the inventory list. `lastStockAddedAt`/`lastAddedQuantity` describe
+ * the most recent delivery — reductions never displace them.
+ */
+export interface InventoryProduct {
+  id: string
+  name: string
+  brand: string | null
+  sku: string
+  category: string | null
+  inventoryType: InventoryType
+  unitOfMeasure: string
+  costPrice: number | null
+  sellingPrice: number | null
+  currentStock: number
+  minimumStock: number
+  stockStatus: StockStatus
+  isActive: boolean
+  lastStockAddedAt: string | null
+  lastAddedQuantity: number | null
+  createdAt: string
+  updatedAt: string | null
+}
+
+/** One entry of a product's append-only stock history. */
+export interface StockMovement {
+  id: string
+  productId: string
+  movementType: StockMovementType
+  quantityChange: number
+  stockBefore: number
+  stockAfter: number
+  occurredAt: string
+  reference: string | null
+  notes: string | null
+  invoiceId: string | null
+  invoiceNumber: string | null
+  performedByUserId: string | null
+  performedByName: string | null
+  reversalOfMovementId: string | null
+  createdAt: string
+}
+
+/** The product create/edit form; the server owns the rules. */
+export interface SaveProductRequest {
+  name: string | null
+  brand: string | null
+  sku: string | null
+  category: string | null
+  inventoryType: InventoryType | null
+  unitOfMeasure: string | null
+  costPrice: number | null
+  sellingPrice: number | null
+  minimumStock: number | null
+  isActive: boolean | null
+}
+
+/** "Stock arrived": what came in, when, and from where. */
+export interface ReceiveStockRequest {
+  quantity: number | null
+  receivedAt: string | null
+  reference: string | null
+  notes: string | null
+  kind: 'StockReceived' | 'OpeningStock' | null
+}
+
+/** "Salon-use stock was used or lost": Consumption or Wastage, with a reason. */
+export interface RecordUsageRequest {
+  quantity: number | null
+  usageType: 'Consumption' | 'Wastage' | null
+  reference: string | null
+  notes: string | null
+}
+
+/** "The stock number is wrong": a signed correction with a reason. */
+export interface AdjustStockRequest {
+  quantityChange: number | null
+  reference: string | null
+  notes: string | null
+}
+
+/** "Undo that movement": the original row stays; the reversal is its own row. */
+export interface ReverseStockMovementRequest {
+  notes: string | null
+}
+
+/** One sellable product for the checkout screen's product picker. */
+export interface InventoryProductOption {
+  id: string
+  name: string
+  brand: string | null
+  sku: string
+  sellingPrice: number
+  currentStock: number
+  unitOfMeasure: string
+}
+
+/** Body of "add a product to the bill". */
+export interface AddInvoiceLineRequest {
+  productId: string | null
+  quantity: number | null
+}
+
+/** Body of "change how many of this product the customer is buying". */
+export interface UpdateInvoiceLineRequest {
+  quantity: number | null
 }

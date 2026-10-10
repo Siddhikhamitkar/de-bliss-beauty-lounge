@@ -14,6 +14,9 @@ public static class AuthClaimNames
 
     /// <summary>Present only when the login is linked to an existing Staff record.</summary>
     public const string StaffId = "staff_id";
+
+    /// <summary>Present only when the login is linked to an existing Customer record.</summary>
+    public const string CustomerId = "customer_id";
 }
 
 /// <summary>

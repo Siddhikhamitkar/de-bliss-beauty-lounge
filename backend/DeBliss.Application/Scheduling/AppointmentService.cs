@@ -61,7 +61,8 @@ public sealed class AppointmentService(
 
     public async Task<AppointmentDto> CreateAsync(
         SaveAppointmentRequest request,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        AppointmentSource source = AppointmentSource.Reception)
     {
         var (start, lines, notes, bundle) = await ValidateBookingAsync(request, excludeId: null, cancellationToken);
 
@@ -73,7 +74,7 @@ public sealed class AppointmentService(
             StartsAt = start,
             EndsAt = start.AddMinutes(lines.Sum(line => line.Service.DurationMinutes)),
             Status = AppointmentStatus.Confirmed,
-            Source = AppointmentSource.Reception,
+            Source = source,
             Notes = notes,
             ServiceBundleId = bundle?.Id,
             BundlePriceSnapshot = bundle?.Price

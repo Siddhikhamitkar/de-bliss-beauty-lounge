@@ -11,4 +11,5 @@ public sealed record AuthUserDto(
     string LastName,
     string Email,
     IReadOnlyList<string> Roles,
-    Guid? StaffId);
+    Guid? StaffId,
+    Guid? CustomerId = null);

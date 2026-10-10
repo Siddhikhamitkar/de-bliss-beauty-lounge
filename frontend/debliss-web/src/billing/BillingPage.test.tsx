@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { getInvoice, getReceipt, searchInvoices } from '../api/billing.ts'
+import { createRetailInvoice, getInvoice, getReceipt, searchInvoices } from '../api/billing.ts'
 import type {
   Invoice,
   InvoiceItem,
@@ -16,6 +16,10 @@ vi.mock('../api/billing.ts', () => ({
   searchInvoices: vi.fn(),
   getInvoice: vi.fn(),
   startInvoice: vi.fn(),
+  createRetailInvoice: vi.fn(),
+  addInvoiceLine: vi.fn(),
+  updateInvoiceLine: vi.fn(),
+  removeInvoiceLine: vi.fn(),
   checkoutInvoice: vi.fn(),
   getReceipt: vi.fn(),
   validateCoupon: vi.fn(),
@@ -71,6 +75,7 @@ function item(overrides: Partial<InvoiceItem> = {}): InvoiceItem {
     lineTotal: 150,
     serviceId: 's1',
     appointmentServiceId: 'as1',
+    productId: null,
     sortOrder: 0,
     ...overrides,
   }
@@ -133,16 +138,18 @@ function receipt(overrides: Partial<Receipt> = {}): Receipt {
 
 function renderPage(props: Partial<Parameters<typeof BillingPage>[0]> = {}) {
   const onResumeCheckout = vi.fn()
+  const onStartRetailSale = vi.fn()
   const onManageCoupons = vi.fn()
   render(
     <BillingPage
       revision={0}
       onResumeCheckout={onResumeCheckout}
+      onStartRetailSale={onStartRetailSale}
       onManageCoupons={onManageCoupons}
       {...props}
     />,
   )
-  return { onResumeCheckout, onManageCoupons }
+  return { onResumeCheckout, onStartRetailSale, onManageCoupons }
 }
 
 describe('BillingPage', () => {
@@ -150,6 +157,9 @@ describe('BillingPage', () => {
     vi.mocked(searchInvoices).mockResolvedValue(paged([summary()]))
     vi.mocked(getInvoice).mockResolvedValue(detail())
     vi.mocked(getReceipt).mockResolvedValue(receipt())
+    vi.mocked(createRetailInvoice).mockResolvedValue(
+      detail({ appointmentId: null, customerName: 'Maya Walk-in' }),
+    )
   })
 
   it('shows a loading state before the first answer', () => {
@@ -302,7 +312,7 @@ describe('BillingPage', () => {
     await user.click(screen.getByRole('button', { name: 'INV-2026-0001' }))
     await user.click(await screen.findByRole('button', { name: 'Resume checkout' }))
 
-    expect(onResumeCheckout).toHaveBeenCalledExactlyOnceWith('a1')
+    expect(onResumeCheckout).toHaveBeenCalledExactlyOnceWith('inv1')
     expect(screen.queryByRole('dialog', { name: 'Invoice INV-2026-0001' })).not.toBeInTheDocument()
   })
 
@@ -403,5 +413,43 @@ describe('BillingPage', () => {
     await user.click(screen.getByRole('button', { name: 'Coupons' }))
 
     expect(onManageCoupons).toHaveBeenCalled()
+  })
+
+  it('starts a walk-in retail sale and opens its draft in checkout', async () => {
+    const user = userEvent.setup()
+    const { onStartRetailSale } = renderPage()
+    await screen.findByText('Lina Mansour')
+
+    await user.click(screen.getByRole('button', { name: 'New retail sale' }))
+    await user.type(screen.getByLabelText('Walk-in customer name'), 'Maya')
+    await user.click(screen.getByRole('button', { name: 'Start sale' }))
+
+    expect(createRetailInvoice).toHaveBeenCalledExactlyOnceWith('Maya')
+    expect(onStartRetailSale).toHaveBeenCalledExactlyOnceWith('inv1')
+  })
+
+  it('starts an unnamed retail sale — the walk-in name stays optional', async () => {
+    const user = userEvent.setup()
+    const { onStartRetailSale } = renderPage()
+    await screen.findByText('Lina Mansour')
+
+    await user.click(screen.getByRole('button', { name: 'New retail sale' }))
+    await user.click(screen.getByRole('button', { name: 'Start sale' }))
+
+    expect(createRetailInvoice).toHaveBeenCalledExactlyOnceWith('')
+    expect(onStartRetailSale).toHaveBeenCalledExactlyOnceWith('inv1')
+  })
+
+  it('shows the failure when the retail draft cannot be created', async () => {
+    const user = userEvent.setup()
+    vi.mocked(createRetailInvoice).mockRejectedValue(new Error('no draft today'))
+    const { onStartRetailSale } = renderPage()
+    await screen.findByText('Lina Mansour')
+
+    await user.click(screen.getByRole('button', { name: 'New retail sale' }))
+    await user.click(screen.getByRole('button', { name: 'Start sale' }))
+
+    expect(await screen.findByText('no draft today')).toBeInTheDocument()
+    expect(onStartRetailSale).not.toHaveBeenCalled()
   })
 })

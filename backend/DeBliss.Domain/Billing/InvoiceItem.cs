@@ -1,4 +1,5 @@
 using DeBliss.Domain.Common;
+using DeBliss.Domain.Inventory;
 using DeBliss.Domain.Scheduling;
 using DeBliss.Domain.Services;
 
@@ -23,6 +24,15 @@ public class InvoiceItem : AuditableEntity
     public Guid? ServiceId { get; set; }
 
     public Service? Service { get; set; }
+
+    /// <summary>
+    /// The retail product this line sold, when it came from one. The link lets
+    /// checkout deduct the sold units and keeps every sale traceable from the
+    /// product's stock history back to the invoice it left on.
+    /// </summary>
+    public Guid? ProductId { get; set; }
+
+    public InventoryProduct? Product { get; set; }
 
     public InvoiceItemType ItemType { get; set; }
 

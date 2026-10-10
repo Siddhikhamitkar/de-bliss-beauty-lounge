@@ -918,6 +918,29 @@ public class ServiceCatalogueServiceTests
     }
 
     [Fact]
+    public async Task GetPublicCatalogue_offers_only_active_online_bookable_services_in_active_categories()
+    {
+        var (harness, categoryId, staffId) = await ArrangeAsync();
+        using var _ = harness;
+
+        var retiredCategory = await harness.SeedCategoryAsync("Retired", sortOrder: 5, isActive: false);
+
+        // No staff is assigned to the online service on purpose: the public
+        // menu does not depend on who is currently rostered.
+        await harness.SeedServiceAsync(categoryId, "Online cut", 40m, isOnlineBookable: true);
+        await harness.SeedServiceAsync(categoryId, "Walk-in only", 40m, staffIds: [staffId]);
+        await harness.SeedServiceAsync(categoryId, "Retired colour", 80m, isOnlineBookable: true, isActive: false);
+        await harness.SeedServiceAsync(retiredCategory, "In a retired category", 80m, isOnlineBookable: true);
+
+        var catalogue = await harness.Catalogue.GetPublicCatalogueAsync();
+
+        var single = Assert.Single(catalogue);
+
+        Assert.Equal("Online cut", single.Name);
+        Assert.True(single.IsOnlineBookable);
+    }
+
+    [Fact]
     public async Task GetSelectableStaff_hides_inactive_members_until_they_are_asked_for()
     {
         var (harness, _, _) = await ArrangeAsync();

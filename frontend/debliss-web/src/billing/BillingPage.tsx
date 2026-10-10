@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { searchInvoices } from '../api/billing.ts'
+import { createRetailInvoice, searchInvoices } from '../api/billing.ts'
+import { describeFailure } from '../api/client.ts'
 import type {
   InvoicePaymentMethodFilter,
   InvoiceStatusFilter,
@@ -17,20 +18,31 @@ import { InvoiceDrawer } from './InvoiceDrawer.tsx'
 interface BillingPageProps {
   /** Bumped after a checkout elsewhere (the calendar) so the list reloads. */
   revision: number
-  /** Draft invoices can reopen the checkout screen for their appointment. */
-  onResumeCheckout: (appointmentId: string) => void
+  /** Draft invoices can reopen the checkout screen — booking or walk-in. */
+  onResumeCheckout: (invoiceId: string) => void
+  /** A walk-in retail sale starts here: its fresh draft opens in checkout. */
+  onStartRetailSale: (invoiceId: string) => void
   /** Coupons are managed from here, like categories from Services. */
   onManageCoupons?: () => void
 }
 
 /** The invoice list: search by number or customer, filter by status and method. */
-export function BillingPage({ revision, onResumeCheckout, onManageCoupons }: BillingPageProps) {
+export function BillingPage({
+  revision,
+  onResumeCheckout,
+  onStartRetailSale,
+  onManageCoupons,
+}: BillingPageProps) {
   const [search, setSearch] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [status, setStatus] = useState<InvoiceStatusFilter>('All')
   const [paymentMethod, setPaymentMethod] = useState<InvoicePaymentMethodFilter>('All')
   const [page, setPage] = useState(1)
   const [selected, setSelected] = useState<InvoiceSummary | null>(null)
+  const [retailOpen, setRetailOpen] = useState(false)
+  const [retailName, setRetailName] = useState('')
+  const [retailBusy, setRetailBusy] = useState(false)
+  const [retailFailure, setRetailFailure] = useState<string>()
 
   const invoices = useAsync(
     () =>
@@ -43,6 +55,21 @@ export function BillingPage({ revision, onResumeCheckout, onManageCoupons }: Bil
     [appliedSearch, status, paymentMethod, page, revision],
   )
 
+  function startRetailSale() {
+    setRetailBusy(true)
+    setRetailFailure(undefined)
+
+    createRetailInvoice(retailName.trim())
+      .then(invoice => {
+        setRetailOpen(false)
+        setRetailName('')
+        invoices.reload()
+        onStartRetailSale(invoice.id)
+      })
+      .catch((error: unknown) => setRetailFailure(describeFailure(error)))
+      .finally(() => setRetailBusy(false))
+  }
+
   return (
     <>
       <section className="panel" aria-label="Invoices">
@@ -53,14 +80,60 @@ export function BillingPage({ revision, onResumeCheckout, onManageCoupons }: Bil
               Invoices, payments and coupon usage across the salon.
             </p>
           </div>
-          {onManageCoupons !== undefined && (
-            <div className="panel-actions">
+          <div className="panel-actions">
+            {retailOpen ? (
+              <>
+                <input
+                  type="text"
+                  className="panel-retail-name"
+                  placeholder="Walk-in name (optional)"
+                  aria-label="Walk-in customer name"
+                  value={retailName}
+                  disabled={retailBusy}
+                  onChange={event => setRetailName(event.target.value)}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter') {
+                      startRetailSale()
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  className="button button-primary"
+                  disabled={retailBusy}
+                  onClick={startRetailSale}
+                >
+                  Start sale
+                </button>
+                <button
+                  type="button"
+                  className="button"
+                  disabled={retailBusy}
+                  onClick={() => {
+                    setRetailOpen(false)
+                    setRetailName('')
+                    setRetailFailure(undefined)
+                  }}
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <button type="button" className="button" onClick={() => setRetailOpen(true)}>
+                New retail sale
+              </button>
+            )}
+            {onManageCoupons !== undefined && (
               <button type="button" className="button" onClick={onManageCoupons}>
                 Coupons
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
+
+        {retailFailure !== undefined && (
+          <p className="banner" role="alert">{retailFailure}</p>
+        )}
 
         <BillingFilters
           search={search}
@@ -105,9 +178,9 @@ export function BillingPage({ revision, onResumeCheckout, onManageCoupons }: Bil
         <InvoiceDrawer
           invoice={selected}
           onClose={() => setSelected(null)}
-          onResumeCheckout={appointmentId => {
+          onResumeCheckout={invoiceId => {
             setSelected(null)
-            onResumeCheckout(appointmentId)
+            onResumeCheckout(invoiceId)
           }}
         />
       )}

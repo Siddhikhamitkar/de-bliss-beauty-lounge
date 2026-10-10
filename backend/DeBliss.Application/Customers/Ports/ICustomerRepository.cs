@@ -14,6 +14,16 @@ public interface ICustomerRepository
     /// <summary>Tracked customer or null.</summary>
     Task<Customer?> GetByIdAsync(Guid id, CancellationToken ct = default);
 
+    /// <summary>
+    /// The single active, not-yet-linked customer record matching an email
+    /// case-insensitively — the record a website registration can adopt instead of
+    /// creating a parallel one. Deliberately returns null when the match is
+    /// ambiguous (no match, several records sharing the email, or the record is
+    /// already linked to a login): registration then creates a fresh record
+    /// rather than guessing which person is registering.
+    /// </summary>
+    Task<Customer?> FindLinkableByEmailAsync(string email, CancellationToken ct = default);
+
     Task<(IReadOnlyList<Customer> Items, int TotalCount)> SearchAsync(CustomerQuery query, CancellationToken ct = default);
 
     /// <summary>

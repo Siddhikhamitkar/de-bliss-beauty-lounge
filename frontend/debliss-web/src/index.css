@@ -245,6 +245,11 @@ p {
   gap: 0.6rem;
 }
 
+/* The walk-in name box in the billing header's "New retail sale" flow. */
+.panel-retail-name {
+  width: 14rem;
+}
+
 .button {
   font: inherit;
   font-size: 0.9rem;
@@ -2515,6 +2520,14 @@ textarea {
   background: color-mix(in srgb, var(--accent) 5%, transparent);
 }
 
+/* Secondary line under a row's primary link, e.g. brand · SKU on inventory rows. */
+.row-subtext {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
 /* Record drawer workspace: the record as tabs under a fixed header. Everything
    above the tab content stays put; only the chosen section body scrolls. */
 .drawer.drawer-workspace {
@@ -2917,6 +2930,19 @@ textarea {
   --status-color: light-dark(#31683f, #8fca9d);
 }
 
+/* Stock levels: healthy, watch it, gone — the same hues the calendar uses. */
+.status-InStock {
+  --status-color: light-dark(#31683f, #8fca9d);
+}
+
+.status-LowStock {
+  --status-color: light-dark(#a97e2f, #d8b36a);
+}
+
+.status-OutOfStock {
+  --status-color: light-dark(#a2342c, #e08d87);
+}
+
 /* The checkout workspace opens over everything, like a route without a router. */
 .checkout-overlay {
   position: fixed;
@@ -2952,6 +2978,12 @@ textarea {
 
 .checkout-items {
   width: 100%;
+}
+
+/* Compact quantity box inside the items table's numeric column. */
+.checkout-qty-input {
+  width: 5.5rem;
+  text-align: right;
 }
 
 .checkout-totals {

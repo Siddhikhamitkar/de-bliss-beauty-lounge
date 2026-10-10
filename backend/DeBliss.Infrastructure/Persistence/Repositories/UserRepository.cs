@@ -1,4 +1,5 @@
 using DeBliss.Application.Identity.Ports;
+using DeBliss.Domain.Customers;
 using DeBliss.Domain.Identity;
 using DeBliss.Domain.Staffing;
 using DeBliss.Infrastructure.Persistence;
@@ -43,6 +44,20 @@ public sealed class UserRepository(DeBlissDbContext context) : IUserRepository
         await context.SaveChangesAsync(cancellationToken);
     }
 
+    public Task<Guid?> GetRoleIdAsync(string roleName, CancellationToken cancellationToken)
+    {
+        return context.Roles
+            .AsNoTracking()
+            .Where(role => role.Name == roleName)
+            .Select(role => (Guid?)role.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public void Add(User user)
+    {
+        context.Users.Add(user);
+    }
+
     private async Task<AuthUserReadModel> ToReadModelAsync(
         User user,
         CancellationToken cancellationToken)
@@ -59,6 +74,12 @@ public sealed class UserRepository(DeBlissDbContext context) : IUserRepository
             .Select(staff => (Guid?)staff.Id)
             .FirstOrDefaultAsync(cancellationToken);
 
+        var customerId = await context.Set<Customer>()
+            .AsNoTracking()
+            .Where(customer => customer.UserId == user.Id)
+            .Select(customer => (Guid?)customer.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
         return new AuthUserReadModel(
             user.Id,
             user.FirstName,
@@ -67,6 +88,7 @@ public sealed class UserRepository(DeBlissDbContext context) : IUserRepository
             user.PasswordHash,
             user.IsActive,
             roleNames,
-            staffId);
+            staffId,
+            customerId);
     }
 }

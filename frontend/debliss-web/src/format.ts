@@ -45,6 +45,15 @@ export function formatDate(iso: string): string {
   })
 }
 
+/** A calendar day as the salon writes it, e.g. "09/10/2026" (dd/MM/yyyy). */
+export function formatDay(iso: string): string {
+  const date = new Date(iso)
+  const day = String(date.getDate()).padStart(2, '0')
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+
+  return `${day}/${month}/${date.getFullYear()}`
+}
+
 /** Just the clock time, e.g. "09:00" — right for schedule rows and gaps. */
 export function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })

@@ -39,12 +39,12 @@ describe('AppSidebar', () => {
 
     expect(screen.getByRole('complementary', { name: 'Main navigation' })).toBeInTheDocument()
 
-    for (const label of ['Dashboard', 'Calendar', 'Customers', 'Services', 'Staff', 'Billing']) {
+    for (const label of ['Dashboard', 'Calendar', 'Customers', 'Services', 'Staff', 'Billing', 'Inventory']) {
       expect(screen.getByRole('button', { name: new RegExp(`^${label}`) })).toBeInTheDocument()
     }
 
     // Future modules must not clutter the receptionist rail.
-    for (const label of ['Packages', 'Loyalty', 'Inventory', 'Expenses', 'Reports', 'Marketing', 'Settings']) {
+    for (const label of ['Packages', 'Loyalty', 'Expenses', 'Reports', 'Marketing', 'Settings']) {
       expect(screen.queryByRole('button', { name: new RegExp(`^${label}`) })).not.toBeInTheDocument()
     }
   })
@@ -54,7 +54,10 @@ describe('AppSidebar', () => {
       <AppSidebar currentPath="/owner/dashboard" user={OWNER} onNavigate={() => {}} onSignOut={() => {}} />,
     )
 
-    for (const label of ['Packages', 'Loyalty', 'Inventory', 'Expenses', 'Reports', 'Marketing', 'Settings']) {
+    // Inventory is built now: enabled, like the other operational modules.
+    expect(screen.getByRole('button', { name: 'Inventory' })).toBeEnabled()
+
+    for (const label of ['Packages', 'Loyalty', 'Expenses', 'Reports', 'Marketing', 'Settings']) {
       expect(screen.getByRole('button', { name: new RegExp(`^${label}`) })).toBeDisabled()
     }
   })

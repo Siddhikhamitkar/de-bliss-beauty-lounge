@@ -42,5 +42,12 @@ public class CustomerConfiguration : IEntityTypeConfiguration<Customer>
             .WithMany()
             .HasForeignKey(customer => customer.UserId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // A portal login links to at most one customer record, and a customer
+        // record to at most one login. The filter keeps the many rows with a
+        // NULL link (most front-desk customers) legal under a unique index.
+        builder.HasIndex(customer => customer.UserId)
+            .IsUnique()
+            .HasFilter("[UserId] IS NOT NULL");
     }
 }

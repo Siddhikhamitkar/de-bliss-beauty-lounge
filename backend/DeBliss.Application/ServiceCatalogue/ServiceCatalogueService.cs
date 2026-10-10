@@ -72,6 +72,14 @@ public sealed class ServiceCatalogueService(
         return [.. bookable.Select(Map)];
     }
 
+    public async Task<IReadOnlyList<PublicServiceDto>> GetPublicCatalogueAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var publicServices = await services.GetPublicAsync(cancellationToken);
+
+        return [.. publicServices.Select(MapPublic)];
+    }
+
     public async Task<ServiceDto> CreateAsync(
         SaveServiceRequest request,
         CancellationToken cancellationToken = default)
@@ -416,6 +424,17 @@ public sealed class ServiceCatalogueService(
                 member.IsActive))],
         service.CreatedAt,
         service.UpdatedAt);
+
+    private static PublicServiceDto MapPublic(Service service) => new(
+        service.Id,
+        service.Name,
+        service.Description,
+        service.ServiceCategoryId,
+        service.ServiceCategory?.Name,
+        service.DurationMinutes,
+        service.Price,
+        service.IsOnlineBookable,
+        service.SortOrder);
 
     private sealed record ValidatedService(
         string Name,

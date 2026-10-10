@@ -54,4 +54,19 @@ internal static class IdentitySeed
 
         return user.Id;
     }
+
+    /// <summary>Idempotently creates a role row, e.g. CUSTOMER for registration tests.</summary>
+    public static async Task<Role> RoleAsync(DeBlissDbContext context, string roleName)
+    {
+        var role = await context.Roles.FirstOrDefaultAsync(each => each.Name == roleName);
+
+        if (role is null)
+        {
+            role = new Role { Name = roleName, Description = "Seeded by a test" };
+            context.Roles.Add(role);
+            await context.SaveChangesAsync();
+        }
+
+        return role;
+    }
 }

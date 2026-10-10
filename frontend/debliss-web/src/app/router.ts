@@ -53,6 +53,7 @@ const ROUTE_ACCESS: Record<string, readonly string[]> = {
   '/categories': ['OWNER', 'RECEPTIONIST'],
   '/staff': ['OWNER', 'RECEPTIONIST'],
   '/billing': ['OWNER', 'RECEPTIONIST'],
+  '/inventory': ['OWNER', 'RECEPTIONIST'],
   '/coupons': ['OWNER', 'RECEPTIONIST'],
   '/reminders': ['OWNER', 'RECEPTIONIST'],
 }

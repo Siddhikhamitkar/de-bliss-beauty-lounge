@@ -92,6 +92,20 @@ public sealed class ApiSurfaceTests : ApiTestBase
             Permissions.Billing.ApplyManualDiscount
         ],
         ["GET api/invoices/{id:guid}/receipt"] = [Permissions.Billing.ViewInvoices],
+        ["POST api/invoices/{id:guid}/lines"] = [Permissions.Billing.CreateCheckout],
+        ["PUT api/invoices/{id:guid}/lines/{lineId:guid}"] = [Permissions.Billing.CreateCheckout],
+        ["DELETE api/invoices/{id:guid}/lines/{lineId:guid}"] = [Permissions.Billing.CreateCheckout],
+        ["GET api/inventory"] = [Permissions.Inventory.ViewInventory],
+        ["GET api/inventory/sellable"] = [Permissions.Inventory.ViewInventory],
+        ["GET api/inventory/{id:guid}"] = [Permissions.Inventory.ViewInventory],
+        ["GET api/inventory/{id:guid}/movements"] = [Permissions.Inventory.ViewInventory],
+        ["POST api/inventory"] = [Permissions.Inventory.ManageInventory],
+        ["PUT api/inventory/{id:guid}"] = [Permissions.Inventory.ManageInventory],
+        ["PATCH api/inventory/{id:guid}/status"] = [Permissions.Inventory.ManageInventory],
+        ["POST api/inventory/{id:guid}/stock"] = [Permissions.Inventory.ManageInventory],
+        ["POST api/inventory/{id:guid}/usage"] = [Permissions.Inventory.ManageInventory],
+        ["POST api/inventory/{id:guid}/adjustments"] = [Permissions.Inventory.ManageInventory],
+        ["POST api/inventory/{id:guid}/movements/{movementId:guid}/reversal"] = [Permissions.Inventory.ManageInventory],
         ["GET api/coupons"] = [Permissions.Billing.ManageCoupons],
         ["POST api/coupons"] = [Permissions.Billing.ManageCoupons],
         ["GET api/coupons/{id:guid}"] = [Permissions.Billing.ManageCoupons],
@@ -108,7 +122,13 @@ public sealed class ApiSurfaceTests : ApiTestBase
         ["POST api/auth/login"] = [Anonymous],
         ["GET api/auth/me"] = [Authenticated],
         ["POST api/auth/logout"] = [Anonymous],
-        ["GET api/owner/workspace"] = [Permissions.Owner.AccessWorkspace]
+        ["GET api/owner/workspace"] = [Permissions.Owner.AccessWorkspace],
+        ["GET api/public/services"] = [Anonymous],
+        ["GET api/public/availability"] = [Anonymous],
+        ["POST api/public/customers/register"] = [Anonymous],
+        ["GET api/customer/me"] = [CustomerSelf],
+        ["POST api/customer/appointments"] = [CustomerSelf],
+        ["GET api/customer/appointments"] = [CustomerSelf]
     };
 
     /// <summary>Endpoints that deliberately allow anonymous access (login/logout).</summary>
@@ -119,6 +139,9 @@ public sealed class ApiSurfaceTests : ApiTestBase
 
     /// <summary>Endpoints a signed-in user reaches only through the Staff record linked to their login.</summary>
     private const string StaffSelf = "authenticated:staff-self";
+
+    /// <summary>Endpoints a signed-in user reaches only through the Customer record linked to their login.</summary>
+    private const string CustomerSelf = "authenticated:customer-self";
 
     [Fact]
     public void Every_api_endpoint_declares_the_permissions_it_will_require()

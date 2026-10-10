@@ -4,8 +4,12 @@ using DeBliss.Application.Billing.Ports;
 using DeBliss.Application.Common.Exceptions;
 using DeBliss.Application.Common.Interfaces;
 using DeBliss.Application.Common.Paging;
+using DeBliss.Application.Customers.Ports;
+using DeBliss.Application.Inventory.Ports;
 using DeBliss.Application.Scheduling.Ports;
 using DeBliss.Domain.Billing;
+using DeBliss.Domain.Customers;
+using DeBliss.Domain.Inventory;
 using DeBliss.Domain.Scheduling;
 
 namespace DeBliss.Application.Billing;
@@ -27,6 +31,8 @@ public sealed class InvoiceService(
     IInvoiceRepository invoices,
     ICouponRepository coupons,
     IAppointmentRepository appointments,
+    ICustomerRepository customers,
+    IInventoryRepository inventory,
     IUnitOfWork unitOfWork,
     TimeProvider timeProvider) : IInvoiceService
 {
@@ -63,7 +69,17 @@ public sealed class InvoiceService(
         CreateInvoiceRequest request,
         CancellationToken cancellationToken = default)
     {
-        var appointment = await appointments.GetByIdAsync(request.AppointmentId, cancellationToken);
+        // A retail sale that is not tied to a booking: an empty draft the
+        // receptionist adds product lines to. There is no appointment to
+        // resume, so nothing here can collide with an open bill.
+        if (request.AppointmentId is null)
+        {
+            var retail = await StartRetailAsync(request, cancellationToken);
+
+            return new InvoiceStartResult(Map(retail), WasCreated: true);
+        }
+
+        var appointment = await appointments.GetByIdAsync(request.AppointmentId.Value, cancellationToken);
 
         if (appointment is null || appointment.DeletedAt is not null)
         {
@@ -144,9 +160,158 @@ public sealed class InvoiceService(
         return new InvoiceStartResult(Map(invoice), WasCreated: true);
     }
 
+    public async Task<InvoiceDto> AddLineAsync(
+        Guid id,
+        AddInvoiceLineRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var invoice = await LoadAsync(id, cancellationToken);
+
+        AssertDraft(invoice);
+
+        var errors = new ValidationErrorBuilder();
+
+        if (request.ProductId is null)
+        {
+            errors.Add("productId", "Select a product.");
+
+            errors.ThrowIfInvalid();
+
+            return Map(invoice);
+        }
+
+        var product = await inventory.GetByIdAsync(request.ProductId.Value, cancellationToken);
+
+        if (product is null)
+        {
+            errors.Add("productId", "Select a product.");
+        }
+        else if (!product.IsActive)
+        {
+            errors.Add("productId", $"'{product.Name}' is no longer for sale.");
+        }
+        else if (product.InventoryType != InventoryType.Retail)
+        {
+            errors.Add("productId", $"'{product.Name}' is a salon-use product and cannot be sold.");
+        }
+        else if (product.SellingPrice is null)
+        {
+            errors.Add("productId", $"'{product.Name}' has no selling price.");
+        }
+
+        var quantity = request.Quantity;
+
+        if (quantity is null)
+        {
+            errors.Add("quantity", "Enter the quantity.");
+        }
+        else if (quantity.Value <= 0m)
+        {
+            errors.Add("quantity", "Quantity must be greater than zero.");
+        }
+        else if (product is not null && product.CurrentStock < quantity.Value)
+        {
+            // An early, readable rejection; checkout re-checks against live
+            // stock, which is where overselling is actually prevented.
+            errors.Add(
+                "quantity",
+                $"Only {product.CurrentStock} {product.UnitOfMeasure} of '{product.Name}' in stock.");
+        }
+
+        errors.ThrowIfInvalid();
+
+        // One line per product: buying two more of what is already on the bill
+        // raises that line's quantity rather than stacking a near-duplicate.
+        var existingLine = invoice.Items.FirstOrDefault(line => line.ProductId == product!.Id);
+
+        if (existingLine is null)
+        {
+            invoice.Items.Add(new InvoiceItem
+            {
+                InvoiceId = invoice.Id,
+                ProductId = product!.Id,
+                ItemType = InvoiceItemType.Product,
+                Description = ProductDescription(product),
+                Quantity = quantity!.Value,
+                UnitPrice = product.SellingPrice!.Value,
+                LineTotal = LineTotalFor(quantity!.Value, product.SellingPrice!.Value),
+                SortOrder = invoice.Items.Max(line => (int?)line.SortOrder) is { } highest ? highest + 1 : 1
+            });
+        }
+        else
+        {
+            existingLine.Quantity += quantity!.Value;
+            existingLine.LineTotal = LineTotalFor(existingLine.Quantity, existingLine.UnitPrice);
+        }
+
+        RecalculateDraftTotals(invoice);
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return Map(invoice);
+    }
+
+    public async Task<InvoiceDto> UpdateLineAsync(
+        Guid id,
+        Guid lineId,
+        UpdateInvoiceLineRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var invoice = await LoadAsync(id, cancellationToken);
+
+        AssertDraft(invoice);
+
+        var line = LineForEdit(invoice, lineId);
+
+        var errors = new ValidationErrorBuilder();
+
+        var quantity = request.Quantity;
+
+        if (quantity is null)
+        {
+            errors.Add("quantity", "Enter the quantity.");
+        }
+        else if (quantity.Value <= 0m)
+        {
+            errors.Add("quantity", "Quantity must be greater than zero.");
+        }
+
+        errors.ThrowIfInvalid();
+
+        line.Quantity = quantity!.Value;
+        line.LineTotal = LineTotalFor(line.Quantity, line.UnitPrice);
+
+        RecalculateDraftTotals(invoice);
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return Map(invoice);
+    }
+
+    public async Task<InvoiceDto> RemoveLineAsync(
+        Guid id,
+        Guid lineId,
+        CancellationToken cancellationToken = default)
+    {
+        var invoice = await LoadAsync(id, cancellationToken);
+
+        AssertDraft(invoice);
+
+        var line = LineForEdit(invoice, lineId);
+
+        invoice.Items.Remove(line);
+
+        RecalculateDraftTotals(invoice);
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return Map(invoice);
+    }
+
     public async Task<ReceiptDto> CheckoutAsync(
         Guid id,
         CheckoutRequest request,
+        Guid? actorUserId = null,
         CancellationToken cancellationToken = default)
     {
         var invoice = await LoadAsync(id, cancellationToken);
@@ -194,6 +359,47 @@ public sealed class InvoiceService(
         var method = ValidatePaymentMethod(request.PaymentMethod, errors);
         var reference = ValidateReference(request.Reference, errors);
 
+        // Products on the bill are re-validated against live stock: the picker
+        // offered what was on the shelf when the line was added, and checkout
+        // is the moment the units actually leave. Loading the products tracked
+        // here is also what arms the concurrency token that stops two bills
+        // selling the same last unit.
+        var productLines = invoice.Items
+            .Where(item => item.ProductId is not null)
+            .ToList();
+
+        var stocked = new Dictionary<Guid, InventoryProduct>();
+
+        if (invoice.Items.Count == 0)
+        {
+            errors.Add("items", "An invoice needs at least one line before checkout.");
+        }
+
+        if (productLines.Count > 0)
+        {
+            stocked = (await inventory.GetTrackedByIdAsync(
+                [.. productLines.Select(item => item.ProductId!.Value)], cancellationToken))
+                .ToDictionary(product => product.Id);
+
+            foreach (var line in productLines)
+            {
+                if (!stocked.TryGetValue(line.ProductId!.Value, out var product))
+                {
+                    errors.Add("items", $"'{line.Description}' is no longer available.");
+                }
+                else if (!product.IsActive || product.InventoryType != InventoryType.Retail)
+                {
+                    errors.Add("items", $"'{product.Name}' is no longer for sale.");
+                }
+                else if (product.CurrentStock < line.Quantity)
+                {
+                    errors.Add(
+                        "items",
+                        $"Only {product.CurrentStock} {product.UnitOfMeasure} of '{product.Name}' in stock.");
+                }
+            }
+        }
+
         errors.ThrowIfInvalid();
 
         var now = timeProvider.GetUtcNow();
@@ -220,6 +426,30 @@ public sealed class InvoiceService(
             PaidAt = now
         });
 
+        // The sold units leave stock in the same save as the payment: either
+        // the whole checkout lands — bill paid, stock down, movements written —
+        // or none of it does. A retried checkout of the now-paid invoice is
+        // rejected above, so the same units can never leave twice.
+        foreach (var line in productLines)
+        {
+            var product = stocked[line.ProductId!.Value];
+            var before = product.CurrentStock;
+
+            product.ApplyStockChange(-line.Quantity);
+
+            inventory.AddMovement(new StockMovement
+            {
+                ProductId = product.Id,
+                MovementType = StockMovementType.RetailSale,
+                QuantityChange = -line.Quantity,
+                StockBefore = before,
+                StockAfter = product.CurrentStock,
+                OccurredAt = now,
+                InvoiceId = invoice.Id,
+                PerformedByUserId = actorUserId
+            });
+        }
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return MapReceipt(invoice);
@@ -235,6 +465,90 @@ public sealed class InvoiceService(
         }
 
         return MapReceipt(invoice);
+    }
+
+    private async Task<Invoice> StartRetailAsync(
+        CreateInvoiceRequest request,
+        CancellationToken cancellationToken)
+    {
+        Customer? customer = null;
+
+        if (request.CustomerId is { } customerId)
+        {
+            customer = await customers.GetByIdAsync(customerId, cancellationToken)
+                ?? throw new NotFoundException($"Customer '{customerId}' was not found.");
+        }
+
+        var now = timeProvider.GetUtcNow();
+
+        var invoice = new Invoice
+        {
+            InvoiceNumber = await NextInvoiceNumberAsync(now.Year, cancellationToken),
+            CustomerId = customer?.Id,
+            Customer = customer,
+            Status = InvoiceStatus.Draft,
+            Currency = BillingLimits.CurrencyCode,
+            Notes = request.WalkInCustomerName?.Trim() is { Length: > 0 } walkIn ? walkIn : null
+        };
+
+        invoices.Add(invoice);
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return invoice;
+    }
+
+    private static void AssertDraft(Invoice invoice)
+    {
+        if (invoice.Status == InvoiceStatus.Paid)
+        {
+            throw new ConflictException($"Invoice '{invoice.InvoiceNumber}' has already been paid.");
+        }
+
+        if (invoice.Status != InvoiceStatus.Draft)
+        {
+            throw new ConflictException($"Invoice '{invoice.InvoiceNumber}' is not awaiting checkout.");
+        }
+    }
+
+    /// <summary>
+    /// The line a line-edit action targets. Only product lines are editable:
+    /// service lines are snapshots of what was booked and are never re-keyed
+    /// by hand.
+    /// </summary>
+    private static InvoiceItem LineForEdit(Invoice invoice, Guid lineId)
+    {
+        var line = invoice.Items.FirstOrDefault(item => item.Id == lineId)
+            ?? throw new NotFoundException($"Invoice line '{lineId}' was not found.");
+
+        if (line.ProductId is null)
+        {
+            throw new ConflictException("Service lines come from the booking and cannot be edited.");
+        }
+
+        return line;
+    }
+
+    /// <summary>
+    /// Keeps the draft's arithmetic honest while it is being built: subtotal is
+    /// the sum of the lines, and the total still respects any bundle saving,
+    /// exactly as StartFromAppointmentAsync left them.
+    /// </summary>
+    private static void RecalculateDraftTotals(Invoice invoice)
+    {
+        invoice.SubTotal = invoice.Items.Sum(item => item.LineTotal);
+        invoice.TotalAmount = invoice.SubTotal - invoice.BundleDiscount;
+        invoice.DiscountTotal = invoice.BundleDiscount;
+    }
+
+    private static decimal LineTotalFor(decimal quantity, decimal unitPrice)
+    {
+        return decimal.Round(quantity * unitPrice, 2, MidpointRounding.AwayFromZero);
+    }
+
+    private static string ProductDescription(InventoryProduct product)
+    {
+        return product.Brand is { Length: > 0 } brand ? $"{brand} {product.Name}" : product.Name;
     }
 
     private async Task<CouponCheck> CheckCouponAsync(
@@ -441,7 +755,7 @@ public sealed class InvoiceService(
         invoice.Currency,
         invoice.AppointmentId,
         invoice.CustomerId,
-        invoice.Customer is { } customer ? $"{customer.FirstName} {customer.LastName}" : null,
+        DisplayName(invoice),
         invoice.Appointment?.WalkInCustomerName,
         invoice.CouponId,
         invoice.CouponCode,
@@ -467,6 +781,7 @@ public sealed class InvoiceService(
                 item.LineTotal,
                 item.ServiceId,
                 item.AppointmentServiceId,
+                item.ProductId,
                 item.SortOrder))],
         [.. invoice.Payments
             .OrderBy(payment => payment.PaidAt)

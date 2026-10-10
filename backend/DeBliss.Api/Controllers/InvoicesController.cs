@@ -40,7 +40,8 @@ public sealed class InvoicesController(IInvoiceService invoices) : ControllerBas
     /// <summary>
     /// Starts (or resumes) the checkout for a completed appointment. The
     /// appointment's services become the invoice lines automatically, so the
-    /// receptionist never retypes what the customer booked.
+    /// receptionist never retypes what the customer booked. A request with no
+    /// appointment starts a standalone retail sale.
     /// </summary>
     /// <remarks>Will require <c>Permissions.Billing.CreateCheckout</c> once authorisation exists.</remarks>
     [HttpPost]
@@ -60,6 +61,54 @@ public sealed class InvoicesController(IInvoiceService invoices) : ControllerBas
             : Ok(result.Invoice);
     }
 
+    /// <summary>
+    /// Adds a retail product to the bill. Product lines are the only lines a
+    /// human adds by hand; service lines come from the booking.
+    /// </summary>
+    /// <remarks>Will require <c>Permissions.Billing.CreateCheckout</c> once authorisation exists.</remarks>
+    [HttpPost("{id:guid}/lines")]
+    [ProducesResponseType(typeof(InvoiceDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<InvoiceDto>> AddLine(
+        Guid id,
+        [FromBody] AddInvoiceLineRequest request,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await invoices.AddLineAsync(id, request, cancellationToken));
+    }
+
+    /// <summary>Changes how many of a product the customer is buying. Product lines only.</summary>
+    /// <remarks>Will require <c>Permissions.Billing.CreateCheckout</c> once authorisation exists.</remarks>
+    [HttpPut("{id:guid}/lines/{lineId:guid}")]
+    [ProducesResponseType(typeof(InvoiceDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<InvoiceDto>> UpdateLine(
+        Guid id,
+        Guid lineId,
+        [FromBody] UpdateInvoiceLineRequest request,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await invoices.UpdateLineAsync(id, lineId, request, cancellationToken));
+    }
+
+    /// <summary>Removes a product line from the bill. Service lines come from the booking and stay.</summary>
+    /// <remarks>Will require <c>Permissions.Billing.CreateCheckout</c> once authorisation exists.</remarks>
+    [HttpDelete("{id:guid}/lines/{lineId:guid}")]
+    [ProducesResponseType(typeof(InvoiceDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<InvoiceDto>> RemoveLine(
+        Guid id,
+        Guid lineId,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await invoices.RemoveLineAsync(id, lineId, cancellationToken));
+    }
+
     /// <remarks>Will require <c>Permissions.Billing.ViewInvoices</c> and <c>Permissions.Billing.ViewPayments</c> once authorisation exists.</remarks>
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(InvoiceDto), StatusCodes.Status200OK)]
@@ -70,8 +119,9 @@ public sealed class InvoicesController(IInvoiceService invoices) : ControllerBas
     }
 
     /// <summary>
-    /// Applies the coupon and manual discount, records the payment and marks
-    /// the invoice paid. One save: an invoice is never left half checked out.
+    /// Applies the coupon and manual discount, records the payment, deducts the
+    /// sold stock and marks the invoice paid. One save: an invoice is never
+    /// left half checked out, and stock never leaves for a sale that failed.
     /// </summary>
     /// <remarks>Will require <c>Permissions.Billing.CreateCheckout</c> and <c>Permissions.Billing.ApplyManualDiscount</c> once authorisation exists.</remarks>
     [HttpPost("{id:guid}/checkout")]
@@ -84,13 +134,11 @@ public sealed class InvoicesController(IInvoiceService invoices) : ControllerBas
         [FromBody] CheckoutRequest request,
         CancellationToken cancellationToken)
     {
-        return Ok(await invoices.CheckoutAsync(id, request, cancellationToken));
+        return Ok(await invoices.CheckoutAsync(id, request, ActingUserId(), cancellationToken));
     }
 
-    /// <summary>
-    /// The printable receipt for a paid invoice, built from the stored amounts
-    /// — reprinting months later shows exactly what was charged on the day.
-    /// </summary>
+    /// <summary>The printable receipt for a paid invoice, built from the stored amounts.
+    /// Reprinting months later shows exactly what was charged on the day.</summary>
     /// <remarks>Will require <c>Permissions.Billing.ViewInvoices</c> once authorisation exists.</remarks>
     [HttpGet("{id:guid}/receipt")]
     [ProducesResponseType(typeof(ReceiptDto), StatusCodes.Status200OK)]
@@ -100,4 +148,8 @@ public sealed class InvoicesController(IInvoiceService invoices) : ControllerBas
     {
         return Ok(await invoices.GetReceiptAsync(id, cancellationToken));
     }
+
+    /// <summary>The signed-in login, so stock movements record who sold what. Null only for non-JWT callers, which the policy excludes anyway.</summary>
+    private Guid? ActingUserId() =>
+        Guid.TryParse(User.FindFirst("sub")?.Value, out var userId) ? userId : null;
 }

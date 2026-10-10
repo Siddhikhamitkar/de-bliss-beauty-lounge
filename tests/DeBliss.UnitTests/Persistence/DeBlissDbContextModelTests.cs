@@ -2,6 +2,7 @@ using DeBliss.Domain.Billing;
 using DeBliss.Domain.Common;
 using DeBliss.Domain.Customers;
 using DeBliss.Domain.Identity;
+using DeBliss.Domain.Inventory;
 using DeBliss.Domain.Notifications;
 using DeBliss.Domain.Scheduling;
 using DeBliss.Domain.Services;
@@ -33,18 +34,21 @@ public class DeBlissDbContextModelTests
         typeof(AppointmentService),
         typeof(AppointmentStatusHistory),
         typeof(BlockedTime),
+        typeof(BookingClaim),
         typeof(Invoice),
         typeof(InvoiceItem),
         typeof(Payment),
         typeof(Coupon),
         typeof(ReminderRule),
         typeof(AppointmentReminder),
+        typeof(InventoryProduct),
+        typeof(StockMovement),
     };
 
     [Fact]
-    public void The_model_maps_exactly_the_twenty_four_core_entities()
+    public void The_model_maps_exactly_the_core_entities()
     {
-        Assert.Equal(24, TestModel.Model.GetEntityTypes().Count());
+        Assert.Equal(27, TestModel.Model.GetEntityTypes().Count());
     }
 
     [Theory]
@@ -86,12 +90,15 @@ public class DeBlissDbContextModelTests
     [InlineData(typeof(AppointmentService), "AppointmentServices")]
     [InlineData(typeof(AppointmentStatusHistory), "AppointmentStatusHistory")]
     [InlineData(typeof(BlockedTime), "BlockedTime")]
+    [InlineData(typeof(BookingClaim), "BookingClaims")]
     [InlineData(typeof(Invoice), "Invoices")]
     [InlineData(typeof(InvoiceItem), "InvoiceItems")]
     [InlineData(typeof(Payment), "Payments")]
     [InlineData(typeof(Coupon), "Coupons")]
     [InlineData(typeof(ReminderRule), "ReminderRules")]
     [InlineData(typeof(AppointmentReminder), "AppointmentReminders")]
+    [InlineData(typeof(InventoryProduct), "InventoryProducts")]
+    [InlineData(typeof(StockMovement), "StockMovements")]
     public void Tables_are_named_explicitly(Type entityType, string tableName)
     {
         Assert.Equal(tableName, TestModel.Entity(entityType).GetTableName());
@@ -160,6 +167,8 @@ public class DeBlissDbContextModelTests
     [InlineData(typeof(AppointmentReminder), nameof(AppointmentReminder.Status))]
     [InlineData(typeof(AppointmentReminder), nameof(AppointmentReminder.Channel))]
     [InlineData(typeof(Customer), nameof(Customer.WhatsAppOptInStatus))]
+    [InlineData(typeof(InventoryProduct), nameof(InventoryProduct.InventoryType))]
+    [InlineData(typeof(StockMovement), nameof(StockMovement.MovementType))]
     public void Enumerations_are_stored_as_readable_strings(Type entityType, string propertyName)
     {
         var property = TestModel.Entity(entityType).FindProperty(propertyName)!;
@@ -292,6 +301,11 @@ public class DeBlissDbContextModelTests
     [InlineData(typeof(ServiceBundleItem), nameof(ServiceBundleItem.ServiceId))]
     [InlineData(typeof(Payment), nameof(Payment.RefundOfPaymentId))]
     [InlineData(typeof(AppointmentReminder), nameof(AppointmentReminder.CustomerId))]
+    [InlineData(typeof(StockMovement), nameof(StockMovement.ProductId))]
+    [InlineData(typeof(StockMovement), nameof(StockMovement.InvoiceId))]
+    [InlineData(typeof(StockMovement), nameof(StockMovement.PerformedByUserId))]
+    [InlineData(typeof(StockMovement), nameof(StockMovement.ReversalOfMovementId))]
+    [InlineData(typeof(InvoiceItem), nameof(InvoiceItem.ProductId))]
     public void Deleting_a_referenced_record_never_removes_booking_or_financial_history(
         Type dependentType,
         string foreignKeyProperty)
@@ -357,6 +371,7 @@ public class DeBlissDbContextModelTests
     [InlineData(typeof(User), nameof(User.Email))]
     [InlineData(typeof(Role), nameof(Role.Name))]
     [InlineData(typeof(Coupon), nameof(Coupon.Code))]
+    [InlineData(typeof(InventoryProduct), nameof(InventoryProduct.Sku))]
     public void Business_identifiers_are_unique(Type entityType, string propertyName)
     {
         var index = TestModel.Entity(entityType).GetIndexes()
@@ -364,6 +379,36 @@ public class DeBlissDbContextModelTests
 
         Assert.NotNull(index);
         Assert.True(index!.IsUnique);
+    }
+
+    [Fact]
+    public void A_customer_login_links_to_at_most_one_customer_record()
+    {
+        var index = TestModel.Entity(typeof(Customer)).GetIndexes()
+            .Single(i => i.Properties.Select(p => p.Name).SequenceEqual([nameof(Customer.UserId)]));
+
+        Assert.True(index.IsUnique);
+        Assert.Equal("[UserId] IS NOT NULL", index.GetFilter());
+    }
+
+    [Fact]
+    public void A_booking_idempotency_key_is_unique_per_customer()
+    {
+        var index = TestModel.Entity(typeof(BookingClaim)).GetIndexes()
+            .Single(i => i.Properties.Select(p => p.Name).SequenceEqual(
+                [nameof(BookingClaim.CustomerId), nameof(BookingClaim.IdempotencyKey)]));
+
+        Assert.True(index.IsUnique);
+    }
+
+    [Fact]
+    public void A_booking_claim_points_at_at_most_one_appointment()
+    {
+        var index = TestModel.Entity(typeof(BookingClaim)).GetIndexes()
+            .Single(i => i.Properties.Select(p => p.Name).SequenceEqual([nameof(BookingClaim.AppointmentId)]));
+
+        Assert.True(index.IsUnique);
+        Assert.Equal("[AppointmentId] IS NOT NULL", index.GetFilter());
     }
 
     [Fact]
@@ -463,6 +508,64 @@ public class DeBlissDbContextModelTests
         Assert.False(property.IsNullable);
         Assert.Equal("nvarchar(20)", property.GetColumnType());
         Assert.Equal("Unknown", property.GetDefaultValue()?.ToString());
+    }
+
+    [Theory]
+    [InlineData(typeof(InventoryProduct), nameof(InventoryProduct.CostPrice))]
+    [InlineData(typeof(InventoryProduct), nameof(InventoryProduct.SellingPrice))]
+    public void Product_prices_are_optional_but_keep_fixed_scale(Type entityType, string propertyName)
+    {
+        var property = TestModel.Entity(entityType).FindProperty(propertyName)!;
+
+        Assert.Equal(typeof(decimal?), property.ClrType);
+        Assert.Equal(18, property.GetPrecision()!.Value);
+        Assert.Equal(2, property.GetScale()!.Value);
+    }
+
+    [Theory]
+    [InlineData(typeof(InventoryProduct), nameof(InventoryProduct.CurrentStock))]
+    [InlineData(typeof(InventoryProduct), nameof(InventoryProduct.MinimumStock))]
+    [InlineData(typeof(StockMovement), nameof(StockMovement.QuantityChange))]
+    [InlineData(typeof(StockMovement), nameof(StockMovement.StockBefore))]
+    [InlineData(typeof(StockMovement), nameof(StockMovement.StockAfter))]
+    public void Stock_quantities_allow_fractional_units(Type entityType, string propertyName)
+    {
+        var property = TestModel.Entity(entityType).FindProperty(propertyName)!;
+
+        Assert.Equal(typeof(decimal), property.ClrType);
+        Assert.Equal(18, property.GetPrecision()!.Value);
+        Assert.Equal(3, property.GetScale()!.Value);
+    }
+
+    [Fact]
+    public void Product_stock_changes_are_guarded_by_a_concurrency_token()
+    {
+        var property = TestModel.Entity(typeof(InventoryProduct))
+            .FindProperty(nameof(InventoryProduct.StockVersion))!;
+
+        Assert.True(property.IsConcurrencyToken);
+    }
+
+    [Fact]
+    public void A_sale_can_deduct_a_product_off_one_invoice_only_once()
+    {
+        var index = TestModel.Entity(typeof(StockMovement)).GetIndexes()
+            .Single(i => i.Properties.Select(p => p.Name).SequenceEqual([
+                nameof(StockMovement.InvoiceId),
+                nameof(StockMovement.ProductId),
+                nameof(StockMovement.MovementType)]));
+
+        Assert.True(index.IsUnique);
+    }
+
+    [Fact]
+    public void A_movement_can_be_reversed_only_once()
+    {
+        var index = TestModel.Entity(typeof(StockMovement)).GetIndexes()
+            .Single(i => i.Properties.Select(p => p.Name)
+                .SequenceEqual([nameof(StockMovement.ReversalOfMovementId)]));
+
+        Assert.True(index.IsUnique);
     }
 
     private static DeleteBehavior DeleteBehaviorOf(Type dependentType, string foreignKeyProperty) =>

@@ -36,6 +36,11 @@ public sealed class JwtTokenIssuer(IConfiguration configuration, TimeProvider cl
             claims.Add(new Claim(AuthClaimNames.StaffId, staffId.ToString()));
         }
 
+        if (user.CustomerId is { } customerId)
+        {
+            claims.Add(new Claim(AuthClaimNames.CustomerId, customerId.ToString()));
+        }
+
         var credentials = new SigningCredentials(SigningKey(), SecurityAlgorithms.HmacSha256);
 
         var token = new JwtSecurityToken(

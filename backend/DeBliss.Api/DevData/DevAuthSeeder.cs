@@ -40,6 +40,10 @@ public static class DevAuthSeeder
         var ownerRole = await EnsureRoleAsync(db, roles, RoleNames.Owner, "Salon owner / administrator — full access.");
         var receptionistRole = await EnsureRoleAsync(db, roles, RoleNames.Receptionist, "Front desk — daily operations.");
         var staffRole = await EnsureRoleAsync(db, roles, RoleNames.Staff, "Service provider — limited workspace.");
+        // Roles are ensured before the user early-return so an existing
+        // Development database picks up roles added later — including CUSTOMER,
+        // which public registration requires.
+        await EnsureRoleAsync(db, roles, RoleNames.Customer, "Customer — self-service website access.");
 
         if (await db.Users.AnyAsync())
         {

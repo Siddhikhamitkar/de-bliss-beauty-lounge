@@ -1,15 +1,34 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { checkoutInvoice, getReceipt, startInvoice, validateCoupon } from '../api/billing.ts'
+import {
+  addInvoiceLine,
+  checkoutInvoice,
+  getInvoice,
+  getReceipt,
+  removeInvoiceLine,
+  startInvoice,
+  updateInvoiceLine,
+  validateCoupon,
+} from '../api/billing.ts'
+import { getSellableProducts } from '../api/inventory.ts'
 import { ApiError } from '../api/client.ts'
-import type { Invoice, InvoiceItem, Receipt } from '../api/contracts.ts'
+import type {
+  Invoice,
+  InvoiceItem,
+  InventoryProductOption,
+  Receipt,
+} from '../api/contracts.ts'
 import { CheckoutPage } from './CheckoutPage.tsx'
 
 vi.mock('../api/billing.ts', () => ({
   searchInvoices: vi.fn(),
   getInvoice: vi.fn(),
   startInvoice: vi.fn(),
+  createRetailInvoice: vi.fn(),
+  addInvoiceLine: vi.fn(),
+  updateInvoiceLine: vi.fn(),
+  removeInvoiceLine: vi.fn(),
   checkoutInvoice: vi.fn(),
   getReceipt: vi.fn(),
   validateCoupon: vi.fn(),
@@ -18,6 +37,10 @@ vi.mock('../api/billing.ts', () => ({
   createCoupon: vi.fn(),
   updateCoupon: vi.fn(),
   setCouponStatus: vi.fn(),
+}))
+
+vi.mock('../api/inventory.ts', () => ({
+  getSellableProducts: vi.fn(),
 }))
 
 function invoiceItem(overrides: Partial<InvoiceItem> = {}): InvoiceItem {
@@ -29,7 +52,38 @@ function invoiceItem(overrides: Partial<InvoiceItem> = {}): InvoiceItem {
     lineTotal: 150,
     serviceId: 's1',
     appointmentServiceId: 'as1',
+    productId: null,
     sortOrder: 0,
+    ...overrides,
+  }
+}
+
+/** A hand-added retail product line: no service behind it, a product instead. */
+function productLine(overrides: Partial<InvoiceItem> = {}): InvoiceItem {
+  return invoiceItem({
+    id: 'l1',
+    description: 'Olaplex No. 3',
+    unitPrice: 95,
+    lineTotal: 95,
+    serviceId: null,
+    appointmentServiceId: null,
+    productId: 'p1',
+    sortOrder: 2,
+    ...overrides,
+  })
+}
+
+function productOption(
+  overrides: Partial<InventoryProductOption> = {},
+): InventoryProductOption {
+  return {
+    id: 'p1',
+    name: 'Olaplex No. 3',
+    brand: 'Olaplex',
+    sku: 'OLP-003',
+    sellingPrice: 95,
+    currentStock: 12,
+    unitOfMeasure: 'bottle',
     ...overrides,
   }
 }
@@ -99,6 +153,21 @@ function renderCheckout() {
 describe('CheckoutPage', () => {
   beforeEach(() => {
     vi.mocked(startInvoice).mockResolvedValue(invoice())
+    vi.mocked(getInvoice).mockResolvedValue(invoice())
+    vi.mocked(addInvoiceLine).mockResolvedValue(invoice())
+    vi.mocked(updateInvoiceLine).mockResolvedValue(invoice())
+    vi.mocked(removeInvoiceLine).mockResolvedValue(invoice())
+    vi.mocked(getSellableProducts).mockResolvedValue([
+      productOption(),
+      productOption({
+        id: 'p2',
+        name: 'Hair clip',
+        brand: null,
+        sku: 'CLP-001',
+        sellingPrice: 15,
+        currentStock: 0,
+      }),
+    ])
     vi.mocked(validateCoupon).mockResolvedValue({
       code: 'BLISS20',
       discountType: 'Percentage',
@@ -350,5 +419,123 @@ describe('CheckoutPage', () => {
     expect(screen.getByText('−AED 18.00')).toBeInTheDocument()
     expect(screen.getByText('AED 162.00')).toBeInTheDocument()
     expect(screen.getByLabelText('Amount collected')).toHaveValue(162)
+  })
+
+  it('adds a retail product from the picker and shows the priced line', async () => {
+    const user = userEvent.setup()
+    // The reload after adding the line brings back the bill with it priced.
+    vi.mocked(startInvoice)
+      .mockResolvedValueOnce(invoice())
+      .mockResolvedValueOnce(
+        invoice({
+          subTotal: 390,
+          totalAmount: 390,
+          items: [
+            invoiceItem(),
+            invoiceItem({ id: 'i2', description: 'Blow dry', unitPrice: 50, lineTotal: 50, sortOrder: 1 }),
+            productLine({ quantity: 2, lineTotal: 190 }),
+          ],
+        }),
+      )
+
+    renderCheckout()
+    await screen.findByText('Balayage')
+
+    await user.selectOptions(screen.getByLabelText('Retail product'), 'p1')
+    await user.clear(screen.getByLabelText('Product quantity'))
+    await user.type(screen.getByLabelText('Product quantity'), '2')
+    await user.click(screen.getByRole('button', { name: 'Add' }))
+
+    expect(addInvoiceLine).toHaveBeenCalledExactlyOnceWith('inv1', { productId: 'p1', quantity: 2 })
+    expect(await screen.findByText('Olaplex No. 3')).toBeInTheDocument()
+    expect(screen.getByLabelText('Quantity of Olaplex No. 3')).toHaveValue(2)
+    expect(screen.getAllByText('AED 390.00')).toHaveLength(2)
+    expect(screen.getByLabelText('Amount collected')).toHaveValue(390)
+  })
+
+  it('marks out-of-stock products unselectable in the picker', async () => {
+    renderCheckout()
+    await screen.findByText('Balayage')
+
+    expect(screen.getByRole('option', { name: /Hair clip/ })).toBeDisabled()
+    expect(screen.getByRole('option', { name: /Olaplex No\. 3/ })).toBeEnabled()
+  })
+
+  it('commits an edited product quantity on blur', async () => {
+    const user = userEvent.setup()
+    vi.mocked(startInvoice).mockResolvedValue(
+      invoice({ subTotal: 95, totalAmount: 95, items: [productLine()] }),
+    )
+
+    renderCheckout()
+    const quantity = await screen.findByLabelText('Quantity of Olaplex No. 3')
+    expect(quantity).toHaveValue(1)
+
+    await user.clear(quantity)
+    await user.type(quantity, '3')
+    await user.tab()
+
+    expect(updateInvoiceLine).toHaveBeenCalledExactlyOnceWith('inv1', 'l1', { quantity: 3 })
+  })
+
+  it('reverts a quantity edit that parses to the number the server already has', async () => {
+    const user = userEvent.setup()
+    vi.mocked(startInvoice).mockResolvedValue(
+      invoice({ subTotal: 95, totalAmount: 95, items: [productLine()] }),
+    )
+
+    renderCheckout()
+    const quantity = await screen.findByLabelText('Quantity of Olaplex No. 3')
+
+    await user.clear(quantity)
+    await user.type(quantity, '1')
+    await user.tab()
+
+    expect(updateInvoiceLine).not.toHaveBeenCalled()
+    expect(quantity).toHaveValue(1)
+  })
+
+  it('removes a product line while the booking services stay', async () => {
+    const user = userEvent.setup()
+    vi.mocked(startInvoice).mockResolvedValue(
+      invoice({ subTotal: 245, totalAmount: 245, items: [invoiceItem(), productLine()] }),
+    )
+
+    renderCheckout()
+    await screen.findByText('Balayage')
+
+    await user.click(screen.getByRole('button', { name: 'Remove' }))
+
+    expect(removeInvoiceLine).toHaveBeenCalledExactlyOnceWith('inv1', 'l1')
+  })
+
+  it('shows the first validation message when adding a product fails', async () => {
+    const user = userEvent.setup()
+    vi.mocked(addInvoiceLine).mockRejectedValue(
+      new ApiError(400, { errors: { productId: ['Not enough stock on the shelf.'] } }),
+    )
+
+    renderCheckout()
+    await screen.findByText('Balayage')
+
+    await user.selectOptions(screen.getByLabelText('Retail product'), 'p1')
+    await user.click(screen.getByRole('button', { name: 'Add' }))
+
+    expect(await screen.findByText('Not enough stock on the shelf.')).toBeInTheDocument()
+  })
+
+  it('opens an existing walk-in draft by invoice id instead of an appointment', async () => {
+    vi.mocked(getInvoice).mockResolvedValue(
+      invoice({ appointmentId: null, customerId: null, customerName: null, items: [] }),
+    )
+
+    render(<CheckoutPage invoiceId="inv1" onClose={vi.fn()} onPaid={vi.fn()} />)
+
+    expect(
+      await screen.findByText('No items yet — add a retail product below.'),
+    ).toBeInTheDocument()
+    expect(getInvoice).toHaveBeenCalledExactlyOnceWith('inv1')
+    expect(startInvoice).not.toHaveBeenCalled()
+    expect(screen.getByText('INV-2026-0001 · Walk-in customer')).toBeInTheDocument()
   })
 })

@@ -87,9 +87,10 @@ internal sealed class DeBlissApiFactory : WebApplicationFactory<Program>
         bool isActive = true,
         string? description = null,
         IReadOnlyList<Guid>? staffIds = null,
-        int sortOrder = 0) =>
+        int sortOrder = 0,
+        bool isOnlineBookable = false) =>
         WithNewContextAsync(context => CatalogueSeed.ServiceAsync(
-            context, categoryId, name, price, durationMinutes, isActive, description, staffIds, sortOrder));
+            context, categoryId, name, price, durationMinutes, isActive, description, staffIds, sortOrder, isOnlineBookable));
 
     public Task<Guid> SeedBundleAsync(
         Guid categoryId,
@@ -163,6 +164,12 @@ internal sealed class DeBlissApiFactory : WebApplicationFactory<Program>
         await using var context = _database.CreateContext();
         await IdentitySeed.UserAsync(
             context, email, password, roleName, firstName, lastName, isActive, linkedStaffId);
+    }
+
+    public async Task SeedRoleAsync(string roleName)
+    {
+        await using var context = _database.CreateContext();
+        await IdentitySeed.RoleAsync(context, roleName);
     }
 
     /// <summary>Idempotently creates the default owner account so ApiTestBase can sign in.</summary>

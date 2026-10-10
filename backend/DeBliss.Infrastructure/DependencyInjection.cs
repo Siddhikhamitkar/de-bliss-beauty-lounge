@@ -3,12 +3,15 @@ using DeBliss.Application.Common.Interfaces;
 using DeBliss.Application.Customers.Ports;
 using DeBliss.Application.Dashboard.Ports;
 using DeBliss.Application.Identity.Ports;
+using DeBliss.Application.Inventory.Ports;
 using DeBliss.Application.Notifications;
 using DeBliss.Application.Notifications.Ports;
+using DeBliss.Application.Scheduling;
 using DeBliss.Application.Scheduling.Ports;
 using DeBliss.Application.ServiceCatalogue.Ports;
 using DeBliss.Application.Staffing.Ports;
 using DeBliss.Infrastructure.Notifications;
+using DeBliss.Infrastructure.Scheduling;
 using DeBliss.Infrastructure.Persistence;
 using DeBliss.Infrastructure.Persistence.Interceptors;
 using DeBliss.Infrastructure.Persistence.Repositories;
@@ -40,6 +43,8 @@ public static class DependencyInjection
 
         services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<DeBlissDbContext>());
 
+        services.AddSingleton<ISalonTimeZone, ConfiguredSalonTimeZone>();
+
         services.AddScoped<IServiceCategoryRepository, ServiceCategoryRepository>();
         services.AddScoped<IServiceRepository, ServiceRepository>();
         services.AddScoped<IServiceBundleRepository, ServiceBundleRepository>();
@@ -51,8 +56,10 @@ public static class DependencyInjection
         services.AddScoped<IAppointmentRepository, AppointmentRepository>();
         services.AddScoped<IAppointmentConflictPort, AppointmentRepository>();
         services.AddScoped<IStaffAppointmentPort, AppointmentRepository>();
+        services.AddScoped<IBookingClaimRepository, BookingClaimRepository>();
         services.AddScoped<IInvoiceRepository, InvoiceRepository>();
         services.AddScoped<ICouponRepository, CouponRepository>();
+        services.AddScoped<IInventoryRepository, InventoryRepository>();
         services.AddScoped<IDashboardReadStore, DashboardReadStore>();
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IAppointmentReminderRepository, AppointmentReminderRepository>();

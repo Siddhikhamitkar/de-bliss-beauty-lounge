@@ -2,6 +2,7 @@ using DeBliss.Application.Common.Interfaces;
 using DeBliss.Domain.Billing;
 using DeBliss.Domain.Customers;
 using DeBliss.Domain.Identity;
+using DeBliss.Domain.Inventory;
 using DeBliss.Domain.Notifications;
 using DeBliss.Domain.Scheduling;
 using DeBliss.Domain.Services;
@@ -62,13 +63,31 @@ public class DeBlissDbContext(DbContextOptions<DeBlissDbContext> options)
 
     public DbSet<Coupon> Coupons => Set<Coupon>();
 
+    public DbSet<InventoryProduct> InventoryProducts => Set<InventoryProduct>();
+
+    public DbSet<StockMovement> StockMovements => Set<StockMovement>();
+
     public DbSet<ReminderRule> ReminderRules => Set<ReminderRule>();
 
     public DbSet<AppointmentReminder> AppointmentReminders => Set<AppointmentReminder>();
+
+    public DbSet<BookingClaim> BookingClaims => Set<BookingClaim>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(DeBlissDbContext).Assembly);
+    }
+
+    public async Task<IUnitOfWorkTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
+    {
+        // Serializable so a booking's re-check inside the transaction cannot
+        // miss a concurrent one (SQL Server takes range locks; SQLite's
+        // translation is BEGIN IMMEDIATE, which serializes writers).
+        var transaction = await Database.BeginTransactionAsync(
+            System.Data.IsolationLevel.Serializable,
+            cancellationToken);
+
+        return new EntityFrameworkUnitOfWorkTransaction(transaction);
     }
 }

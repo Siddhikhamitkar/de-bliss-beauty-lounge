@@ -19,6 +19,18 @@ public sealed class ServiceRepository(DeBlissDbContext context) : IServiceReposi
         && service.ServiceCategory.IsActive
         && service.StaffServices.Any(staffService => staffService.Staff.IsActive);
 
+    /// <summary>
+    /// The rule that decides what the public customer website may offer: an
+    /// active service, switched on for online booking, in an active category.
+    /// Deliberately independent of staff assignments — the public menu does not
+    /// depend on who is currently rostered.
+    /// </summary>
+    private static readonly Expression<Func<Service, bool>> PubliclyBookable = service =>
+        service.IsActive
+        && service.IsOnlineBookable
+        && service.ServiceCategory != null
+        && service.ServiceCategory.IsActive;
+
     public Task<Service?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         // Tracked, with everything the application service needs in order to edit
@@ -42,6 +54,19 @@ public sealed class ServiceRepository(DeBlissDbContext context) : IServiceReposi
     {
         return await WithNavigations(context.Services.AsNoTracking())
             .Where(Bookable)
+            .OrderBy(service => service.ServiceCategory!.SortOrder)
+            .ThenBy(service => service.SortOrder)
+            .ThenBy(service => service.Name)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Service>> GetPublicAsync(CancellationToken cancellationToken = default)
+    {
+        // Only the category is loaded: the public projection carries no staff.
+        return await context.Services
+            .AsNoTracking()
+            .Include(service => service.ServiceCategory)
+            .Where(PubliclyBookable)
             .OrderBy(service => service.ServiceCategory!.SortOrder)
             .ThenBy(service => service.SortOrder)
             .ThenBy(service => service.Name)

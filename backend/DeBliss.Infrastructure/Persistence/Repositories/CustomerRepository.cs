@@ -19,6 +19,23 @@ public sealed class CustomerRepository(DeBlissDbContext context) : ICustomerRepo
         return context.Customers.FirstOrDefaultAsync(customer => customer.Id == id, ct);
     }
 
+    public async Task<Customer?> FindLinkableByEmailAsync(string email, CancellationToken ct = default)
+    {
+        var normalized = email.Trim().ToLowerInvariant();
+
+        var matches = await context.Customers
+            .Where(customer =>
+                customer.IsActive
+                && customer.UserId == null
+                && customer.Email != null
+                && customer.Email.ToLower() == normalized)
+            .ToListAsync(ct);
+
+        // Tracked on purpose: the caller links the record to the new login by
+        // setting UserId on the returned entity.
+        return matches.Count == 1 ? matches[0] : null;
+    }
+
     public async Task<(IReadOnlyList<Customer> Items, int TotalCount)> SearchAsync(
         CustomerQuery query,
         CancellationToken ct = default)

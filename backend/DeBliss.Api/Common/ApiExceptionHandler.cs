@@ -1,6 +1,7 @@
 using DeBliss.Application.Common.Exceptions;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace DeBliss.Api.Common;
 
@@ -41,6 +42,18 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : I
                 {
                     Title = "The request conflicts with existing data.",
                     Detail = conflict.Message,
+                    Status = StatusCodes.Status409Conflict
+                }),
+            // The optimistic-concurrency guard: another user changed the row
+            // (typically product stock) between this request reading it and
+            // saving. Nothing was written, so the caller can safely reload and
+            // retry — which is exactly what the message asks for.
+            DbUpdateConcurrencyException => (
+                StatusCodes.Status409Conflict,
+                new ProblemDetails
+                {
+                    Title = "The figures changed while you were working.",
+                    Detail = "Someone else updated this record first. Reload the latest figures and try again.",
                     Status = StatusCodes.Status409Conflict
                 }),
             _ => (0, null)

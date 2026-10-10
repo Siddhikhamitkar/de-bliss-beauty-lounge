@@ -42,6 +42,22 @@ public sealed record ServiceDto(
     DateTimeOffset CreatedAt,
     DateTimeOffset? UpdatedAt);
 
+/// <summary>
+/// The projection the public customer website consumes: services a customer may
+/// book online, carrying only customer-facing catalogue fields — no staff, no
+/// operational state.
+/// </summary>
+public sealed record PublicServiceDto(
+    Guid Id,
+    string Name,
+    string? Description,
+    Guid? CategoryId,
+    string? CategoryName,
+    int DurationMinutes,
+    decimal Price,
+    bool IsOnlineBookable,
+    int SortOrder);
+
 /// <summary>A staff member already attached to a service.</summary>
 public sealed record EligibleStaffDto(
     Guid StaffId,

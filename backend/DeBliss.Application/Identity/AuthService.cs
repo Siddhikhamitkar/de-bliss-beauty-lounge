@@ -57,11 +57,11 @@ public sealed class AuthService(
     public static string HashPassword(string password)
     {
         var dummy = new AuthUserReadModel(
-            Guid.Empty, string.Empty, string.Empty, string.Empty, null, true, [], null);
+            Guid.Empty, string.Empty, string.Empty, string.Empty, null, true, [], null, null);
 
         return new PasswordHasher<AuthUserReadModel>().HashPassword(dummy, password);
     }
 
     private static AuthUserDto ToDto(AuthUserReadModel user) =>
-        new(user.Id, user.FirstName, user.LastName, user.Email, user.RoleNames, user.StaffId);
+        new(user.Id, user.FirstName, user.LastName, user.Email, user.RoleNames, user.StaffId, user.CustomerId);
 }

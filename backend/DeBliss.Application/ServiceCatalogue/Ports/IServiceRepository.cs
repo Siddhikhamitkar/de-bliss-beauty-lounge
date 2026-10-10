@@ -29,6 +29,13 @@ public interface IServiceRepository
     Task<IReadOnlyList<Service>> GetBookableAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// The subset the public customer website may show: active services switched
+    /// on for online booking in active categories. Unlike
+    /// <see cref="GetBookableAsync"/> it does not depend on staff assignments.
+    /// </summary>
+    Task<IReadOnlyList<Service>> GetPublicAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Case-insensitive duplicate check scoped to one category, optionally
     /// ignoring the service being edited.
     /// </summary>
