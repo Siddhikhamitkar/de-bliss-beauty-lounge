@@ -312,7 +312,7 @@ export function CheckoutPage({ appointmentId, invoiceId, onClose, onPaid }: Chec
             <h2>Checkout</h2>
             {record !== undefined && (
               <p className="checkout-customer">
-                {record.invoiceNumber} · {record.customerName ?? 'Walk-in customer'}
+                {record.invoiceNumber} · {record.customerName ?? record.walkInCustomerName ?? 'Walk-in customer'}
               </p>
             )}
           </div>

@@ -1085,8 +1085,6 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("[AppointmentId] IS NOT NULL");
 
-                    b.HasIndex("CustomerId");
-
                     b.HasIndex("CustomerId", "IdempotencyKey")
                         .IsUnique();
 

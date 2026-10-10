@@ -755,8 +755,9 @@ public sealed class InvoiceService(
         invoice.Currency,
         invoice.AppointmentId,
         invoice.CustomerId,
-        DisplayName(invoice),
-        invoice.Appointment?.WalkInCustomerName,
+        invoice.Customer is { } customer ? $"{customer.FirstName} {customer.LastName}" : null,
+        // Retail drafts have no appointment; their walk-in name lives in Notes.
+        invoice.Appointment?.WalkInCustomerName ?? invoice.Notes,
         invoice.CouponId,
         invoice.CouponCode,
         invoice.ServiceBundleId,

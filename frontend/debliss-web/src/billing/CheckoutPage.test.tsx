@@ -526,7 +526,13 @@ describe('CheckoutPage', () => {
 
   it('opens an existing walk-in draft by invoice id instead of an appointment', async () => {
     vi.mocked(getInvoice).mockResolvedValue(
-      invoice({ appointmentId: null, customerId: null, customerName: null, items: [] }),
+      invoice({
+        appointmentId: null,
+        customerId: null,
+        customerName: null,
+        walkInCustomerName: 'Maya',
+        items: [],
+      }),
     )
 
     render(<CheckoutPage invoiceId="inv1" onClose={vi.fn()} onPaid={vi.fn()} />)
@@ -536,6 +542,16 @@ describe('CheckoutPage', () => {
     ).toBeInTheDocument()
     expect(getInvoice).toHaveBeenCalledExactlyOnceWith('inv1')
     expect(startInvoice).not.toHaveBeenCalled()
-    expect(screen.getByText('INV-2026-0001 · Walk-in customer')).toBeInTheDocument()
+    expect(screen.getByText('INV-2026-0001 · Maya')).toBeInTheDocument()
+  })
+
+  it('falls back to the generic label for an unnamed walk-in draft', async () => {
+    vi.mocked(getInvoice).mockResolvedValue(
+      invoice({ appointmentId: null, customerId: null, customerName: null, items: [] }),
+    )
+
+    render(<CheckoutPage invoiceId="inv1" onClose={vi.fn()} onPaid={vi.fn()} />)
+
+    expect(await screen.findByText('INV-2026-0001 · Walk-in customer')).toBeInTheDocument()
   })
 })

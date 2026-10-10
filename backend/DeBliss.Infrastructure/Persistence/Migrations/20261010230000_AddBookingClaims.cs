@@ -47,11 +47,6 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                 filter: "[AppointmentId] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
-                name: "IX_BookingClaims_CustomerId",
-                table: "BookingClaims",
-                column: "CustomerId");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_BookingClaims_CustomerId_IdempotencyKey",
                 table: "BookingClaims",
                 columns: new[] { "CustomerId", "IdempotencyKey" },
