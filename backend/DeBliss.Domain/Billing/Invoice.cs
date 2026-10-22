@@ -3,6 +3,7 @@ using DeBliss.Domain.Customers;
 using DeBliss.Domain.Identity;
 using DeBliss.Domain.Scheduling;
 using DeBliss.Domain.Services;
+using DeBliss.Domain.Staffing;
 
 namespace DeBliss.Domain.Billing;
 
@@ -79,6 +80,42 @@ public class Invoice : AuditableEntity, ISoftDeletable
     public decimal BundleDiscount { get; set; }
 
     public decimal TaxTotal { get; set; }
+
+    /// <summary>
+    /// The tax rate in percent as configured on the day of checkout. Snapshotted
+    /// alongside <see cref="TaxTotal"/> so changing the salon's configuration
+    /// never rewrites what a finished bill charged.
+    /// </summary>
+    public decimal TaxRate { get; set; }
+
+    /// <summary>
+    /// Whether prices were tax-inclusive on the day of checkout, snapshotted
+    /// with <see cref="TaxRate"/> for the same reason.
+    /// </summary>
+    public bool PricesIncludeTax { get; set; }
+
+    /// <summary>
+    /// The discretionary tip added at checkout. Deliberately its own column and
+    /// never an invoice line: tips are kept apart from service and retail
+    /// revenue, and enter the payable amount exactly once.
+    /// </summary>
+    public decimal TipAmount { get; set; }
+
+    /// <summary>
+    /// The percentage the receptionist picked, when the tip was chosen as a
+    /// percentage rather than a keyed amount. Null for a custom amount or no tip.
+    /// </summary>
+    public decimal? TipPercentage { get; set; }
+
+    /// <summary>
+    /// The staff member the tip is attributed to: set only when every service on
+    /// the visit was performed by the same one person. A shared or unassigned
+    /// visit — and a retail sale — keeps the tip unallocated; an allocation rule
+    /// for shared visits is a policy decision that has not been invented here.
+    /// </summary>
+    public Guid? TipStaffId { get; set; }
+
+    public Staff? TipStaff { get; set; }
 
     public decimal TotalAmount { get; set; }
 

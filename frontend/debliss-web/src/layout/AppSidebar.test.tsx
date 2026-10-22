@@ -57,9 +57,23 @@ describe('AppSidebar', () => {
     // Inventory is built now: enabled, like the other operational modules.
     expect(screen.getByRole('button', { name: 'Inventory' })).toBeEnabled()
 
-    for (const label of ['Packages', 'Loyalty', 'Expenses', 'Reports', 'Marketing', 'Settings']) {
+    for (const label of ['Packages', 'Loyalty', 'Expenses', 'Reports', 'Marketing']) {
       expect(screen.getByRole('button', { name: new RegExp(`^${label}`) })).toBeDisabled()
     }
+  })
+
+  it('gives the owner the tax settings rail item and navigates to it', async () => {
+    const user = userEvent.setup()
+    const onNavigate = vi.fn()
+    render(
+      <AppSidebar currentPath="/settings" user={OWNER} onNavigate={onNavigate} onSignOut={() => {}} />,
+    )
+
+    expect(screen.getByRole('button', { name: 'Settings' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Settings' })).toHaveAttribute('aria-current', 'page')
+
+    await user.click(screen.getByRole('button', { name: 'Settings' }))
+    expect(onNavigate).toHaveBeenCalledExactlyOnceWith('/settings')
   })
 
   it('gives staff an empty rail — their modules are a later task', () => {

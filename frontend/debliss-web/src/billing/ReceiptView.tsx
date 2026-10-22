@@ -1,6 +1,7 @@
 import { PAYMENT_METHOD_LABELS } from '../api/contracts.ts'
 import type { PaymentMethod, Receipt } from '../api/contracts.ts'
 import { formatDateTime, formatMoney, formatPrice } from '../format.ts'
+import { discountedTotal } from './totals.ts'
 
 function methodLabel(method: string): string {
   return PAYMENT_METHOD_LABELS[method as PaymentMethod] ?? method
@@ -70,6 +71,31 @@ export function ReceiptView({ receipt }: { receipt: Receipt }) {
           <div>
             <dt>Manual discount</dt>
             <dd>−{formatMoney(receipt.currency, receipt.manualDiscount)}</dd>
+          </div>
+        )}
+        {(receipt.taxRate ?? 0) > 0 && (
+          <>
+            <div>
+              <dt>{receipt.pricesIncludeTax ? 'Total (VAT included)' : 'Total before VAT'}</dt>
+              <dd>{formatMoney(receipt.currency, discountedTotal(receipt))}</dd>
+            </div>
+            <div>
+              <dt>
+                {receipt.pricesIncludeTax
+                  ? `Includes VAT (${receipt.taxRate}%)`
+                  : `VAT (${receipt.taxRate}%)`}
+              </dt>
+              <dd>
+                {receipt.pricesIncludeTax ? '' : '+'}
+                {formatMoney(receipt.currency, receipt.taxTotal ?? 0)}
+              </dd>
+            </div>
+          </>
+        )}
+        {(receipt.tipAmount ?? 0) > 0 && (
+          <div>
+            <dt>Tip</dt>
+            <dd>+{formatMoney(receipt.currency, receipt.tipAmount ?? 0)}</dd>
           </div>
         )}
         <div className="receipt-total-row">

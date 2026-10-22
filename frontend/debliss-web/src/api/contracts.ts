@@ -560,6 +560,9 @@ export const DISCOUNT_TYPES = ['Fixed', 'Percentage'] as const
 
 export type DiscountType = (typeof DISCOUNT_TYPES)[number]
 
+/** The quick tip percentages the checkout screen offers; a custom amount is keyed by hand. */
+export const TIP_PERCENTAGE_OPTIONS = [5, 10, 15, 20] as const
+
 export const DISCOUNT_TYPE_LABELS: Record<DiscountType, string> = {
   Fixed: 'Fixed',
   Percentage: 'Percentage',
@@ -615,6 +618,9 @@ export interface InvoicePayment {
  * Bundle invoices keep every component line at its standard price and carry the
  * bundle's saving as `bundleDiscount`, which is always part of `discountTotal`;
  * coupons and manual discounts are capped against subtotal minus that saving.
+ * Tax and tip are snapshotted at checkout, so `totalAmount` is the payable
+ * figure — post-discount amount, VAT and tip together — and finalized bills
+ * never move when the salon's tax settings change.
  */
 export interface Invoice {
   id: string
@@ -635,6 +641,15 @@ export interface Invoice {
   couponDiscount: number
   manualDiscount: number
   discountTotal: number
+  /** VAT snapshot: the rate and mode in force when the bill was finalized. */
+  taxRate?: number
+  pricesIncludeTax?: boolean
+  taxTotal?: number
+  /** The tip charged; tipPercentage is the saved choice behind a percentage tip. */
+  tipAmount?: number
+  tipPercentage?: number | null
+  /** Null when the visit had no staff, or several, and the tip stays unallocated. */
+  tipStaffId?: string | null
   totalAmount: number
   issuedAt: string | null
   createdAt: string
@@ -651,6 +666,15 @@ export interface CheckoutInvoiceRequest {
   paymentMethod: PaymentMethod | null
   amount: number | null
   reference: string | null
+  /** Exactly one of these is sent when a tip is charged; both null for no tip. */
+  tipPercentage: number | null
+  tipAmount: number | null
+}
+
+/** The tip choice saved on a draft invoice so a resumed checkout restores it. */
+export interface SetTipRequest {
+  tipPercentage: number | null
+  tipAmount: number | null
 }
 
 /** One printable line of a receipt. */
@@ -674,12 +698,33 @@ export interface Receipt {
   couponCode: string | null
   couponDiscount: number
   manualDiscount: number
+  /** VAT snapshot taken at checkout, matching the stored invoice exactly. */
+  taxRate?: number
+  pricesIncludeTax?: boolean
+  taxTotal?: number
+  tipAmount?: number
   totalAmount: number
   currency: string
   paymentMethod: string
   paymentReference: string | null
   paidAt: string
   issuedAt: string
+}
+
+/** The salon's tax configuration — one row, owner-editable. */
+export interface TaxSettings {
+  taxRate: number
+  pricesIncludeTax: boolean
+}
+
+/**
+ * The owner's save payload for the tax settings screen. The rate is nullable so
+ * an empty field reaches the server and comes back as a field-level error,
+ * exactly like the checkout request's other money fields.
+ */
+export interface SaveTaxSettingsRequest {
+  taxRate: number | null
+  pricesIncludeTax: boolean
 }
 
 /** What the checkout screen sends to preview a coupon against a subtotal. */
@@ -798,6 +843,139 @@ export interface DashboardNote {
 export interface DashboardPopularService {
   name: string
   count: number
+}
+
+/* ------------------------------------------------------------------ */
+/* Owner dashboard                                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The owner's business snapshot: the money the front desk never sees, next to
+ * the same floor view the receptionist gets. Net revenue everywhere means
+ * what the salon keeps — totals on paid invoices minus VAT and tips.
+ */
+export interface OwnerDashboard {
+  generatedAt: string
+  timeZoneId: string
+  kpis: OwnerDashboardKpis
+  operations: OwnerDashboardOperations
+  revenue: OwnerDashboardRevenue
+  inventory: OwnerDashboardInventory
+  actions: OwnerDashboardAction[]
+}
+
+/** The fixed KPI cards: the day and the month, each against its own prior. */
+export interface OwnerDashboardKpis {
+  currency: string
+  /** Paid invoices issued today minus VAT and tips. */
+  netRevenueToday: number
+  netRevenueYesterday: number
+  /** Paid invoices issued this calendar month so far, salon-local. */
+  netRevenueMonthToDate: number
+  /** The same calendar days of the previous month, for a like-for-like read. */
+  netRevenueSamePeriodLastMonth: number
+  completedAppointmentsToday: number
+  upcomingAppointmentsToday: number
+  /** Net revenue of the selected range divided by its paid invoices. */
+  averageTransactionValue: number
+  paidInvoiceCount: number
+  /** Product-line totals on the range's paid invoices, before discounts. */
+  retailRevenue: number
+  serviceRevenue: number
+  /** Still owed on Issued/PartiallyPaid invoices — drafts are counted, never summed. */
+  outstandingAmount: number
+  outstandingInvoiceCount: number
+}
+
+/** The receptionist's floor view, reused verbatim, plus owner-only extras. */
+export interface OwnerDashboardOperations {
+  today: DashboardToday
+  schedule: DashboardAppointment[]
+  upcoming: DashboardAppointment[]
+  staff: DashboardStaffMember[]
+  /** Completed visits today with no paid invoice yet. */
+  awaitingCheckout: number
+  conflicts: OwnerScheduleConflict[]
+}
+
+/** Two visits claimed the same staff member at once today. */
+export interface OwnerScheduleConflict {
+  staffId: string
+  staffName: string
+  startsAt: string
+  endsAt: string
+  appointmentCount: number
+}
+
+/** Everything the selected range drives: totals, splits and the trends. */
+export interface OwnerDashboardRevenue {
+  rangeLabel: string
+  from: string
+  to: string
+  /** Paid invoices in range minus VAT and tips. */
+  netRevenue: number
+  /** The immediately preceding equal-length window (same days last month for ThisMonth). */
+  previousNetRevenue: number
+  /** Percent change vs the previous window; null when there was no prior revenue. */
+  changePercent: number | null
+  serviceRevenue: number
+  retailRevenue: number
+  vatTotal: number
+  tipTotal: number
+  discountTotal: number
+  /** Completed payments minus refunded ones, by payment date. */
+  collected: number
+  paidInvoiceCount: number
+  averageTransactionValue: number
+  /** One point per day of the range, salon-local, zero-filled. */
+  daily: OwnerDailyPoint[]
+  /** The last six full and partial months, salon-local. */
+  monthly: OwnerMonthlyPoint[]
+  topServices: OwnerNamedRevenue[]
+  categories: OwnerNamedRevenue[]
+  retailProducts: OwnerNamedRevenue[]
+}
+
+export interface OwnerDailyPoint {
+  date: string
+  netRevenue: number
+  completed: number
+  cancelled: number
+}
+
+export interface OwnerMonthlyPoint {
+  monthStart: string
+  netRevenue: number
+}
+
+/** Revenue grouped by a name; count is lines for services, units for retail. */
+export interface OwnerNamedRevenue {
+  name: string
+  revenue: number
+  count: number
+}
+
+export interface OwnerDashboardInventory {
+  lowStockCount: number
+  outOfStockCount: number
+  items: OwnerInventoryItem[]
+}
+
+export interface OwnerInventoryItem {
+  productId: string
+  name: string
+  currentStock: number
+  minimumStock: number
+  unitOfMeasure: string
+  status: string
+}
+
+/** One prioritised, real-data attention item; link is an in-app path. */
+export interface OwnerDashboardAction {
+  severity: string
+  message: string
+  count: number
+  link: string
 }
 
 /* ------------------------------------------------------------------ */

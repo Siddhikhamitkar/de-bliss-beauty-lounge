@@ -56,12 +56,12 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'billing', label: 'Billing', icon: 'billing', group: 'operations', path: '/billing', roles: ['OWNER', 'RECEPTIONIST'] },
   { key: 'reminders', label: 'Reminders', icon: 'reminders', group: 'operations', path: '/reminders', roles: ['OWNER', 'RECEPTIONIST'] },
   { key: 'inventory', label: 'Inventory', icon: 'inventory', group: 'operations', path: '/inventory', roles: ['OWNER', 'RECEPTIONIST'] },
+  { key: 'settings', label: 'Settings', icon: 'settings', group: 'operations', path: '/settings', roles: ['OWNER'] },
   { key: 'packages', label: 'Packages', icon: 'packages', group: 'soon', roles: ['OWNER'] },
   { key: 'loyalty', label: 'Loyalty', icon: 'loyalty', group: 'soon', roles: ['OWNER'] },
   { key: 'expenses', label: 'Expenses', icon: 'expenses', group: 'soon', roles: ['OWNER'] },
   { key: 'reports', label: 'Reports', icon: 'reports', group: 'soon', roles: ['OWNER'] },
   { key: 'marketing', label: 'Marketing', icon: 'marketing', group: 'soon', roles: ['OWNER'] },
-  { key: 'settings', label: 'Settings', icon: 'settings', group: 'soon', roles: ['OWNER'] },
 ]
 
 /** Sub-screens that belong to a rail item even though they live on their own path. */

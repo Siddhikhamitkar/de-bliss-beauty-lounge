@@ -1,4 +1,6 @@
 using DeBliss.Application.Billing;
+using DeBliss.Application.Settings;
+using DeBliss.Application.Settings.Dtos;
 using DeBliss.Domain.Billing;
 using DeBliss.Domain.Scheduling;
 using DeBliss.Infrastructure.Persistence;
@@ -11,6 +13,9 @@ namespace DeBliss.UnitTests.Billing;
 /// Wires the real billing services to the real repositories over a throwaway
 /// SQLite database. One context for the whole harness mirrors one web request,
 /// where DI hands every repository and the unit of work the same scoped DbContext.
+/// The salon starts at a zero VAT rate so the discount, bundle and payment tests
+/// assert exactly what they are about; the VAT and tip tests set the rate they
+/// need through <see cref="Settings"/>.
 /// </summary>
 internal sealed class BillingHarness : IDisposable
 {
@@ -25,10 +30,14 @@ internal sealed class BillingHarness : IDisposable
             new AppointmentRepository(Context),
             new CustomerRepository(Context),
             new InventoryRepository(Context),
+            new SalonSettingsRepository(Context),
             Context,
             Database.Clock);
 
         Coupons = new CouponService(new CouponRepository(Context), Context, Database.Clock);
+        Settings = new SettingsService(new SalonSettingsRepository(Context), Context);
+
+        Settings.UpdateTaxAsync(new SaveTaxSettingsRequest(0m, false)).GetAwaiter().GetResult();
     }
 
     public SqliteTestDatabase Database { get; }
@@ -38,6 +47,12 @@ internal sealed class BillingHarness : IDisposable
     public IInvoiceService Invoices { get; }
 
     public ICouponService Coupons { get; }
+
+    public ISettingsService Settings { get; }
+
+    /// <summary>Configures the salon's VAT rate and pricing mode for the next checkout.</summary>
+    public Task SetTaxAsync(decimal rate, bool pricesIncludeTax) =>
+        Settings.UpdateTaxAsync(new SaveTaxSettingsRequest(rate, pricesIncludeTax));
 
     /// <summary>A separate context, so assertions read what was actually written.</summary>
     public DeBlissDbContext Reopen() => Database.CreateContext();
@@ -68,12 +83,21 @@ internal sealed class BillingHarness : IDisposable
         string? walkInCustomerName = null,
         IReadOnlyList<(Guid ServiceId, string SnapshotName, decimal UnitPrice, int SortOrder)>? lines = null,
         Guid? serviceBundleId = null,
-        decimal? bundlePriceSnapshot = null)
+        decimal? bundlePriceSnapshot = null,
+        IReadOnlyList<Guid?>? lineStaffIds = null)
     {
         await using var context = Reopen();
         var id = await BillingSeed.AppointmentAsync(
             context, customerId, startsAt, status, walkInCustomerName, lines,
-            serviceBundleId, bundlePriceSnapshot);
+            serviceBundleId, bundlePriceSnapshot, lineStaffIds);
+        Context.ChangeTracker.Clear();
+        return id;
+    }
+
+    public async Task<Guid> SeedStaffAsync(string firstName, string lastName = "Stylist")
+    {
+        await using var context = Reopen();
+        var id = await StaffingSeed.StaffAsync(context, firstName, lastName);
         Context.ChangeTracker.Clear();
         return id;
     }

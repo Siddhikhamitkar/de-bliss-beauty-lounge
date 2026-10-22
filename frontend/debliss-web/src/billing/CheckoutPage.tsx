@@ -5,17 +5,20 @@ import {
   getInvoice,
   getReceipt,
   removeInvoiceLine,
+  setInvoiceTip,
   startInvoice,
   updateInvoiceLine,
   validateCoupon,
 } from '../api/billing.ts'
 import { getSellableProducts } from '../api/inventory.ts'
+import { getTaxSettings } from '../api/settings.ts'
 import { ApiError, describeFailure } from '../api/client.ts'
 import {
   DISCOUNT_TYPE_LABELS,
   DISCOUNT_TYPES,
   PAYMENT_METHODS,
   PAYMENT_METHOD_LABELS,
+  TIP_PERCENTAGE_OPTIONS,
 } from '../api/contracts.ts'
 import type {
   CheckoutInvoiceRequest,
@@ -93,9 +96,10 @@ const REFERENCE_LABELS: Record<PaymentMethod, string> = {
  * The receptionist's checkout: the appointment's services load automatically
  * (or, for a walk-in retail sale, the bill starts empty and fills with
  * products from the picker), one coupon and one manual discount can come off,
- * and one of three payment methods closes the visit. The server revalidates
- * every number — including the stock behind each product line; this screen
- * only previews it.
+ * a tip rides on top of the VAT-adjusted total, and one of three payment
+ * methods closes the visit. The server revalidates every number — including
+ * the tax, the tip and the stock behind each product line; this screen only
+ * previews it.
  */
 export function CheckoutPage({ appointmentId, invoiceId, onClose, onPaid }: CheckoutPageProps) {
   const invoice = useAsync(
@@ -109,6 +113,10 @@ export function CheckoutPage({ appointmentId, invoiceId, onClose, onPaid }: Chec
   // The active retail catalogue behind the product picker; viewing it is part
   // of both roles, so it loads for every checkout.
   const products = useAsync(() => getSellableProducts(), [])
+  // The salon's live VAT configuration — the rate is never hardcoded here, and
+  // the server recomputes the payable amount from the same settings, rejecting
+  // a collected amount that disagrees with what this preview shows.
+  const taxSettings = useAsync(() => getTaxSettings(), [])
 
   const [couponInput, setCouponInput] = useState('')
   const [coupon, setCoupon] = useState<CouponValidation>()
@@ -130,6 +138,11 @@ export function CheckoutPage({ appointmentId, invoiceId, onClose, onPaid }: Chec
   const [qtyEdits, setQtyEdits] = useState<Record<string, string>>({})
   const [lineBusy, setLineBusy] = useState(false)
   const [lineFailure, setLineFailure] = useState<string>()
+  // The tip choice: one of the fixed percentages, a hand-keyed amount, or none.
+  const [tipMode, setTipMode] = useState<'none' | 'percentage' | 'custom'>('none')
+  const [tipPercentage, setTipPercentage] = useState<number | null>(null)
+  const [tipCustomInput, setTipCustomInput] = useState('')
+  const [tipFailure, setTipFailure] = useState<string>()
 
   // Resuming a checkout whose invoice was already paid shows its receipt.
   const paidInvoiceId = record !== undefined && record.status === 'Paid' ? record.id : undefined
@@ -158,10 +171,30 @@ export function CheckoutPage({ appointmentId, invoiceId, onClose, onPaid }: Chec
     }
   }, [paidInvoiceId, receipt, receiptFailure])
 
+  // A draft remembers the tip choice saved on it, so an interrupted checkout
+  // resumes where it left off. Synced during render — the same pattern useAsync
+  // itself uses — and only once per invoice: later reloads (adding a product,
+  // for example) keep whatever the receptionist has chosen since.
+  const [tipRestoredFor, setTipRestoredFor] = useState<string>()
+
+  if (record !== undefined && tipRestoredFor !== record.id) {
+    setTipRestoredFor(record.id)
+
+    if (record.tipPercentage != null) {
+      setTipMode('percentage')
+      setTipPercentage(record.tipPercentage)
+    } else if ((record.tipAmount ?? 0) > 0) {
+      setTipMode('custom')
+      setTipCustomInput(String(record.tipAmount))
+    }
+  }
+
   const subtotal = record?.subTotal ?? 0
   const currency = record?.currency ?? ''
   const bundleName = record?.bundleName ?? null
   const bundleDiscount = record?.bundleDiscount ?? 0
+  const taxRate = taxSettings.data?.taxRate ?? 0
+  const pricesIncludeTax = taxSettings.data?.pricesIncludeTax ?? false
 
   // The bundle's saving comes off first, so a percentage coupon or manual
   // discount is computed against what is still owed — the same base the server
@@ -177,8 +210,24 @@ export function CheckoutPage({ appointmentId, invoiceId, onClose, onPaid }: Chec
       : 0
   const total = round2(Math.max(0, discountable - couponDiscount - manualDiscount))
 
-  // The amount tracks the live total until the receptionist overtypes it.
-  const amount = amountOverride ?? total.toFixed(2)
+  // VAT mirrors TaxMath on the server: added on top of the discounted amount,
+  // or already inside it when prices are tax-inclusive — never both. Tips ride
+  // on top of the VAT-adjusted amount and never join the taxable base.
+  const taxTotal = round2(
+    pricesIncludeTax ? (total * taxRate) / (100 + taxRate) : (total * taxRate) / 100,
+  )
+  const tipBase = pricesIncludeTax ? total : round2(total + taxTotal)
+  const tipCustom = tipMode === 'custom' ? parseNumber(tipCustomInput) : null
+  const tipTotal =
+    tipMode === 'percentage' && tipPercentage !== null
+      ? round2((tipBase * tipPercentage) / 100)
+      : tipCustom !== null && tipCustom > 0
+        ? tipCustom
+        : 0
+  const payable = round2(total + tipTotal + (pricesIncludeTax ? 0 : taxTotal))
+
+  // The amount tracks the live payable until the receptionist overtypes it.
+  const amount = amountOverride ?? payable.toFixed(2)
 
   function applyCoupon() {
     const code = couponInput.trim()
@@ -202,6 +251,40 @@ export function CheckoutPage({ appointmentId, invoiceId, onClose, onPaid }: Chec
       .finally(() => setCouponBusy(false))
   }
 
+  /**
+   * Persists the tip choice on the draft so an interrupted checkout resumes
+   * with it. Fire-and-forget by design: the preview above must react instantly,
+   * and checkout re-sends the tip anyway, so a lost save only costs the resume
+   * convenience — never the money.
+   */
+  function saveTipChoice(percentage: number | null, tipAmount: number | null) {
+    if (record === undefined) {
+      return
+    }
+
+    setTipFailure(undefined)
+
+    setInvoiceTip(record.id, { tipPercentage: percentage, tipAmount }).catch(
+      (error: unknown) => {
+        setTipFailure(describeFailure(error))
+      },
+    )
+  }
+
+  /**
+   * The typed tip amount is committed to the draft once the receptionist
+   * leaves the field — not on every keystroke.
+   */
+  function commitCustomTip() {
+    if (record === undefined) {
+      return
+    }
+
+    const value = parseNumber(tipCustomInput)
+
+    saveTipChoice(null, value !== null && value > 0 ? value : null)
+  }
+
   function completePayment() {
     if (record === undefined) {
       return
@@ -215,6 +298,8 @@ export function CheckoutPage({ appointmentId, invoiceId, onClose, onPaid }: Chec
       paymentMethod: method,
       amount: parsedAmount,
       reference: reference.trim() === '' ? null : reference.trim(),
+      tipPercentage: tipMode === 'percentage' ? tipPercentage : null,
+      tipAmount: tipMode === 'custom' && tipCustom !== null && tipCustom > 0 ? tipCustom : null,
     }
 
     setSubmitting(true)
@@ -331,6 +416,13 @@ export function CheckoutPage({ appointmentId, invoiceId, onClose, onPaid }: Chec
 
         {receiptFailure !== undefined && (
           <p className="banner" role="alert">{receiptFailure}</p>
+        )}
+
+        {taxSettings.failure !== undefined && (
+          <p className="banner" role="alert">
+            Could not load the VAT settings — the preview below may not match what the server
+            charges: {taxSettings.failure}
+          </p>
         )}
 
         {record !== undefined && record.status === 'Draft' && (
@@ -555,9 +647,117 @@ export function CheckoutPage({ appointmentId, invoiceId, onClose, onPaid }: Chec
                 />
               </div>
 
+              <div className="field">
+                <span>Tip</span>
+                <div className="payment-methods" role="radiogroup" aria-label="Tip">
+                  <label className="payment-method">
+                    <input
+                      type="radio"
+                      name="tipChoice"
+                      value="none"
+                      checked={tipMode === 'none'}
+                      onChange={() => {
+                        setTipMode('none')
+                        setTipPercentage(null)
+                        saveTipChoice(null, null)
+                      }}
+                    />
+                    No tip
+                  </label>
+                  {TIP_PERCENTAGE_OPTIONS.map(option => (
+                    <label key={option} className="payment-method">
+                      <input
+                        type="radio"
+                        name="tipChoice"
+                        value={option}
+                        checked={tipMode === 'percentage' && tipPercentage === option}
+                        onChange={() => {
+                          setTipMode('percentage')
+                          setTipPercentage(option)
+                          saveTipChoice(option, null)
+                        }}
+                      />
+                      {option}%
+                    </label>
+                  ))}
+                  <label className="payment-method">
+                    <input
+                      type="radio"
+                      name="tipChoice"
+                      value="custom"
+                      checked={tipMode === 'custom'}
+                      onChange={() => {
+                        setTipMode('custom')
+                        setTipPercentage(null)
+                        saveTipChoice(null, null)
+                      }}
+                    />
+                    Custom
+                  </label>
+                </div>
+                {tipMode === 'custom' && (
+                  <input
+                    type="number"
+                    name="tipAmount"
+                    aria-label="Custom tip amount"
+                    min="0"
+                    step="0.01"
+                    placeholder={formatPrice(0)}
+                    value={tipCustomInput}
+                    onChange={event => setTipCustomInput(event.target.value)}
+                    onBlur={commitCustomTip}
+                    onKeyDown={event => {
+                      if (event.key === 'Enter') {
+                        commitCustomTip()
+                      }
+                    }}
+                  />
+                )}
+                {tipMode === 'percentage' && tipPercentage !== null && (
+                  <p className="row-subtext">
+                    {tipPercentage}% of the pre-tip total ({formatMoney(currency, tipBase)})
+                  </p>
+                )}
+                {tipFailure !== undefined && <p className="banner" role="alert">{tipFailure}</p>}
+                <FieldErrors
+                  messages={[
+                    ...(fieldErrors?.['tipPercentage'] ?? []),
+                    ...(fieldErrors?.['tipAmount'] ?? []),
+                  ]}
+                />
+              </div>
+
+              <div className="receipt-totals">
+                {taxRate > 0 && (
+                  <>
+                    <div>
+                      <dt>{pricesIncludeTax ? 'Total (VAT included)' : 'Total before VAT'}</dt>
+                      <dd>{formatMoney(currency, total)}</dd>
+                    </div>
+                    <div>
+                      <dt>{pricesIncludeTax ? `Includes VAT (${taxRate}%)` : `VAT (${taxRate}%)`}</dt>
+                      <dd>
+                        {pricesIncludeTax ? '' : '+'}
+                        {formatMoney(currency, taxTotal)}
+                      </dd>
+                    </div>
+                  </>
+                )}
+                {tipTotal > 0 && (
+                  <div>
+                    <dt>
+                      {tipMode === 'percentage' && tipPercentage !== null
+                        ? `Tip (${tipPercentage}%)`
+                        : 'Tip'}
+                    </dt>
+                    <dd>+{formatMoney(currency, tipTotal)}</dd>
+                  </div>
+                )}
+              </div>
+
               <div className="checkout-total-row">
                 <span>TOTAL</span>
-                <span className="checkout-total-value">{formatMoney(currency, total)}</span>
+                <span className="checkout-total-value">{formatMoney(currency, payable)}</span>
               </div>
             </div>
 

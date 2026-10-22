@@ -84,6 +84,12 @@ public static class Permissions
     public static class Dashboard
     {
         public const string ViewReceptionistDashboard = "dashboard.receptionist.read";
+
+        /// <summary>
+        /// The owner dashboard's financial aggregates — net revenue, VAT, tips,
+        /// outstanding money. Owner only; the front desk never sees money.
+        /// </summary>
+        public const string ViewOwnerDashboard = "dashboard.owner.read";
     }
 
     public static class Notifications
@@ -102,5 +108,17 @@ public static class Permissions
     {
         /// <summary>The future owner workspace (dashboard, reports, settings). Enforced now on the owner landing endpoint.</summary>
         public const string AccessWorkspace = "owner.workspace.access";
+    }
+
+    public static class Settings
+    {
+        /// <summary>
+        /// The live tax rate and pricing mode, read by the checkout screen to
+        /// preview what is owed. Owner and receptionist.
+        /// </summary>
+        public const string ViewTaxSettings = "settings.tax.read";
+
+        /// <summary>Changing the salon's tax configuration. Owner only.</summary>
+        public const string ManageTaxSettings = "settings.tax.manage";
     }
 }

@@ -7,6 +7,7 @@ using DeBliss.Application.Notifications;
 using DeBliss.Application.Notifications.Ports;
 using DeBliss.Application.Scheduling;
 using DeBliss.Application.ServiceCatalogue;
+using DeBliss.Application.Settings;
 using DeBliss.Application.Staffing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -31,8 +32,10 @@ public static class DependencyInjection
         services.AddScoped<IPublicAvailabilityService, PublicAvailabilityService>();
         services.AddScoped<IInvoiceService, InvoiceService>();
         services.AddScoped<ICouponService, CouponService>();
+        services.AddScoped<ISettingsService, SettingsService>();
         services.AddScoped<IInventoryService, InventoryService>();
         services.AddScoped<IReceptionistDashboardService, ReceptionistDashboardService>();
+        services.AddScoped<IOwnerDashboardService, OwnerDashboardService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<ICustomerAccessService, CustomerAccessService>();
         services.AddScoped<ReminderPlanner>();

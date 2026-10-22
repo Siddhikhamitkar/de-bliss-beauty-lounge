@@ -6,6 +6,7 @@ using DeBliss.Domain.Inventory;
 using DeBliss.Domain.Notifications;
 using DeBliss.Domain.Scheduling;
 using DeBliss.Domain.Services;
+using DeBliss.Domain.Settings;
 using DeBliss.Domain.Staffing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
@@ -43,12 +44,13 @@ public class DeBlissDbContextModelTests
         typeof(AppointmentReminder),
         typeof(InventoryProduct),
         typeof(StockMovement),
+        typeof(SalonSettings),
     };
 
     [Fact]
     public void The_model_maps_exactly_the_core_entities()
     {
-        Assert.Equal(27, TestModel.Model.GetEntityTypes().Count());
+        Assert.Equal(28, TestModel.Model.GetEntityTypes().Count());
     }
 
     [Theory]
@@ -99,6 +101,7 @@ public class DeBlissDbContextModelTests
     [InlineData(typeof(AppointmentReminder), "AppointmentReminders")]
     [InlineData(typeof(InventoryProduct), "InventoryProducts")]
     [InlineData(typeof(StockMovement), "StockMovements")]
+    [InlineData(typeof(SalonSettings), "SalonSettings")]
     public void Tables_are_named_explicitly(Type entityType, string tableName)
     {
         Assert.Equal(tableName, TestModel.Entity(entityType).GetTableName());
@@ -146,6 +149,39 @@ public class DeBlissDbContextModelTests
 
         Assert.Equal(typeof(decimal), quantity.ClrType);
         Assert.Equal(3, quantity.GetScale()!.Value);
+    }
+
+    [Theory]
+    [InlineData(typeof(Invoice), nameof(Invoice.TaxRate))]
+    [InlineData(typeof(SalonSettings), nameof(SalonSettings.TaxRate))]
+    public void Percentages_are_stored_with_two_decimals(Type entityType, string propertyName)
+    {
+        var property = TestModel.Entity(entityType).FindProperty(propertyName)!;
+
+        Assert.Equal(typeof(decimal), property.ClrType);
+        Assert.Equal(5, property.GetPrecision()!.Value);
+        Assert.Equal(2, property.GetScale()!.Value);
+    }
+
+    [Fact]
+    public void A_tip_percentage_is_optional_but_keeps_the_percentage_scale()
+    {
+        var property = TestModel.Entity(typeof(Invoice)).FindProperty(nameof(Invoice.TipPercentage))!;
+
+        Assert.Equal(typeof(decimal?), property.ClrType);
+        Assert.Equal(5, property.GetPrecision()!.Value);
+        Assert.Equal(2, property.GetScale()!.Value);
+    }
+
+    [Theory]
+    [InlineData(typeof(Invoice), nameof(Invoice.TipAmount))]
+    public void Tip_money_is_stored_as_decimal_with_a_fixed_scale(Type entityType, string propertyName)
+    {
+        var property = TestModel.Entity(entityType).FindProperty(propertyName)!;
+
+        Assert.Equal(typeof(decimal), property.ClrType);
+        Assert.Equal(18, property.GetPrecision()!.Value);
+        Assert.Equal(2, property.GetScale()!.Value);
     }
 
     [Theory]

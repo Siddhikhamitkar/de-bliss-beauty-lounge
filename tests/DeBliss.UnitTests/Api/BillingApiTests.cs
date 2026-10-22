@@ -29,7 +29,9 @@ public sealed class BillingApiTests : ApiTestBase
         decimal? manualDiscountValue = null,
         string? paymentMethod = "Cash",
         decimal? amount = 160m,
-        string? reference = null) =>
+        string? reference = null,
+        decimal? tipPercentage = null,
+        decimal? tipAmount = null) =>
         new
         {
             couponCode,
@@ -37,7 +39,9 @@ public sealed class BillingApiTests : ApiTestBase
             manualDiscountValue,
             paymentMethod,
             amount,
-            reference
+            reference,
+            tipPercentage,
+            tipAmount
         };
 
     /// <summary>A completed visit whose booked prices differ from the catalogue, so the snapshot is provable.</summary>
@@ -275,6 +279,65 @@ public sealed class BillingApiTests : ApiTestBase
         var response = await Client.GetAsync($"{InvoicesUrl}/{invoice.Id}/receipt");
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_tip_choice_saved_on_the_draft_survives_a_resumed_checkout()
+    {
+        var appointmentId = await SeedCompletedVisitAsync();
+        var invoice = await StartInvoiceAsync(appointmentId);
+
+        var saved = await Client.PutAsJsonAsync($"{InvoicesUrl}/{invoice.Id}/tip", new { tipPercentage = 10m });
+
+        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+        Assert.Equal(10m, (await ReadAsync<InvoiceDto>(saved)).TipPercentage);
+
+        // The interrupted checkout resumes on the same bill, tip still picked.
+        var resumed = await ReadAsync<InvoiceDto>(
+            await Client.PostAsJsonAsync(InvoicesUrl, new { appointmentId }));
+
+        Assert.Equal(invoice.Id, resumed.Id);
+        Assert.Equal(10m, resumed.TipPercentage);
+
+        var paid = await Client.PostAsJsonAsync(
+            $"{InvoicesUrl}/{invoice.Id}/checkout",
+            Checkout(amount: 176m, tipPercentage: 10m));
+
+        Assert.Equal(HttpStatusCode.OK, paid.StatusCode);
+
+        var receipt = await ReadAsync<ReceiptDto>(paid);
+
+        // 10% of the 160 owed at the test salon's zero rate.
+        Assert.Equal(16m, receipt.TipAmount);
+        Assert.Equal(176m, receipt.TotalAmount);
+    }
+
+    [Fact]
+    public async Task A_tip_cannot_be_saved_on_an_invoice_that_is_already_paid()
+    {
+        var invoice = await StartInvoiceAsync(await SeedCompletedVisitAsync());
+
+        await Client.PostAsJsonAsync($"{InvoicesUrl}/{invoice.Id}/checkout", Checkout());
+
+        var refused = await Client.PutAsJsonAsync($"{InvoicesUrl}/{invoice.Id}/tip", new { tipPercentage = 10m });
+
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_tip_choice_with_both_a_percentage_and_an_amount_is_a_validation_problem()
+    {
+        var invoice = await StartInvoiceAsync(await SeedCompletedVisitAsync());
+
+        var response = await Client.PutAsJsonAsync(
+            $"{InvoicesUrl}/{invoice.Id}/tip",
+            new { tipPercentage = 10m, tipAmount = 5m });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var problem = await ReadAsync<ValidationProblem>(response);
+
+        Assert.Contains("tipAmount", problem.Errors.Keys);
     }
 
     [Fact]

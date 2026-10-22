@@ -25,6 +25,13 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         builder.Property(invoice => invoice.ManualDiscount).HasPrecision(18, 2);
         builder.Property(invoice => invoice.BundleDiscount).HasPrecision(18, 2);
         builder.Property(invoice => invoice.TaxTotal).HasPrecision(18, 2);
+
+        // The rate and mode are snapshots of the settings on the day of
+        // checkout, stored on the bill they produced.
+        builder.Property(invoice => invoice.TaxRate).HasPrecision(5, 2);
+        builder.Property(invoice => invoice.TipAmount).HasPrecision(18, 2);
+        builder.Property(invoice => invoice.TipPercentage).HasPrecision(5, 2);
+
         builder.Property(invoice => invoice.TotalAmount).HasPrecision(18, 2);
 
         builder.HasIndex(invoice => invoice.InvoiceNumber).IsUnique();
@@ -61,6 +68,13 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         builder.HasOne(invoice => invoice.ServiceBundle)
             .WithMany(bundle => bundle.Invoices)
             .HasForeignKey(invoice => invoice.ServiceBundleId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Restrict: tip attribution on a paid invoice is financial history and
+        // must never be rewritten or removed by a staff record change.
+        builder.HasOne(invoice => invoice.TipStaff)
+            .WithMany()
+            .HasForeignKey(invoice => invoice.TipStaffId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(invoice => invoice.CreatedByUser)

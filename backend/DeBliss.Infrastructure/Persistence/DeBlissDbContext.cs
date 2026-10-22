@@ -6,6 +6,7 @@ using DeBliss.Domain.Inventory;
 using DeBliss.Domain.Notifications;
 using DeBliss.Domain.Scheduling;
 using DeBliss.Domain.Services;
+using DeBliss.Domain.Settings;
 using DeBliss.Domain.Staffing;
 using Microsoft.EntityFrameworkCore;
 
@@ -72,6 +73,8 @@ public class DeBlissDbContext(DbContextOptions<DeBlissDbContext> options)
     public DbSet<AppointmentReminder> AppointmentReminders => Set<AppointmentReminder>();
 
     public DbSet<BookingClaim> BookingClaims => Set<BookingClaim>();
+
+    public DbSet<SalonSettings> SalonSettings => Set<SalonSettings>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

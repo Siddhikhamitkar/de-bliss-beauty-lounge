@@ -7,10 +7,12 @@ using DeBliss.Application.Common.Paging;
 using DeBliss.Application.Customers.Ports;
 using DeBliss.Application.Inventory.Ports;
 using DeBliss.Application.Scheduling.Ports;
+using DeBliss.Application.Settings.Ports;
 using DeBliss.Domain.Billing;
 using DeBliss.Domain.Customers;
 using DeBliss.Domain.Inventory;
 using DeBliss.Domain.Scheduling;
+using DeBliss.Domain.Settings;
 
 namespace DeBliss.Application.Billing;
 
@@ -24,8 +26,14 @@ namespace DeBliss.Application.Billing;
 /// Discounts are validated here (the browser is never trusted):
 /// coupon and manual discount are computed separately, the combined reduction
 /// can never exceed the subtotal, and the final total can never go below zero.
-/// Recording the payment and marking the invoice Paid happen in one save, so an
-/// invoice is never left half checked out.
+/// VAT is charged on what the customer actually pays — the post-discount
+/// amount — at the salon's configured rate, and the tip is a discretionary
+/// gratuity on top: it never joins the taxable amount, and it is stored as its
+/// own figure rather than an invoice line so tips stay apart from service and
+/// retail revenue. The rate, the mode and the tax and tip amounts are
+/// snapshotted onto the invoice, so a later settings change never rewrites what
+/// was charged. Recording the payment and marking the invoice Paid happen in
+/// one save, so an invoice is never left half checked out.
 /// </summary>
 public sealed class InvoiceService(
     IInvoiceRepository invoices,
@@ -33,6 +41,7 @@ public sealed class InvoiceService(
     IAppointmentRepository appointments,
     ICustomerRepository customers,
     IInventoryRepository inventory,
+    ISalonSettingsRepository salonSettings,
     IUnitOfWork unitOfWork,
     TimeProvider timeProvider) : IInvoiceService
 {
@@ -308,6 +317,43 @@ public sealed class InvoiceService(
         return Map(invoice);
     }
 
+    public async Task<InvoiceDto> SetTipAsync(
+        Guid id,
+        SetTipRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var invoice = await LoadAsync(id, cancellationToken);
+
+        AssertDraft(invoice);
+
+        var errors = new ValidationErrorBuilder();
+
+        if (request.TipPercentage is not null && request.TipAmount is not null)
+        {
+            errors.Add("tipAmount", "Enter either a tip percentage or a custom amount, not both.");
+        }
+        else if (request.TipPercentage is { } percentage && (percentage <= 0m || percentage > 100m))
+        {
+            errors.Add("tipPercentage", "Enter a tip percentage between 0 and 100.");
+        }
+        else if (request.TipAmount is { } amount && amount <= 0m)
+        {
+            errors.Add("tipAmount", "Enter a tip amount greater than zero.");
+        }
+
+        errors.ThrowIfInvalid();
+
+        // Only the choice is persisted; the charged amount is computed at
+        // checkout, when the discounts and tax it depends on are final. A
+        // percentage therefore does not grow stale while the bill is edited.
+        invoice.TipPercentage = request.TipPercentage;
+        invoice.TipAmount = request.TipAmount ?? 0m;
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return Map(invoice);
+    }
+
     public async Task<ReceiptDto> CheckoutAsync(
         Guid id,
         CheckoutRequest request,
@@ -348,12 +394,27 @@ public sealed class InvoiceService(
 
         var total = discountable - couponCheck.Discount - manualCheck.Discount;
 
-        // The amount is only checked once the discounts themselves are valid;
+        // VAT is charged on what the customer actually pays for the visit —
+        // after every discount — at the salon's configured rate and mode. The
+        // tip is a discretionary gratuity on top of that: it never joins the
+        // taxable amount. Both the rate and the mode are snapshotted onto the
+        // invoice below, so a later settings change never rewrites a bill.
+        var settings = await salonSettings.GetAsync(cancellationToken) ?? DefaultSettings();
+        var tax = TaxMath.Compute(total, settings.TaxRate, settings.PricesIncludeTax);
+        var tipCheck = ValidateTip(request, total, tax, settings.PricesIncludeTax, errors);
+
+        // Inclusive prices already contain their VAT, so the payable amount is
+        // the post-discount total; exclusive prices carry VAT on top of it.
+        var payable = settings.PricesIncludeTax
+            ? total + tipCheck.Tip
+            : total + tax + tipCheck.Tip;
+
+        // The amount is only checked once the discounts and the tip are valid;
         // comparing against a total that is about to be rejected would just add
         // a misleading second message.
         if (errors.IsValid)
         {
-            ValidateAmount(request.Amount, total, invoice.Currency, errors);
+            ValidateAmount(request.Amount, payable, invoice.Currency, errors);
         }
 
         var method = ValidatePaymentMethod(request.PaymentMethod, errors);
@@ -402,6 +463,27 @@ public sealed class InvoiceService(
 
         errors.ThrowIfInvalid();
 
+        // A tip is attributed to a staff member only when the visit leaves no
+        // doubt: every booked service was performed by the same one person. A
+        // shared or unassigned visit — and a retail sale — keeps the tip
+        // unallocated rather than inventing a split.
+        Guid? tipStaffId = null;
+
+        if (tipCheck.Tip > 0m && invoice.AppointmentId is { } bookedAppointmentId)
+        {
+            var visit = await appointments.GetByIdAsync(bookedAppointmentId, cancellationToken);
+            var performers = visit?.Services
+                .Where(line => line.StaffId is not null)
+                .Select(line => line.StaffId!.Value)
+                .Distinct()
+                .ToList() ?? [];
+
+            if (performers.Count == 1)
+            {
+                tipStaffId = performers[0];
+            }
+        }
+
         var now = timeProvider.GetUtcNow();
 
         invoice.CouponId = couponCheck.Coupon?.Id;
@@ -409,16 +491,23 @@ public sealed class InvoiceService(
         invoice.CouponDiscount = couponCheck.Discount;
         invoice.ManualDiscount = manualCheck.Discount;
         invoice.DiscountTotal = invoice.BundleDiscount + couponCheck.Discount + manualCheck.Discount;
-        invoice.TotalAmount = total;
+        invoice.TaxRate = settings.TaxRate;
+        invoice.PricesIncludeTax = settings.PricesIncludeTax;
+        invoice.TaxTotal = tax;
+        invoice.TipAmount = tipCheck.Tip;
+        invoice.TipPercentage = tipCheck.Percentage;
+        invoice.TipStaffId = tipStaffId;
+        invoice.TotalAmount = payable;
         invoice.IssuedAt = now;
         invoice.Status = InvoiceStatus.Paid;
 
         // One tender per invoice in Phase 1: the recorded payment is the whole
-        // total. Split payments arrive later by adding more Payment rows.
+        // amount owed, VAT and tip included. Split payments arrive later by
+        // adding more Payment rows.
         invoice.Payments.Add(new Payment
         {
             InvoiceId = invoice.Id,
-            Amount = total,
+            Amount = payable,
             Currency = invoice.Currency,
             Method = method,
             Status = PaymentStatus.Completed,
@@ -550,6 +639,71 @@ public sealed class InvoiceService(
     {
         return product.Brand is { Length: > 0 } brand ? $"{brand} {product.Name}" : product.Name;
     }
+
+    /// <summary>
+    /// The tip the receptionist keyed, recomputed server-side: a percentage of
+    /// the post-discount, post-VAT total — never of a total that already
+    /// contains the tip — or a keyed amount. Both empty means no tip, which
+    /// leaves nothing behind but the zero column.
+    /// </summary>
+    private static TipCheck ValidateTip(
+        CheckoutRequest request,
+        decimal netTotal,
+        decimal tax,
+        bool pricesIncludeTax,
+        ValidationErrorBuilder errors)
+    {
+        if (request.TipPercentage is null && request.TipAmount is null)
+        {
+            return new TipCheck(null, 0m);
+        }
+
+        if (request.TipPercentage is not null && request.TipAmount is not null)
+        {
+            errors.Add("tipAmount", "Enter either a tip percentage or a custom amount, not both.");
+
+            return new TipCheck(null, 0m);
+        }
+
+        if (request.TipPercentage is { } percentage)
+        {
+            if (percentage <= 0m || percentage > 100m)
+            {
+                errors.Add("tipPercentage", "Enter a tip percentage between 0 and 100.");
+
+                return new TipCheck(null, 0m);
+            }
+
+            // The base is what the customer owes before the tip: with
+            // exclusive prices that is the total plus its VAT; with inclusive
+            // prices the total already contains the VAT.
+            var beforeTip = pricesIncludeTax ? netTotal : netTotal + tax;
+
+            return new TipCheck(
+                percentage,
+                decimal.Round(beforeTip * percentage / 100m, 2, MidpointRounding.AwayFromZero));
+        }
+
+        if (request.TipAmount!.Value <= 0m)
+        {
+            errors.Add("tipAmount", "Enter a tip amount greater than zero.");
+
+            return new TipCheck(null, 0m);
+        }
+
+        return new TipCheck(null, request.TipAmount.Value);
+    }
+
+    /// <summary>
+    /// The same defaults the settings migration seeds, so a database that has
+    /// never been configured still quotes the salon's standard rate.
+    /// </summary>
+    private static SalonSettings DefaultSettings() => new()
+    {
+        Id = SalonSettings.SingletonId,
+        TaxRate = 5m,
+        PricesIncludeTax = false
+    };
 
     private async Task<CouponCheck> CheckCouponAsync(
         string? code,
@@ -767,6 +921,12 @@ public sealed class InvoiceService(
         invoice.CouponDiscount,
         invoice.ManualDiscount,
         invoice.DiscountTotal,
+        invoice.TaxRate,
+        invoice.PricesIncludeTax,
+        invoice.TaxTotal,
+        invoice.TipAmount,
+        invoice.TipPercentage,
+        invoice.TipStaffId,
         invoice.TotalAmount,
         invoice.IssuedAt,
         invoice.CreatedAt,
@@ -820,6 +980,10 @@ public sealed class InvoiceService(
             invoice.CouponCode,
             invoice.CouponDiscount,
             invoice.ManualDiscount,
+            invoice.TaxRate,
+            invoice.PricesIncludeTax,
+            invoice.TaxTotal,
+            invoice.TipAmount,
             invoice.TotalAmount,
             invoice.Currency,
             payment.Method.ToString(),
@@ -839,4 +1003,7 @@ public sealed class InvoiceService(
 
     /// <summary>A manual discount check result: the resolved type, its computed discount, and whether it failed validation.</summary>
     private sealed record ManualCheck(DiscountType? Type, decimal Discount, bool Flagged);
+
+    /// <summary>A tip check result: the chosen percentage (null for a custom amount) and the computed tip.</summary>
+    private sealed record TipCheck(decimal? Percentage, decimal Tip);
 }

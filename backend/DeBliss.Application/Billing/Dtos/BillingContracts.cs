@@ -95,7 +95,9 @@ public sealed record InvoicePaymentDto(
 /// The full invoice as the details drawer and the checkout screen render it.
 /// A bundle booking bills its components as ordinary lines and carries the
 /// bundle's own saving in <see cref="BundleDiscount"/>, so the components stay
-/// visible on the bill while the amount owed is the bundle price.
+/// visible on the bill while the amount owed is the bundle price. Tax and tip
+/// figures are the checkout-time snapshots: a later settings change never
+/// rewrites a finished bill.
 /// </summary>
 public sealed record InvoiceDto(
     Guid Id,
@@ -115,6 +117,12 @@ public sealed record InvoiceDto(
     decimal CouponDiscount,
     decimal ManualDiscount,
     decimal DiscountTotal,
+    decimal TaxRate,
+    bool PricesIncludeTax,
+    decimal TaxTotal,
+    decimal TipAmount,
+    decimal? TipPercentage,
+    Guid? TipStaffId,
     decimal TotalAmount,
     DateTimeOffset? IssuedAt,
     DateTimeOffset CreatedAt,
@@ -156,7 +164,9 @@ public sealed record InvoiceStartResult(InvoiceDto Invoice, bool WasCreated);
 /// Body of "complete the payment". Every field is nullable because the
 /// receptionist fills the form incrementally and the server owns the rules:
 /// each missing or invalid value comes back as a field-level validation error
-/// rather than a prompt the frontend had to duplicate.
+/// rather than a prompt the frontend had to duplicate. The tip fields carry the
+/// receptionist's choice — a percentage or a keyed amount, never both — and the
+/// charged amount is recomputed here, never trusted from the client.
 /// </summary>
 public sealed record CheckoutRequest(
     string? CouponCode,
@@ -164,7 +174,17 @@ public sealed record CheckoutRequest(
     decimal? ManualDiscountValue,
     string? PaymentMethod,
     decimal? Amount,
-    string? Reference);
+    string? Reference,
+    decimal? TipPercentage = null,
+    decimal? TipAmount = null);
+
+/// <summary>
+/// Body of "save the tip choice on the draft". Exactly one field is set — a
+/// percentage, or a keyed amount — and both null clears the tip. Only the
+/// choice is stored; checkout recomputes the charged amount from the final
+/// discounts and tax.
+/// </summary>
+public sealed record SetTipRequest(decimal? TipPercentage, decimal? TipAmount);
 
 /// <summary>One printable line on the receipt.</summary>
 public sealed record ReceiptLineDto(
@@ -178,6 +198,8 @@ public sealed record ReceiptLineDto(
 /// completed payment so the numbers are exactly the ones that were charged. A
 /// bundle booking prints its component lines and then the bundle saving as its
 /// own reduction, so the customer sees what they received and what it cost.
+/// Tax and tip print as their own rows — the rate that applied on the day, and
+/// the gratuity added after it.
 /// </summary>
 public sealed record ReceiptDto(
     string SalonName,
@@ -191,6 +213,10 @@ public sealed record ReceiptDto(
     string? CouponCode,
     decimal CouponDiscount,
     decimal ManualDiscount,
+    decimal TaxRate,
+    bool PricesIncludeTax,
+    decimal TaxTotal,
+    decimal TipAmount,
     decimal TotalAmount,
     string Currency,
     string PaymentMethod,

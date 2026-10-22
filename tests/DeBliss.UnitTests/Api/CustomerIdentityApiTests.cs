@@ -147,6 +147,63 @@ public sealed class CustomerIdentityApiTests : ApiTestBase
     }
 
     [Fact]
+    public async Task Registration_with_a_mobile_number_already_registered_conflicts()
+    {
+        using var client = AnonymousClient;
+        await RegisterAsync(client, "first@debliss.test", phoneNumber: "+971 50 777 8888");
+
+        // Same digits, different formatting — the comparison ignores how the
+        // number was written down.
+        var response = await RegisterAsync(client, "second@debliss.test", phoneNumber: "971-50-777-8888");
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+
+        var problem = await ReadAsync<Problem>(response);
+
+        Assert.Equal("An account with this mobile number already exists.", problem.Detail);
+
+        await using var db = Factory.Database.CreateContext();
+
+        Assert.Equal(
+            1,
+            await db.Users.CountAsync(each => each.Email == "first@debliss.test" || each.Email == "second@debliss.test"));
+    }
+
+    [Fact]
+    public async Task A_front_desk_phone_number_alone_is_not_an_existing_account()
+    {
+        // The salon already holds this number for a walk-in who never signed
+        // up. That record is not an account, so registering must succeed —
+        // with a different email it cannot be adopted, so it becomes a fresh
+        // linked customer beside the front-desk one.
+        await Factory.SeedCustomerAsync("Front", "Desk", phoneNumber: "+971 50 555 6666");
+        using var client = AnonymousClient;
+
+        var response = await RegisterAsync(client, "walkin@debliss.test", phoneNumber: "+971 50 555 6666");
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Registration_adopts_a_front_desk_record_even_when_it_shares_the_mobile_number()
+    {
+        var seededCustomerId = await Factory.SeedCustomerAsync(
+            "Adopt",
+            "Me",
+            phoneNumber: "+971 52 444 5555",
+            email: "adopt@debliss.test");
+        using var client = AnonymousClient;
+
+        var response = await RegisterAsync(client, "adopt@debliss.test", phoneNumber: "+971 52 444 5555");
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+
+        var user = await ReadAsync<AuthUserDto>(response);
+
+        Assert.Equal(seededCustomerId, user.CustomerId);
+    }
+
+    [Fact]
     public async Task Registration_rejects_invalid_input()
     {
         using var client = AnonymousClient;

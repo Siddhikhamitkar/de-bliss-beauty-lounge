@@ -56,6 +56,7 @@ const ROUTE_ACCESS: Record<string, readonly string[]> = {
   '/inventory': ['OWNER', 'RECEPTIONIST'],
   '/coupons': ['OWNER', 'RECEPTIONIST'],
   '/reminders': ['OWNER', 'RECEPTIONIST'],
+  '/settings': ['OWNER'],
 }
 
 /** A path the routing table knows; anything else falls back to the role home. */

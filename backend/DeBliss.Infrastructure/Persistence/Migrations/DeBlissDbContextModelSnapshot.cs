@@ -135,6 +135,9 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 
+                    b.Property<bool>("PricesIncludeTax")
+                        .HasColumnType("bit");
+
                     b.Property<Guid?>("ServiceBundleId")
                         .HasColumnType("uniqueidentifier");
 
@@ -147,9 +150,24 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<decimal>("TaxRate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
                     b.Property<decimal>("TaxTotal")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TipAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("TipPercentage")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<Guid?>("TipStaffId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal>("TotalAmount")
                         .HasPrecision(18, 2)
@@ -174,6 +192,8 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                     b.HasIndex("ServiceBundleId");
 
                     b.HasIndex("Status");
+
+                    b.HasIndex("TipStaffId");
 
                     b.ToTable("Invoices", (string)null);
                 });
@@ -1249,6 +1269,30 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                     b.ToTable("ServiceCategories", (string)null);
                 });
 
+            modelBuilder.Entity("DeBliss.Domain.Settings.SalonSettings", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("PricesIncludeTax")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("TaxRate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("SalonSettings", (string)null);
+                });
+
             modelBuilder.Entity("DeBliss.Domain.Staffing.Staff", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1473,6 +1517,11 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                         .HasForeignKey("ServiceBundleId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("DeBliss.Domain.Staffing.Staff", "TipStaff")
+                        .WithMany()
+                        .HasForeignKey("TipStaffId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Appointment");
 
                     b.Navigation("Coupon");
@@ -1482,6 +1531,8 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                     b.Navigation("Customer");
 
                     b.Navigation("ServiceBundle");
+
+                    b.Navigation("TipStaff");
                 });
 
             modelBuilder.Entity("DeBliss.Domain.Billing.InvoiceItem", b =>
@@ -1741,7 +1792,8 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                     b.HasOne("DeBliss.Domain.Customers.Customer", "Customer")
                         .WithMany()
                         .HasForeignKey("CustomerId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.Navigation("Appointment");
 

@@ -46,7 +46,8 @@ internal static class BillingSeed
         string? walkInCustomerName = null,
         IReadOnlyList<(Guid ServiceId, string SnapshotName, decimal UnitPrice, int SortOrder)>? lines = null,
         Guid? serviceBundleId = null,
-        decimal? bundlePriceSnapshot = null)
+        decimal? bundlePriceSnapshot = null,
+        IReadOnlyList<Guid?>? lineStaffIds = null)
     {
         var appointment = new Appointment
         {
@@ -61,8 +62,12 @@ internal static class BillingSeed
             BundlePriceSnapshot = bundlePriceSnapshot
         };
 
-        foreach (var (serviceId, snapshotName, unitPrice, sortOrder) in lines ?? [])
+        var bookedLines = lines ?? [];
+
+        for (var index = 0; index < bookedLines.Count; index++)
         {
+            var (serviceId, snapshotName, unitPrice, sortOrder) = bookedLines[index];
+
             appointment.Services.Add(new AppointmentService
             {
                 Id = Guid.NewGuid(),
@@ -71,7 +76,8 @@ internal static class BillingSeed
                 ServiceNameSnapshot = snapshotName,
                 DurationMinutes = 60,
                 UnitPrice = unitPrice,
-                SortOrder = sortOrder
+                SortOrder = sortOrder,
+                StaffId = lineStaffIds is { Count: > 0 } ? lineStaffIds[index] : null
             });
         }
 

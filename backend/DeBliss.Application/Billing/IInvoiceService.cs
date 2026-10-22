@@ -44,6 +44,17 @@ public interface IInvoiceService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Saves the receptionist's tip choice on a draft invoice so an interrupted
+    /// checkout resumes with the tip already picked. The choice is a percentage
+    /// or a keyed amount; the charged amount itself is computed fresh at
+    /// checkout, when the discounts and tax it depends on are final.
+    /// </summary>
+    Task<InvoiceDto> SetTipAsync(
+        Guid id,
+        SetTipRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Applies the discounts, records the payment, deducts the sold stock and
     /// marks the invoice paid — all in one save, so an invoice is never left
     /// half checked out and stock is never taken for a sale that did not go

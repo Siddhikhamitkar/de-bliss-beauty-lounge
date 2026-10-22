@@ -3096,6 +3096,19 @@ textarea {
   margin-top: 1rem;
 }
 
+/* The owner's tax settings: a short, focused form — nothing else competes. */
+.settings-form {
+  display: grid;
+  gap: 1.1rem;
+  max-width: 26rem;
+}
+
+.settings-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
 /* The receipt sheet: light card, centred, readable at arm's length. */
 .receipt-overlay {
   position: fixed;
@@ -3577,4 +3590,457 @@ textarea {
   background: color-mix(in srgb, var(--ok) 9%, transparent);
   border-color: color-mix(in srgb, var(--ok) 45%, transparent);
   color: var(--ok);
+}
+
+/* ------------------------------------------------------------------ */
+/* Owner dashboard                                                     */
+/* ------------------------------------------------------------------ */
+
+/* Range chips: the single switch every trend answers to. */
+.own-range {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1.25rem;
+}
+
+.own-range-chip {
+  border: 1px solid var(--line);
+  background: var(--raised);
+  border-radius: 999px;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 150ms ease, color 150ms ease, background 150ms ease;
+}
+
+.own-range-chip:hover {
+  color: var(--fg);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+
+.own-range-chip--on {
+  background: color-mix(in srgb, var(--accent) 12%, var(--raised));
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  color: var(--accent);
+}
+
+.own-custom {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-left: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* Money cards reuse the dash tones; the foot carries the comparison. */
+.own-kpi-foot {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.own-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  border-radius: 999px;
+  padding: 0.05rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.own-delta--up {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 10%, transparent);
+}
+
+.own-delta--down {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+
+.own-delta--flat {
+  color: var(--muted);
+  background: color-mix(in srgb, var(--muted) 10%, transparent);
+}
+
+.own-big {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 0.4rem 0 0.15rem;
+  font-family: var(--dash-serif);
+  font-size: 2rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
+
+.own-big-sub {
+  margin: 0 0 0.9rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+/* Service vs retail: one quiet two-tone bar under the big number. */
+.own-split {
+  margin-bottom: 1rem;
+}
+
+.own-split-bar {
+  display: flex;
+  height: 0.5rem;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--accent) 20%, var(--raised));
+}
+
+.own-split-services {
+  background: var(--accent);
+  border-radius: 999px;
+}
+
+.own-split-legend {
+  margin: 0.4rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.own-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.own-stats dt {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.own-stats dd {
+  margin: 0.15rem 0 0;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.own-trends-header {
+  margin-top: 1.25rem;
+}
+
+/* Bar charts: plain CSS columns — no charting library, no JS measuring. */
+.own-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.3rem;
+  height: 8.5rem;
+}
+
+.own-bars--monthly {
+  height: 7rem;
+}
+
+.own-bar-col {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.25rem;
+  height: 100%;
+}
+
+.own-bar-track {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  min-height: 0;
+}
+
+.own-bar {
+  width: 100%;
+  border-radius: 0.35rem 0.35rem 0.1rem 0.1rem;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 85%, white 0%),
+    color-mix(in srgb, var(--accent) 55%, transparent)
+  );
+  transition: height 250ms ease;
+}
+
+.own-bar--month {
+  border-radius: 0.45rem;
+  background: color-mix(in srgb, var(--dash-champagne) 75%, transparent);
+}
+
+.own-bar--zero {
+  background: color-mix(in srgb, var(--muted) 30%, transparent);
+}
+
+.own-bar-label {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* Best-performer lists: name, count chip, amount. */
+.own-performers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 1.25rem;
+}
+
+.own-named-title {
+  margin: 0 0 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.own-named-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.own-named-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.own-named-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.own-named-count {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.own-named-amount {
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Attention list: severity chip + message + module link. */
+.own-actions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.own-action {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  padding: 0.55rem 0.7rem;
+}
+
+.own-action--high {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
+  background: color-mix(in srgb, var(--danger) 5%, var(--raised));
+}
+
+.own-action--medium {
+  border-color: color-mix(in srgb, var(--dash-champagne) 55%, var(--line));
+  background: color-mix(in srgb, var(--dash-champagne) 7%, var(--raised));
+}
+
+.own-action--low {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+}
+
+.own-action-severity {
+  flex: none;
+  border-radius: 999px;
+  padding: 0.1rem 0.55rem;
+  font-size: 0.68rem;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--muted) 12%, transparent);
+}
+
+.own-action--high .own-action-severity {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.own-action-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.own-action-count {
+  color: var(--muted);
+}
+
+/* Operations: outcome counters, conflicts, compact floor rows. */
+.own-status-row {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.1rem;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.own-status-num {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+}
+
+.own-conflicts {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.own-conflict {
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--line));
+  background: color-mix(in srgb, var(--danger) 6%, var(--raised));
+  border-radius: 0.6rem;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.85rem;
+}
+
+.own-quiet {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.own-sched {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.own-sched-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  padding: 0.45rem 0.6rem;
+}
+
+.own-sched-time {
+  flex: none;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+}
+
+.own-sched-main {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+/* Stock alerts: quantity vs minimum, status pill. */
+.own-stock {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.own-stock-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  padding: 0.45rem 0.6rem;
+}
+
+.own-stock-row .dash-row-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.own-stock-qty {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.own-stock-pill {
+  flex: none;
+  border-radius: 999px;
+  padding: 0.1rem 0.55rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.own-stock-pill--out {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.own-stock-pill--low {
+  color: var(--dash-champagne);
+  background: color-mix(in srgb, var(--dash-champagne) 15%, transparent);
+}
+
+@media (max-width: 48rem) {
+  .own-bars {
+    height: 7rem;
+  }
+
+  .own-bar-label {
+    font-size: 0.55rem;
+  }
 }

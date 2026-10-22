@@ -12,9 +12,11 @@ namespace DeBliss.UnitTests.Api;
 /// Every module endpoint now sits behind authentication, so the shared <see cref="Client"/>
 /// is signed in as the default owner before a test runs — existing tests exercise
 /// exactly what production serves. Tests that assert the unauthenticated behaviour
-/// use <see cref="AnonymousClient"/>. The sign-in is synchronous because xUnit
-/// constructors cannot await; the calls are in-memory (TestServer), so there is
-/// no deadlock risk.
+/// use <see cref="AnonymousClient"/>. The salon is configured at a zero VAT
+/// rate so the wire tests assert the amounts they are about; the tax tests PUT
+/// the rate they need through the settings API. The sign-in is synchronous
+/// because xUnit constructors cannot await; the calls are in-memory
+/// (TestServer), so there is no deadlock risk.
 /// </summary>
 public abstract class ApiTestBase : IDisposable
 {
@@ -25,6 +27,7 @@ public abstract class ApiTestBase : IDisposable
         Factory = new DeBlissApiFactory();
         Client = Factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
         Factory.EnsureDefaultUserAsync().GetAwaiter().GetResult();
+        Factory.EnsureZeroTaxAsync().GetAwaiter().GetResult();
         AuthenticateAsync(Client, DeBlissApiFactory.DefaultUserEmail, DeBlissApiFactory.DefaultUserPassword)
             .GetAwaiter().GetResult();
     }

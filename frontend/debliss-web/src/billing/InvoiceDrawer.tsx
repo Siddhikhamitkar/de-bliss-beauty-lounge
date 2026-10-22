@@ -10,6 +10,7 @@ import { formatDateTime, formatMoney, formatPrice } from '../format.ts'
 import { useAsync } from '../useAsync.ts'
 import { InvoiceStatusPill } from './InvoiceStatusPill.tsx'
 import { ReceiptOverlay } from './ReceiptOverlay.tsx'
+import { discountedTotal } from './totals.ts'
 
 interface InvoiceDrawerProps {
   /** The row that was opened; paints the header before the full record loads. */
@@ -164,6 +165,42 @@ export function InvoiceDrawer({ invoice, onClose, onResumeCheckout }: InvoiceDra
                 <div>
                   <dt>Manual discount</dt>
                   <dd>−{formatMoney(details.data.currency, details.data.manualDiscount)}</dd>
+                </div>
+              )}
+              {(details.data.taxRate ?? 0) > 0 && (
+                <>
+                  <div>
+                    <dt>
+                      {details.data.pricesIncludeTax ? 'Total (VAT included)' : 'Total before VAT'}
+                    </dt>
+                    <dd>
+                      {formatMoney(
+                        details.data.currency,
+                        discountedTotal(details.data),
+                      )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>
+                      {details.data.pricesIncludeTax
+                        ? `Includes VAT (${details.data.taxRate}%)`
+                        : `VAT (${details.data.taxRate}%)`}
+                    </dt>
+                    <dd>
+                      {details.data.pricesIncludeTax ? '' : '+'}
+                      {formatMoney(details.data.currency, details.data.taxTotal ?? 0)}
+                    </dd>
+                  </div>
+                </>
+              )}
+              {(details.data.tipAmount ?? 0) > 0 && (
+                <div>
+                  <dt>
+                    {details.data.tipPercentage != null
+                      ? `Tip (${details.data.tipPercentage}%)`
+                      : 'Tip'}
+                  </dt>
+                  <dd>+{formatMoney(details.data.currency, details.data.tipAmount ?? 0)}</dd>
                 </div>
               )}
               <div className="receipt-total-row">

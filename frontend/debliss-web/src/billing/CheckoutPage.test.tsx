@@ -7,10 +7,12 @@ import {
   getInvoice,
   getReceipt,
   removeInvoiceLine,
+  setInvoiceTip,
   startInvoice,
   updateInvoiceLine,
   validateCoupon,
 } from '../api/billing.ts'
+import { getTaxSettings } from '../api/settings.ts'
 import { getSellableProducts } from '../api/inventory.ts'
 import { ApiError } from '../api/client.ts'
 import type {
@@ -29,6 +31,7 @@ vi.mock('../api/billing.ts', () => ({
   addInvoiceLine: vi.fn(),
   updateInvoiceLine: vi.fn(),
   removeInvoiceLine: vi.fn(),
+  setInvoiceTip: vi.fn(),
   checkoutInvoice: vi.fn(),
   getReceipt: vi.fn(),
   validateCoupon: vi.fn(),
@@ -41,6 +44,11 @@ vi.mock('../api/billing.ts', () => ({
 
 vi.mock('../api/inventory.ts', () => ({
   getSellableProducts: vi.fn(),
+}))
+
+vi.mock('../api/settings.ts', () => ({
+  getTaxSettings: vi.fn(),
+  updateTaxSettings: vi.fn(),
 }))
 
 function invoiceItem(overrides: Partial<InvoiceItem> = {}): InvoiceItem {
@@ -152,11 +160,15 @@ function renderCheckout() {
 
 describe('CheckoutPage', () => {
   beforeEach(() => {
+    // Zero VAT keeps the legacy assertions — pre-tax amounts — reading exactly
+    // what they are about; the VAT-specific tests resolve their own rate.
+    vi.mocked(getTaxSettings).mockResolvedValue({ taxRate: 0, pricesIncludeTax: false })
     vi.mocked(startInvoice).mockResolvedValue(invoice())
     vi.mocked(getInvoice).mockResolvedValue(invoice())
     vi.mocked(addInvoiceLine).mockResolvedValue(invoice())
     vi.mocked(updateInvoiceLine).mockResolvedValue(invoice())
     vi.mocked(removeInvoiceLine).mockResolvedValue(invoice())
+    vi.mocked(setInvoiceTip).mockResolvedValue(invoice())
     vi.mocked(getSellableProducts).mockResolvedValue([
       productOption(),
       productOption({
@@ -266,6 +278,123 @@ describe('CheckoutPage', () => {
     expect(screen.getByLabelText('Amount collected')).toHaveValue(180)
   })
 
+  it('shows the VAT breakdown and adds a percentage tip on the post-VAT total', async () => {
+    const user = userEvent.setup()
+    vi.mocked(getTaxSettings).mockResolvedValue({ taxRate: 5, pricesIncludeTax: false })
+
+    renderCheckout()
+    await screen.findByText('Balayage')
+
+    expect(screen.getByText('Total before VAT')).toBeInTheDocument()
+    expect(screen.getByText('VAT (5%)')).toBeInTheDocument()
+    expect(screen.getByText('+AED 10.00')).toBeInTheDocument()
+    expect(screen.getByText('AED 210.00')).toBeInTheDocument()
+    expect(screen.getByLabelText('Amount collected')).toHaveValue(210)
+
+    await user.click(screen.getByRole('radio', { name: '10%' }))
+
+    // The percentage rides on the post-VAT amount — 10% of 210.00, never of 200.00.
+    expect(screen.getByText('Tip (10%)')).toBeInTheDocument()
+    expect(screen.getByText('+AED 21.00')).toBeInTheDocument()
+    expect(screen.getByText('10% of the pre-tip total (AED 210.00)')).toBeInTheDocument()
+    expect(screen.getByText('AED 231.00')).toBeInTheDocument()
+    expect(screen.getByLabelText('Amount collected')).toHaveValue(231)
+    expect(setInvoiceTip).toHaveBeenCalledExactlyOnceWith('inv1', {
+      tipPercentage: 10,
+      tipAmount: null,
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Complete Payment' }))
+
+    expect(checkoutInvoice).toHaveBeenCalledExactlyOnceWith('inv1', {
+      couponCode: null,
+      manualDiscountType: null,
+      manualDiscountValue: null,
+      paymentMethod: 'Cash',
+      amount: 231,
+      reference: null,
+      tipPercentage: 10,
+      tipAmount: null,
+    })
+  })
+
+  it('extracts VAT from tax-inclusive prices instead of adding it twice', async () => {
+    vi.mocked(getTaxSettings).mockResolvedValue({ taxRate: 5, pricesIncludeTax: true })
+
+    renderCheckout()
+    await screen.findByText('Balayage')
+
+    expect(screen.getByText('Total (VAT included)')).toBeInTheDocument()
+    expect(screen.getByText('Includes VAT (5%)')).toBeInTheDocument()
+    expect(screen.getByText('AED 9.52')).toBeInTheDocument()
+    // The payable stays the quoted figure: VAT is inside it, never added again.
+    expect(screen.getByLabelText('Amount collected')).toHaveValue(200)
+  })
+
+  it('keys a custom tip amount, commits it on blur and sends it at checkout', async () => {
+    const user = userEvent.setup()
+    renderCheckout()
+    await screen.findByText('Balayage')
+
+    await user.click(screen.getByRole('radio', { name: 'Custom' }))
+    await user.type(screen.getByLabelText('Custom tip amount'), '15')
+    await user.tab()
+
+    expect(screen.getByText('+AED 15.00')).toBeInTheDocument()
+    expect(screen.getByText('AED 215.00')).toBeInTheDocument()
+    expect(screen.getByLabelText('Amount collected')).toHaveValue(215)
+    expect(setInvoiceTip).toHaveBeenLastCalledWith('inv1', {
+      tipPercentage: null,
+      tipAmount: 15,
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Complete Payment' }))
+
+    expect(checkoutInvoice).toHaveBeenCalledExactlyOnceWith('inv1', {
+      couponCode: null,
+      manualDiscountType: null,
+      manualDiscountValue: null,
+      paymentMethod: 'Cash',
+      amount: 215,
+      reference: null,
+      tipPercentage: null,
+      tipAmount: 15,
+    })
+  })
+
+  it('restores a tip saved on the draft when the checkout resumes', async () => {
+    vi.mocked(startInvoice).mockResolvedValue(invoice({ tipPercentage: 10, tipAmount: 0 }))
+
+    renderCheckout()
+
+    expect(await screen.findByRole('radio', { name: '10%' })).toBeChecked()
+    expect(screen.getByText('Tip (10%)')).toBeInTheDocument()
+    expect(screen.getByText('+AED 20.00')).toBeInTheDocument()
+    expect(screen.getByText('AED 220.00')).toBeInTheDocument()
+    expect(screen.getByLabelText('Amount collected')).toHaveValue(220)
+    // The saved choice is a fact to restore, not a change to re-save.
+    expect(setInvoiceTip).not.toHaveBeenCalled()
+  })
+
+  it('clears the tip and restores the untipped payable', async () => {
+    const user = userEvent.setup()
+    renderCheckout()
+    await screen.findByText('Balayage')
+
+    await user.click(screen.getByRole('radio', { name: '10%' }))
+    expect(screen.getByText('AED 220.00')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('radio', { name: 'No tip' }))
+
+    expect(screen.queryByText('Tip (10%)')).not.toBeInTheDocument()
+    expect(screen.getAllByText('AED 200.00')).toHaveLength(2)
+    expect(screen.getByLabelText('Amount collected')).toHaveValue(200)
+    expect(setInvoiceTip).toHaveBeenLastCalledWith('inv1', {
+      tipPercentage: null,
+      tipAmount: null,
+    })
+  })
+
   it('relabels the reference field to match the chosen payment method', async () => {
     const user = userEvent.setup()
     renderCheckout()
@@ -297,6 +426,8 @@ describe('CheckoutPage', () => {
       paymentMethod: 'Cash',
       amount: 200,
       reference: null,
+      tipPercentage: null,
+      tipAmount: null,
     })
     expect(onPaid).toHaveBeenCalled()
 
@@ -330,6 +461,8 @@ describe('CheckoutPage', () => {
       paymentMethod: 'BankTransfer',
       amount: 150,
       reference: 'TX-889',
+      tipPercentage: null,
+      tipAmount: null,
     })
   })
 

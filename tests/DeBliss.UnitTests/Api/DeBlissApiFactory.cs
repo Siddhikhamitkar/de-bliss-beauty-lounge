@@ -6,6 +6,7 @@ using DeBliss.Infrastructure.Persistence.Interceptors;
 using DeBliss.UnitTests.TestDoubles;
 using DeBliss.Domain.Billing;
 using DeBliss.Domain.Scheduling;
+using DeBliss.Domain.Settings;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -170,6 +171,31 @@ internal sealed class DeBlissApiFactory : WebApplicationFactory<Program>
     {
         await using var context = _database.CreateContext();
         await IdentitySeed.RoleAsync(context, roleName);
+    }
+
+    /// <summary>
+    /// Configures the salon at a zero VAT rate, the same choice
+    /// <see cref="Billing.BillingHarness"/> makes: the wire tests assert what
+    /// they are about — discounts, payments, stock — while the tax tests PUT
+    /// the rate they need through the settings API.
+    /// </summary>
+    public async Task EnsureZeroTaxAsync()
+    {
+        await using var context = _database.CreateContext();
+
+        if (await context.SalonSettings.AnyAsync())
+        {
+            return;
+        }
+
+        context.SalonSettings.Add(new SalonSettings
+        {
+            Id = SalonSettings.SingletonId,
+            TaxRate = 0m,
+            PricesIncludeTax = false
+        });
+
+        await context.SaveChangesAsync();
     }
 
     /// <summary>Idempotently creates the default owner account so ApiTestBase can sign in.</summary>

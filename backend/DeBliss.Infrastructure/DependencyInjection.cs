@@ -9,6 +9,7 @@ using DeBliss.Application.Notifications.Ports;
 using DeBliss.Application.Scheduling;
 using DeBliss.Application.Scheduling.Ports;
 using DeBliss.Application.ServiceCatalogue.Ports;
+using DeBliss.Application.Settings.Ports;
 using DeBliss.Application.Staffing.Ports;
 using DeBliss.Infrastructure.Notifications;
 using DeBliss.Infrastructure.Scheduling;
@@ -60,7 +61,9 @@ public static class DependencyInjection
         services.AddScoped<IInvoiceRepository, InvoiceRepository>();
         services.AddScoped<ICouponRepository, CouponRepository>();
         services.AddScoped<IInventoryRepository, InventoryRepository>();
+        services.AddScoped<ISalonSettingsRepository, SalonSettingsRepository>();
         services.AddScoped<IDashboardReadStore, DashboardReadStore>();
+        services.AddScoped<IOwnerDashboardReadStore, OwnerDashboardReadStore>();
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IAppointmentReminderRepository, AppointmentReminderRepository>();
         services.AddScoped<IReminderRuleRepository, ReminderRuleRepository>();

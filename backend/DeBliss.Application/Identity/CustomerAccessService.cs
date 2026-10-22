@@ -13,8 +13,9 @@ namespace DeBliss.Application.Identity;
 /// <summary>
 /// Customer self-service identity. Registration hashes with the same
 /// <see cref="PasswordHasher{TUser}"/> (PBKDF2) the login path verifies against,
-/// assigns only the CUSTOMER role, and commits the User, its role assignment and
-/// the linked-or-new Customer record as one save — either all three rows exist
+/// assigns only the CUSTOMER role, refuses a mobile number already registered to
+/// another account, and commits the User, its role assignment and the
+/// linked-or-new Customer record as one save — either all three rows exist
 /// afterwards or none do.
 /// </summary>
 public sealed class CustomerAccessService(
@@ -42,6 +43,8 @@ public sealed class CustomerAccessService(
         }
 
         var phoneNumber = request.PhoneNumber?.Trim();
+        string? normalizedPhone = null;
+
         if (!string.IsNullOrEmpty(phoneNumber))
         {
             if (phoneNumber.Length > CustomerLimits.PhoneMaxLength)
@@ -50,9 +53,9 @@ public sealed class CustomerAccessService(
             }
             else
             {
-                var digits = CustomerPhone.Normalize(phoneNumber);
+                normalizedPhone = CustomerPhone.Normalize(phoneNumber);
 
-                if (digits is null || digits.Length < CustomerLimits.MinNormalizedPhoneDigits)
+                if (normalizedPhone is null || normalizedPhone.Length < CustomerLimits.MinNormalizedPhoneDigits)
                 {
                     errors.Add("phoneNumber", "Enter a valid mobile number.");
                 }
@@ -66,6 +69,18 @@ public sealed class CustomerAccessService(
         if (await users.FindByEmailAsync(email, cancellationToken) is not null)
         {
             throw new ConflictException("An account with this email already exists.");
+        }
+
+        // A mobile number already held by any registered account (a customer
+        // record linked to a login) means this person already signed up — a
+        // second account would silently split their history. Unlinked
+        // front-desk records are deliberately not a conflict: they are not
+        // accounts, and the email link below adopts them.
+        if (normalizedPhone is not null
+            && (await customers.GetByNormalizedPhoneAsync(normalizedPhone, null, cancellationToken))
+                .Any(match => match.UserId is not null))
+        {
+            throw new ConflictException("An account with this mobile number already exists.");
         }
 
         var roleId = await users.GetRoleIdAsync(RoleNames.Customer, cancellationToken)

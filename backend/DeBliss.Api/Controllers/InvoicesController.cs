@@ -109,6 +109,26 @@ public sealed class InvoicesController(IInvoiceService invoices) : ControllerBas
         return Ok(await invoices.RemoveLineAsync(id, lineId, cancellationToken));
     }
 
+    /// <summary>
+    /// Saves the receptionist's tip choice on the draft — a percentage or a
+    /// keyed amount — so an interrupted checkout resumes with the tip already
+    /// picked. The charged amount is recomputed at checkout, never trusted
+    /// from the client.
+    /// </summary>
+    /// <remarks>Will require <c>Permissions.Billing.CreateCheckout</c> once authorisation exists.</remarks>
+    [HttpPut("{id:guid}/tip")]
+    [ProducesResponseType(typeof(InvoiceDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<InvoiceDto>> SetTip(
+        Guid id,
+        [FromBody] SetTipRequest request,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await invoices.SetTipAsync(id, request, cancellationToken));
+    }
+
     /// <remarks>Will require <c>Permissions.Billing.ViewInvoices</c> and <c>Permissions.Billing.ViewPayments</c> once authorisation exists.</remarks>
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(InvoiceDto), StatusCodes.Status200OK)]

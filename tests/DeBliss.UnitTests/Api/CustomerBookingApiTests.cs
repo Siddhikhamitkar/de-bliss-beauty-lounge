@@ -7,6 +7,7 @@ using DeBliss.Application.Identity.Dtos;
 using DeBliss.Application.Scheduling;
 using DeBliss.Application.Scheduling.Dtos;
 using DeBliss.Domain.Scheduling;
+using DeBliss.Domain.Settings;
 using DeBliss.UnitTests.TestDoubles;
 using Microsoft.EntityFrameworkCore;
 
@@ -252,6 +253,7 @@ public sealed class CustomerBookingApiTests : ApiTestBase
     [Fact]
     public async Task A_customer_books_an_available_slot_at_the_catalogue_price()
     {
+        await SetTaxSettingsAsync(5m, pricesIncludeTax: false);
         var (staffId, serviceId, day) = await ArrangeAsync();
         using var client = await RegisterCustomerAsync("booker@debliss.test");
         var customerId = await CustomerIdOfAsync(client);
@@ -270,6 +272,14 @@ public sealed class CustomerBookingApiTests : ApiTestBase
         Assert.Equal("Sara Stylist", confirmation.StaffDisplayName);
         Assert.Equal(120m, confirmation.Price);
         Assert.Equal("Online", confirmation.Source);
+
+        // Catalogue prices are VAT-exclusive: the salon settings' 5% is added
+        // on top, quoted by Core itself so the customer confirms the exact
+        // checkout figure.
+        Assert.Equal(5m, confirmation.TaxRate);
+        Assert.False(confirmation.PricesIncludeTax);
+        Assert.Equal(6.00m, confirmation.TaxAmount);
+        Assert.Equal(126.00m, confirmation.TotalPayable);
 
         await using var db = Factory.Database.CreateContext();
         var stored = await db.Appointments
@@ -394,6 +404,7 @@ public sealed class CustomerBookingApiTests : ApiTestBase
     [Fact]
     public async Task History_shows_only_the_signed_in_customers_own_appointments()
     {
+        await SetTaxSettingsAsync(5m, pricesIncludeTax: false);
         var (staffId, serviceId, day) = await ArrangeAsync();
         var strangerId = await Factory.SeedCustomerAsync("Stranger", "Person");
         await Factory.SeedCustomerAppointmentAsync(
@@ -426,6 +437,8 @@ public sealed class CustomerBookingApiTests : ApiTestBase
         Assert.Equal("Confirmed", mine.Status);
         Assert.Equal(120m, mine.TotalPrice);
         Assert.Equal(60, mine.TotalDurationMinutes);
+        Assert.Equal(6.00m, mine.TaxAmount);
+        Assert.Equal(126.00m, mine.TotalPayable);
 
         var line = Assert.Single(mine.Services);
 
@@ -557,6 +570,87 @@ public sealed class CustomerBookingApiTests : ApiTestBase
         Assert.Equal(HttpStatusCode.Unauthorized, write.StatusCode);
     }
 
+    /// <summary>
+    /// Pins the salon tax settings for the test. The API quotes whatever rate
+    /// is configured, so a VAT expectation is only meaningful when the
+    /// arrangement owns the configuration rather than inheriting whatever the
+    /// factory database holds.
+    /// </summary>
+    private async Task SetTaxSettingsAsync(decimal rate, bool pricesIncludeTax)
+    {
+        await using var db = Factory.Database.CreateContext();
+        var settings = await db.SalonSettings.FirstOrDefaultAsync();
+
+        if (settings is null)
+        {
+            db.SalonSettings.Add(new SalonSettings
+            {
+                Id = SalonSettings.SingletonId,
+                TaxRate = rate,
+                PricesIncludeTax = pricesIncludeTax,
+            });
+        }
+        else
+        {
+            settings.TaxRate = rate;
+            settings.PricesIncludeTax = pricesIncludeTax;
+        }
+
+        await db.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task The_quoted_VAT_is_rounded_to_fils_away_from_zero()
+    {
+        await SetTaxSettingsAsync(5m, pricesIncludeTax: false);
+        var staffId = await Factory.SeedStaffAsync("Rehana", "Rounding");
+        var categoryId = await Factory.SeedCategoryAsync("Hair");
+        var serviceId = await Factory.SeedServiceAsync(
+            categoryId,
+            "Precision Trim",
+            33.35m,
+            45,
+            staffIds: [staffId],
+            isOnlineBookable: true);
+        var day = NextSalon(DayOfWeek.Tuesday);
+        await Factory.SeedWorkingHoursAsync(staffId, DayOfWeek.Tuesday, new TimeSpan(9, 0, 0), new TimeSpan(17, 0, 0));
+        using var client = await RegisterCustomerAsync("rounding@debliss.test");
+
+        var response = await PostBookingAsync(client, new { serviceId, staffId, startsAt = SalonSlot(day, 11) }, "round-1");
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+
+        var confirmation = await ReadAsync<BookingConfirmation>(response);
+
+        Assert.Equal(33.35m, confirmation.Price);
+
+        // 33.35 × 5% = 1.6675 — quoted at 1.67, so the customer confirms 35.02,
+        // the same figure the checkout's TaxMath would charge.
+        Assert.Equal(1.67m, confirmation.TaxAmount);
+        Assert.Equal(35.02m, confirmation.TotalPayable);
+    }
+
+    [Fact]
+    public async Task An_inclusive_price_configuration_quotes_the_tax_inside_the_total()
+    {
+        await SetTaxSettingsAsync(5m, pricesIncludeTax: true);
+
+        var (staffId, serviceId, day) = await ArrangeAsync();
+        using var client = await RegisterCustomerAsync("inclusive@debliss.test");
+
+        var response = await PostBookingAsync(client, new { serviceId, staffId, startsAt = SalonSlot(day, 11) }, "inclusive-1");
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+
+        var confirmation = await ReadAsync<BookingConfirmation>(response);
+
+        // The 120 price already contains VAT: the tax portion is 120 × 5/105
+        // = 5.71 and what the customer pays stays 120.
+        Assert.True(confirmation.PricesIncludeTax);
+        Assert.Equal(5.71m, confirmation.TaxAmount);
+        Assert.Equal(120m, confirmation.TotalPayable);
+    }
+
     private async Task<(Guid StaffId, Guid ServiceId, DateOnly Day)> ArrangeAsync()
     {
         var staffId = await Factory.SeedStaffAsync(
@@ -650,6 +744,10 @@ public sealed class CustomerBookingApiTests : ApiTestBase
         string Status,
         string? StaffDisplayName,
         decimal Price,
+        decimal TaxRate,
+        bool PricesIncludeTax,
+        decimal TaxAmount,
+        decimal TotalPayable,
         string Source);
 
     private sealed record HistoryLine(string ServiceName, int DurationMinutes, decimal UnitPrice, string? StaffDisplayName);
@@ -661,5 +759,9 @@ public sealed class CustomerBookingApiTests : ApiTestBase
         string Status,
         List<HistoryLine> Services,
         decimal TotalPrice,
+        decimal TaxRate,
+        bool PricesIncludeTax,
+        decimal TaxAmount,
+        decimal TotalPayable,
         int TotalDurationMinutes);
 }

@@ -17,6 +17,7 @@ import { AppSidebar } from './layout/AppSidebar.tsx'
 import { InventoryPage } from './inventory/InventoryPage.tsx'
 import { RemindersPage } from './reminders/RemindersPage.tsx'
 import { ServicesPage } from './services/ServicesPage.tsx'
+import { SettingsPage } from './settings/SettingsPage.tsx'
 import { StaffPage } from './staff/StaffPage.tsx'
 
 function App() {
@@ -101,7 +102,18 @@ function AppRoutes() {
             onViewAllAppointments={() => navigateTo('/calendar')}
           />
         )}
-        {path === '/owner/dashboard' && <OwnerDashboardPage />}
+        {path === '/owner/dashboard' && (
+          <OwnerDashboardPage
+            revision={dataRevision}
+            firstName={user.firstName}
+            onNavigate={navigateTo}
+            onOpenAppointment={appointmentId => {
+              setPendingFocus({ kind: 'details', appointmentId })
+              navigateTo('/calendar')
+            }}
+            onCheckout={setCheckoutAppointmentId}
+          />
+        )}
         {path === '/staff/dashboard' && <StaffDashboardPage />}
         {path === '/calendar' && (
           <CalendarPage
@@ -136,6 +148,7 @@ function AppRoutes() {
         {path === '/coupons' && <CouponsPage />}
         {path === '/inventory' && <InventoryPage canManageInventory={user.roles.includes('OWNER')} />}
         {path === '/reminders' && <RemindersPage />}
+        {path === '/settings' && <SettingsPage />}
       </main>
 
       {checkoutAppointmentId !== null && (

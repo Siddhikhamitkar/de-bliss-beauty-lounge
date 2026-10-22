@@ -12,6 +12,7 @@ import type {
   PagedResult,
   Receipt,
   SaveCouponRequest,
+  SetTipRequest,
   UpdateInvoiceLineRequest,
   ValidateCouponRequest,
 } from './contracts.ts'
@@ -76,6 +77,15 @@ export function removeInvoiceLine(id: string, lineId: string): Promise<Invoice> 
 /** Records the payment and closes the invoice; returns the receipt to print. */
 export function checkoutInvoice(id: string, body: CheckoutInvoiceRequest): Promise<Receipt> {
   return request('POST', `/invoices/${id}/checkout`, body)
+}
+
+/**
+ * Saves the tip choice on a draft so an interrupted checkout resumes with it.
+ * The server persists the choice only — the charged amount is recomputed at
+ * checkout against the then-current totals.
+ */
+export function setInvoiceTip(id: string, body: SetTipRequest): Promise<Invoice> {
+  return request('PUT', `/invoices/${id}/tip`, body)
 }
 
 /** Reprints the receipt for a paid invoice. */

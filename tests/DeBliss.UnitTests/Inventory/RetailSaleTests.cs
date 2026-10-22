@@ -45,6 +45,7 @@ public class RetailSaleTests : IDisposable
             new AppointmentRepository(_billing.Context),
             new CustomerRepository(_billing.Context),
             new InventoryRepository(_billing.Context),
+            new SalonSettingsRepository(_billing.Context),
             _billing.Context,
             _billing.Database.Clock);
 
@@ -227,6 +228,7 @@ public class RetailSaleTests : IDisposable
             new AppointmentRepository(_billing.Context),
             new CustomerRepository(_billing.Context),
             new InventoryRepository(_billing.Context),
+            new SalonSettingsRepository(_billing.Context),
             _billing.Context,
             _billing.Database.Clock);
 
@@ -265,6 +267,7 @@ public class RetailSaleTests : IDisposable
             new AppointmentRepository(context),
             new CustomerRepository(context),
             new InventoryRepository(context),
+            new SalonSettingsRepository(context),
             context,
             _inventory.Database.Clock);
 

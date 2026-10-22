@@ -3,8 +3,8 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fetchCurrentUser, login, logout } from '../api/auth.ts'
 import type { AuthUser } from '../api/auth.ts'
-import type { ReceptionistDashboard } from '../api/contracts.ts'
-import { getReceptionistDashboard } from '../api/dashboard.ts'
+import type { OwnerDashboard, ReceptionistDashboard } from '../api/contracts.ts'
+import { getOwnerDashboard, getReceptionistDashboard } from '../api/dashboard.ts'
 import { getCalendar } from '../api/scheduling.ts'
 import App from '../App.tsx'
 
@@ -25,6 +25,7 @@ vi.mock('../api/scheduling.ts', () => ({
 
 vi.mock('../api/dashboard.ts', () => ({
   getReceptionistDashboard: vi.fn(),
+  getOwnerDashboard: vi.fn(),
 }))
 
 const ownerUser: AuthUser = {
@@ -79,8 +80,73 @@ const emptyDashboard: ReceptionistDashboard = {
   popularServices: [],
 }
 
+const emptyOwnerDashboard: OwnerDashboard = {
+  generatedAt: '2026-10-03T10:00:00+04:00',
+  timeZoneId: 'Asia/Dubai',
+  kpis: {
+    currency: 'AED',
+    netRevenueToday: 0,
+    netRevenueYesterday: 0,
+    netRevenueMonthToDate: 0,
+    netRevenueSamePeriodLastMonth: 0,
+    completedAppointmentsToday: 0,
+    upcomingAppointmentsToday: 0,
+    averageTransactionValue: 0,
+    paidInvoiceCount: 0,
+    retailRevenue: 0,
+    serviceRevenue: 0,
+    outstandingAmount: 0,
+    outstandingInvoiceCount: 0,
+  },
+  operations: {
+    today: {
+      date: '2026-10-03',
+      total: 0,
+      completed: 0,
+      inProgress: 0,
+      upcoming: 0,
+      noShow: 0,
+      cancelled: 0,
+      walkIns: 0,
+    },
+    schedule: [],
+    upcoming: [],
+    staff: [],
+    awaitingCheckout: 0,
+    conflicts: [],
+  },
+  revenue: {
+    rangeLabel: 'Today',
+    from: '2026-10-03',
+    to: '2026-10-03',
+    netRevenue: 0,
+    previousNetRevenue: 0,
+    changePercent: null,
+    serviceRevenue: 0,
+    retailRevenue: 0,
+    vatTotal: 0,
+    tipTotal: 0,
+    discountTotal: 0,
+    collected: 0,
+    paidInvoiceCount: 0,
+    averageTransactionValue: 0,
+    daily: [{ date: '2026-10-03', netRevenue: 0, completed: 0, cancelled: 0 }],
+    monthly: [],
+    topServices: [],
+    categories: [],
+    retailProducts: [],
+  },
+  inventory: {
+    lowStockCount: 0,
+    outOfStockCount: 0,
+    items: [],
+  },
+  actions: [],
+}
+
 beforeEach(() => {
   vi.mocked(getReceptionistDashboard).mockResolvedValue(emptyDashboard)
+  vi.mocked(getOwnerDashboard).mockResolvedValue(emptyOwnerDashboard)
   vi.mocked(getCalendar).mockResolvedValue({
     from: new Date().toISOString(),
     to: new Date().toISOString(),
@@ -137,7 +203,7 @@ describe('auth flow', () => {
     expect(window.location.pathname).toBe('/receptionist/dashboard')
   })
 
-  it('lands the owner on the OwnerDashboard placeholder after login', async () => {
+  it('lands the owner on the Owner dashboard after login', async () => {
     vi.mocked(fetchCurrentUser).mockResolvedValue(null)
     vi.mocked(login).mockResolvedValue(ownerUser)
     window.history.pushState({}, '', '/login')
@@ -149,7 +215,9 @@ describe('auth flow', () => {
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
     expect(await screen.findByRole('region', { name: 'Owner dashboard' })).toBeInTheDocument()
-    expect(screen.getByText('Your owner workspace is being prepared.')).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: /Welcome back, Omar/ }),
+    ).toBeInTheDocument()
     expect(window.location.pathname).toBe('/owner/dashboard')
   })
 
