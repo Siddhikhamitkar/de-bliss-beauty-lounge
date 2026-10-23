@@ -8,6 +8,7 @@ import type {
 } from '../api/contracts.ts'
 import { EmptyState } from '../components/EmptyState.tsx'
 import { ErrorState } from '../components/ErrorState.tsx'
+import { ImportDialog } from '../components/ImportDialog.tsx'
 import { LoadingState } from '../components/LoadingState.tsx'
 import { Pagination } from '../components/Pagination.tsx'
 import { formatDay } from '../format.ts'
@@ -36,6 +37,7 @@ export function InventoryPage({ canManageInventory }: InventoryPageProps) {
   const [page, setPage] = useState(1)
   const [selected, setSelected] = useState<InventoryProduct | null>(null)
   const [editor, setEditor] = useState<{ productId: string | null } | null>(null)
+  const [importing, setImporting] = useState(false)
   // Bumped whenever the drawer or editor writes, so the list re-reads stock.
   const [revision, setRevision] = useState(0)
 
@@ -83,6 +85,9 @@ export function InventoryPage({ canManageInventory }: InventoryPageProps) {
           </div>
           {canManageInventory && (
             <div className="panel-actions">
+              <button type="button" className="button" onClick={() => setImporting(true)}>
+                Import
+              </button>
               <button
                 type="button"
                 className="button button-primary"
@@ -221,6 +226,26 @@ export function InventoryPage({ canManageInventory }: InventoryPageProps) {
           </>
         )}
       </section>
+
+      {importing && (
+        <ImportDialog
+          flavours={[
+            {
+              kind: 'retail',
+              label: 'Retail products',
+              description: 'Carry cost and selling prices; sellable at the counter.',
+            },
+            {
+              kind: 'salon-use',
+              label: 'Salon-use products',
+              description: 'Counted in units like ml or pcs; never priced for sale.',
+            },
+          ]}
+          title="Import products"
+          onClose={() => setImporting(false)}
+          onImported={() => setRevision(current => current + 1)}
+        />
+      )}
 
       {selected !== null && (
         <InventoryDrawer

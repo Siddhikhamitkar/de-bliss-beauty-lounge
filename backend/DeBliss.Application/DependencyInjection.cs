@@ -2,6 +2,7 @@ using DeBliss.Application.Billing;
 using DeBliss.Application.Customers;
 using DeBliss.Application.Dashboard;
 using DeBliss.Application.Identity;
+using DeBliss.Application.Imports;
 using DeBliss.Application.Inventory;
 using DeBliss.Application.Notifications;
 using DeBliss.Application.Notifications.Ports;
@@ -42,6 +43,9 @@ public static class DependencyInjection
         services.AddScoped<IReminderDispatchService, ReminderDispatchService>();
         services.AddScoped<IReminderSettingsService, ReminderSettingsService>();
         services.AddScoped<IReminderHistoryService, ReminderHistoryService>();
+        services.AddScoped<ICustomerImportService, CustomerImportService>();
+        services.AddScoped<IInventoryImportService, InventoryImportService>();
+        services.AddScoped<IServiceImportService, ServiceImportService>();
 
         return services;
     }

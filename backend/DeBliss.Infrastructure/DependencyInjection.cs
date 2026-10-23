@@ -4,6 +4,7 @@ using DeBliss.Application.Customers.Ports;
 using DeBliss.Application.Dashboard.Ports;
 using DeBliss.Application.Identity.Ports;
 using DeBliss.Application.Inventory.Ports;
+using DeBliss.Application.Imports;
 using DeBliss.Application.Notifications;
 using DeBliss.Application.Notifications.Ports;
 using DeBliss.Application.Scheduling;
@@ -12,6 +13,7 @@ using DeBliss.Application.ServiceCatalogue.Ports;
 using DeBliss.Application.Settings.Ports;
 using DeBliss.Application.Staffing.Ports;
 using DeBliss.Infrastructure.Notifications;
+using DeBliss.Infrastructure.Imports;
 using DeBliss.Infrastructure.Scheduling;
 using DeBliss.Infrastructure.Persistence;
 using DeBliss.Infrastructure.Persistence.Interceptors;
@@ -45,6 +47,9 @@ public static class DependencyInjection
         services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<DeBlissDbContext>());
 
         services.AddSingleton<ISalonTimeZone, ConfiguredSalonTimeZone>();
+
+        // Stateless spreadsheet mechanics behind the import feature.
+        services.AddSingleton<IImportFiles, ClosedXmlImportFiles>();
 
         services.AddScoped<IServiceCategoryRepository, ServiceCategoryRepository>();
         services.AddScoped<IServiceRepository, ServiceRepository>();

@@ -109,6 +109,53 @@ export async function request<T>(method: string, path: string, body?: unknown): 
 }
 
 /**
+ * POSTs multipart form data — an uploaded workbook — and parses the JSON
+ * answer, with the same 401 and problem-document handling as `request`.
+ */
+export async function requestForm<T>(method: string, path: string, form: FormData): Promise<T> {
+  const response = await fetch(`/api${path}`, {
+    method,
+    credentials: 'same-origin',
+    body: form,
+  })
+
+  if (!response.ok) {
+    if (response.status === 401 && !path.startsWith('/auth/')) {
+      window.dispatchEvent(new CustomEvent('debliss:unauthorized'))
+    }
+
+    throw new ApiError(response.status, await readProblem(response))
+  }
+
+  const text = await response.text()
+
+  return (text ? (JSON.parse(text) as T) : undefined) as T
+}
+
+/**
+ * Fetches a file — an import template or error report — as bytes for the
+ * browser to save. Multipart form is optional so template downloads need no
+ * body; errors decode as problems exactly like every other call.
+ */
+export async function requestBlob(method: string, path: string, form?: FormData): Promise<Blob> {
+  const response = await fetch(`/api${path}`, {
+    method,
+    credentials: 'same-origin',
+    body: form,
+  })
+
+  if (!response.ok) {
+    if (response.status === 401 && !path.startsWith('/auth/')) {
+      window.dispatchEvent(new CustomEvent('debliss:unauthorized'))
+    }
+
+    throw new ApiError(response.status, await readProblem(response))
+  }
+
+  return response.blob()
+}
+
+/**
  * A body that is not JSON means something other than the API answered — a proxy
  * error page, typically. That is reported as an empty problem so the caller
  * still gets the status code rather than a parse failure masking it.

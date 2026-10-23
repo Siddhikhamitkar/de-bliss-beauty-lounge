@@ -7,6 +7,7 @@ import { Pagination } from '../components/Pagination.tsx'
 import { LoadingState } from '../components/LoadingState.tsx'
 import { EmptyState } from '../components/EmptyState.tsx'
 import { ErrorState } from '../components/ErrorState.tsx'
+import { ImportDialog } from '../components/ImportDialog.tsx'
 import { CustomerFilters } from './CustomerFilters.tsx'
 import { CustomerList } from './CustomerList.tsx'
 import { CustomerEditor } from './CustomerForm.tsx'
@@ -44,6 +45,7 @@ export function CustomersPage({
   )
   const [selected, setSelected] = useState<CustomerSummary | null>(null)
   const [actionFailure, setActionFailure] = useState<string>()
+  const [importing, setImporting] = useState(false)
 
   // Clear the hand-off once it has been picked up by the initializer above.
   useEffect(() => {
@@ -93,13 +95,18 @@ export function CustomersPage({
               Profiles, visit history and notes for every guest of De Bliss.
             </p>
           </div>
-          <button
-            type="button"
-            className="button button-primary"
-            onClick={() => setView({ kind: 'form', customerId: null })}
-          >
-            New customer
-          </button>
+          <div className="panel-actions">
+            <button type="button" className="button" onClick={() => setImporting(true)}>
+              Import
+            </button>
+            <button
+              type="button"
+              className="button button-primary"
+              onClick={() => setView({ kind: 'form', customerId: null })}
+            >
+              New customer
+            </button>
+          </div>
         </div>
 
         <CustomerFilters
@@ -142,6 +149,15 @@ export function CustomersPage({
           </>
         )}
       </section>
+
+      {importing && (
+        <ImportDialog
+          flavours={[{ kind: 'customers', label: 'Customers', description: 'Name, mobile, email and profile details.' }]}
+          title="Import customers"
+          onClose={() => setImporting(false)}
+          onImported={customers.reload}
+        />
+      )}
 
       {selected !== null && (
         <CustomerDrawer

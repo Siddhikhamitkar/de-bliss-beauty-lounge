@@ -1110,3 +1110,49 @@ export interface AddInvoiceLineRequest {
 export interface UpdateInvoiceLineRequest {
   quantity: number | null
 }
+
+export type ImportRowStatus = 'Valid' | 'Invalid' | 'DuplicateInFile' | 'AlreadyExists'
+
+/** One field-level problem on one imported row, as the preview and reports show it. */
+export interface ImportFieldError {
+  rowNumber: number
+  field: string
+  message: string
+  rawValue?: string | null
+}
+
+/** One row of the import preview grid. */
+export interface ImportPreviewRow {
+  rowNumber: number
+  label: string
+  status: ImportRowStatus
+  fields: string[]
+}
+
+/** The no-writes verdict for an uploaded workbook. */
+export interface ImportPreview {
+  type: string
+  fileName: string
+  totalRows: number
+  validRows: number
+  invalidRows: number
+  duplicateRows: number
+  existingRows: number
+  openingStockRows: number
+  rows: ImportPreviewRow[]
+  errors: ImportFieldError[]
+}
+
+/** What an import did; `succeeded` is false only when nothing was saved. */
+export interface ImportResult {
+  type: string
+  fileName: string
+  succeeded: boolean
+  created: number
+  skippedInvalid: number
+  skippedExisting: number
+  failed: number
+  openingStockMovements: number
+  message?: string | null
+  errors: ImportFieldError[]
+}

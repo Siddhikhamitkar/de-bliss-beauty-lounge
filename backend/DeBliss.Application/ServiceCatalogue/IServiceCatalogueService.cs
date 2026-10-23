@@ -26,6 +26,8 @@ public interface IServiceCatalogueService
     /// </summary>
     Task<IReadOnlyList<PublicServiceDto>> GetPublicCatalogueAsync(CancellationToken cancellationToken = default);
 
+    Task ValidateCreateAsync(SaveServiceRequest request, CancellationToken cancellationToken = default);
+
     Task<ServiceDto> CreateAsync(SaveServiceRequest request, CancellationToken cancellationToken = default);
 
     Task<ServiceDto> UpdateAsync(Guid id, SaveServiceRequest request, CancellationToken cancellationToken = default);

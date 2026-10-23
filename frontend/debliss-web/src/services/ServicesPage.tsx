@@ -7,8 +7,10 @@ import {
 } from '../api/catalogue.ts'
 import { describeFailure } from '../api/client.ts'
 import type { ServiceStatusFilter, ServiceSummary } from '../api/contracts.ts'
+import { downloadImportTemplate, importTemplateName, saveBlob } from '../api/imports.ts'
 import { EmptyState } from '../components/EmptyState.tsx'
 import { ErrorState } from '../components/ErrorState.tsx'
+import { ImportDialog } from '../components/ImportDialog.tsx'
 import { LoadingState } from '../components/LoadingState.tsx'
 import { Pagination } from '../components/Pagination.tsx'
 import { RowActionMenu } from '../components/RowActionMenu.tsx'
@@ -39,6 +41,8 @@ export function ServicesPage({ onManageCategories }: { onManageCategories?: () =
   const [editor, setEditor] = useState<Editor | null>(null)
   const [selected, setSelected] = useState<ServiceSummary | null>(null)
   const [actionFailure, setActionFailure] = useState<string>()
+  const [importing, setImporting] = useState(false)
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false)
 
   const categories = useAsync(() => listCategories(), [])
 
@@ -53,6 +57,18 @@ export function ServicesPage({ onManageCategories }: { onManageCategories?: () =
       }),
     [appliedSearch, categoryId, status, bookableOnly, page],
   )
+
+  async function downloadTemplate() {
+    setDownloadingTemplate(true)
+    setActionFailure(undefined)
+    try {
+      saveBlob(await downloadImportTemplate('services'), importTemplateName('services'))
+    } catch (error: unknown) {
+      setActionFailure(describeFailure(error))
+    } finally {
+      setDownloadingTemplate(false)
+    }
+  }
 
   // Bundles and services share the list but not the status endpoint, and a
   // bundle refuses to activate while one of its services cannot be booked.
@@ -107,6 +123,17 @@ export function ServicesPage({ onManageCategories }: { onManageCategories?: () =
               Manage categories
             </button>
           )}
+          <button
+            type="button"
+            className="button"
+            onClick={downloadTemplate}
+            disabled={downloadingTemplate}
+          >
+            {downloadingTemplate ? 'Downloading…' : 'Download Excel Template'}
+          </button>
+          <button type="button" className="button" onClick={() => setImporting(true)}>
+            Import Services
+          </button>
           <RowActionMenu
             label="Add to the service menu"
             triggerText="Add ▾"
@@ -214,6 +241,15 @@ export function ServicesPage({ onManageCategories }: { onManageCategories?: () =
 
           <Pagination result={services.data} onChange={setPage} />
         </>
+      )}
+
+      {importing && (
+        <ImportDialog
+          flavours={[{ kind: 'services', label: 'Services', description: 'Services with existing categories and eligible staff.' }]}
+          title="Import Services"
+          onClose={() => setImporting(false)}
+          onImported={services.reload}
+        />
       )}
 
       {selected !== null &&

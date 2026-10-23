@@ -35,7 +35,9 @@ the Billing & Payments module is described in
 the Appointment Reminders module is described in
 [docs/APPOINTMENT-REMINDERS-SPECIFICATION.md](docs/APPOINTMENT-REMINDERS-SPECIFICATION.md);
 the staff mobile backend foundation (self-service API + attendance) is described in
-[docs/STAFF-MOBILE-BACKEND-SPECIFICATION.md](docs/STAFF-MOBILE-BACKEND-SPECIFICATION.md).
+[docs/STAFF-MOBILE-BACKEND-SPECIFICATION.md](docs/STAFF-MOBILE-BACKEND-SPECIFICATION.md);
+the Excel import for customers and inventory is described in
+[docs/EXCEL-IMPORT-SPECIFICATION.md](docs/EXCEL-IMPORT-SPECIFICATION.md).
 
 The system is built as a **modular monolith**: a single deployable backend
 composed of independent, cleanly separated modules, with a layered architecture

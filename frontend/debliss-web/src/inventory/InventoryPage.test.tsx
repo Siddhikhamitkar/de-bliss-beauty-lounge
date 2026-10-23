@@ -19,6 +19,15 @@ vi.mock('../api/inventory.ts', () => ({
   searchStockMovements: vi.fn(),
 }))
 
+vi.mock('../api/imports.ts', async importOriginal => ({
+  ...await importOriginal<typeof import('../api/imports.ts')>(),
+  downloadImportErrorReport: vi.fn(),
+  downloadImportTemplate: vi.fn(),
+  executeImport: vi.fn(),
+  importTemplateName: vi.fn((kind: string) => `${kind}-import-template.xlsx`),
+  previewImport: vi.fn(),
+}))
+
 function product(overrides: Partial<InventoryProduct> = {}): InventoryProduct {
   return {
     id: 'p1',
@@ -112,6 +121,23 @@ describe('InventoryPage', () => {
 
     rerender(<InventoryPage canManageInventory={false} />)
     expect(screen.queryByRole('button', { name: 'Add product' })).not.toBeInTheDocument()
+  })
+
+  it('opens the product import with the retail and salon-use flavours, owner only', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<InventoryPage canManageInventory />)
+    await screen.findByText('Olaplex No. 3')
+
+    await user.click(screen.getByRole('button', { name: 'Import' }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'Import products' })
+
+    expect(within(dialog).getByRole('radio', { name: /Retail products/ })).toBeChecked()
+    expect(within(dialog).getByRole('radio', { name: /Salon-use products/ })).toBeInTheDocument()
+
+    rerender(<InventoryPage canManageInventory={false} />)
+
+    expect(screen.queryByRole('button', { name: 'Import' })).not.toBeInTheDocument()
   })
 
   it('sends the filters to the API as they are applied', async () => {

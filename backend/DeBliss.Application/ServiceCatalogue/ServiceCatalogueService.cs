@@ -80,6 +80,13 @@ public sealed class ServiceCatalogueService(
         return [.. publicServices.Select(MapPublic)];
     }
 
+    public async Task ValidateCreateAsync(
+        SaveServiceRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        await ValidateAsync(request, excludingId: null, cancellationToken);
+    }
+
     public async Task<ServiceDto> CreateAsync(
         SaveServiceRequest request,
         CancellationToken cancellationToken = default)

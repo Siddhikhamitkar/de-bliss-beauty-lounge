@@ -4118,3 +4118,249 @@ input[type='radio'] {
     font-size: 0.55rem;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Excel import dialog
+--------------------------------------------------------------------------- */
+.import-dialog {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 44rem;
+  max-height: calc(100dvh - 2rem);
+}
+
+.import-dialog-services {
+  max-width: 68rem;
+}
+
+.import-dialog > h3,
+.import-dialog .dialog-actions {
+  flex-shrink: 0;
+}
+
+.import-dialog .dialog-actions {
+  flex-wrap: wrap;
+}
+
+.import-dropzone {
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  border: 1px dashed var(--line);
+  border-radius: 0.55rem;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.import-dropzone.is-dragging,
+.import-file-picker:focus-within {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+.import-file-picker {
+  position: relative;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  cursor: pointer;
+}
+
+.import-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.import-dropzone[aria-disabled='true'] {
+  opacity: 0.6;
+}
+
+.import-selected-file {
+  margin: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.import-table-scroll {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.import-dialog-services .import-table {
+  min-width: 54rem;
+  table-layout: fixed;
+  overflow-wrap: anywhere;
+}
+
+.import-dialog-services .import-table th:first-child {
+  width: 3rem;
+}
+
+@media (max-width: 600px) {
+  .import-dialog .dialog-actions .button {
+    flex: 1 1 45%;
+  }
+}
+
+.import-body {
+  display: grid;
+  gap: 0.9rem;
+  overflow-y: auto;
+}
+
+.import-lede {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.92rem;
+}
+
+.import-hint {
+  margin: 0;
+  color: color-mix(in srgb, var(--text) 62%, transparent);
+  font-size: 0.82rem;
+}
+
+.import-flavours {
+  border: 1px solid var(--line);
+  border-radius: 0.55rem;
+  padding: 0.6rem 0.8rem;
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+}
+
+.import-flavours legend {
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0 0.3rem;
+}
+
+.import-flavour {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-start;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.import-flavour input {
+  margin-top: 0.2rem;
+}
+
+.import-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.import-count {
+  background: color-mix(in srgb, var(--line) 32%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.78rem;
+  min-width: 4.5rem;
+}
+
+.import-count strong {
+  display: block;
+  font-size: 1.1rem;
+  line-height: 1.2;
+}
+
+.import-count.is-problem strong {
+  color: var(--danger);
+}
+
+.import-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.import-table th,
+.import-table td {
+  text-align: left;
+  padding: 0.32rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.import-table thead th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: color-mix(in srgb, var(--text) 62%, transparent);
+}
+
+.import-status {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.08rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.import-status-valid {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 38%, transparent);
+}
+
+.import-status-invalid {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 38%, transparent);
+}
+
+.import-status-duplicateinfile,
+.import-status-alreadyexists {
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 38%, transparent);
+}
+
+.import-errors {
+  max-height: 11rem;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 0.55rem;
+  padding: 0.55rem 0.75rem;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.import-error-row {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  font-size: 0.82rem;
+}
+
+.import-error-field {
+  font-weight: 600;
+  color: color-mix(in srgb, var(--text) 75%, transparent);
+}
+
+.import-option {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-start;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.import-option input {
+  margin-top: 0.2rem;
+}
+
+.import-summary {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.88rem;
+}

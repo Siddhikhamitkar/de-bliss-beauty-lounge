@@ -24,6 +24,15 @@ vi.mock('../api/customers.ts', () => ({
   listCustomerAppointments: vi.fn(),
 }))
 
+vi.mock('../api/imports.ts', async importOriginal => ({
+  ...await importOriginal<typeof import('../api/imports.ts')>(),
+  downloadImportErrorReport: vi.fn(),
+  downloadImportTemplate: vi.fn(),
+  executeImport: vi.fn(),
+  importTemplateName: vi.fn(() => 'customer-import-template.xlsx'),
+  previewImport: vi.fn(),
+}))
+
 function paged(items: CustomerSummary[], overrides: Partial<PagedResult<CustomerSummary>> = {}): PagedResult<CustomerSummary> {
   return {
     items,
@@ -286,5 +295,21 @@ describe('CustomersPage', () => {
     expect(screen.getByLabelText('Status')).toHaveValue('Inactive')
     // Closing the drawer reloads nothing: the list keeps its three queries.
     expect(searchCustomers).toHaveBeenCalledTimes(3)
+  })
+
+  it('opens the customer import dialog from the Import action', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Import' }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'Import customers' })
+
+    expect(within(dialog).getByLabelText('Workbook (.xlsx)')).toBeInTheDocument()
+    expect(within(dialog).getByText(/Import customers from an Excel workbook/)).toBeInTheDocument()
+
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+    expect(screen.queryByRole('dialog', { name: 'Import customers' })).not.toBeInTheDocument()
   })
 })

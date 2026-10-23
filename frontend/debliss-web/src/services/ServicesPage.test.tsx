@@ -1,6 +1,6 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   getBundle,
   getService,
@@ -12,8 +12,17 @@ import {
   setServiceStatus,
 } from '../api/catalogue.ts'
 import type { Bundle, PagedResult, Service, ServiceSummary } from '../api/contracts.ts'
+import { downloadImportTemplate, executeImport, previewImport } from '../api/imports.ts'
 import { formatDuration, formatDate, formatPrice } from '../format.ts'
 import { ServicesPage } from './ServicesPage.tsx'
+
+vi.mock('../api/imports.ts', async importOriginal => ({
+  ...await importOriginal<typeof import('../api/imports.ts')>(),
+  downloadImportTemplate: vi.fn(),
+  downloadImportErrorReport: vi.fn(),
+  previewImport: vi.fn(),
+  executeImport: vi.fn(),
+}))
 
 vi.mock('../api/catalogue.ts', () => ({
   searchServices: vi.fn(),
@@ -568,5 +577,100 @@ describe('ServicesPage', () => {
       expect(searchIndividualServices).toHaveBeenCalledWith({ status: 'Active', pageSize: 200 }),
     )
     expect(getBundle).not.toHaveBeenCalled()
+  })
+
+  describe('Excel import actions', () => {
+    const realCreateObjectURL = URL.createObjectURL
+    const realRevokeObjectURL = URL.revokeObjectURL
+
+    beforeEach(() => {
+      URL.createObjectURL = vi.fn(() => 'blob:services-template')
+      URL.revokeObjectURL = vi.fn()
+    })
+
+    afterEach(() => {
+      URL.createObjectURL = realCreateObjectURL
+      URL.revokeObjectURL = realRevokeObjectURL
+    })
+
+    it('downloads the service template directly without opening the import dialog', async () => {
+      const user = userEvent.setup()
+      const blob = new Blob(['template'])
+      let finish!: (blob: Blob) => void
+      vi.mocked(downloadImportTemplate).mockReturnValue(new Promise(resolve => { finish = resolve }))
+      const download = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+      render(<ServicesPage />)
+      await screen.findByText('Gel Manicure')
+      await user.click(screen.getByRole('button', { name: 'Download Excel Template' }))
+
+      expect(downloadImportTemplate).toHaveBeenCalledExactlyOnceWith('services')
+      expect(screen.getByRole('button', { name: 'Downloading…' })).toBeDisabled()
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      await act(async () => finish(blob))
+      expect(URL.createObjectURL).toHaveBeenCalledWith(blob)
+      expect(download.mock.instances[0]).toHaveAttribute('download', 'services-import-template.xlsx')
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:services-template')
+      expect(screen.getByRole('button', { name: 'Download Excel Template' })).toBeEnabled()
+      expect(previewImport).not.toHaveBeenCalled()
+      expect(executeImport).not.toHaveBeenCalled()
+      download.mockRestore()
+    })
+
+    it('reports template download failure and allows retry', async () => {
+      const user = userEvent.setup()
+      vi.mocked(downloadImportTemplate).mockRejectedValue(new Error('Template unavailable.'))
+      render(<ServicesPage />)
+      await user.click(screen.getByRole('button', { name: 'Download Excel Template' }))
+      expect(await screen.findByRole('alert')).toHaveTextContent('Template unavailable.')
+      expect(screen.getByRole('button', { name: 'Download Excel Template' })).toBeEnabled()
+    })
+
+    it('opens the shared service dialog directly and reloads the list after a confirmed creation', async () => {
+      const user = userEvent.setup()
+      const file = new File(['workbook'], 'services.xlsx')
+      vi.mocked(previewImport).mockResolvedValue({
+        type: 'Services', fileName: file.name, totalRows: 1, validRows: 1, invalidRows: 0,
+        duplicateRows: 0, existingRows: 0, openingStockRows: 0,
+        rows: [{ rowNumber: 2, label: 'New treatment', status: 'Valid', fields: ['New treatment', 'Nails', '75', '30', '', 'No', ''] }],
+        errors: [],
+      })
+      vi.mocked(executeImport).mockResolvedValue({
+        type: 'Services', fileName: file.name, succeeded: true, created: 1, skippedInvalid: 0,
+        skippedExisting: 0, failed: 0, openingStockMovements: 0, errors: [], message: null,
+      })
+      render(<ServicesPage />)
+      await screen.findByText('Gel Manicure')
+      await user.click(screen.getByRole('button', { name: 'Import Services' }))
+      const dialog = screen.getByRole('dialog', { name: 'Import Services' })
+      await user.upload(within(dialog).getByLabelText('Workbook (.xlsx)'), file)
+      await user.click(within(dialog).getByRole('button', { name: 'Preview import' }))
+      expect(previewImport).toHaveBeenCalledExactlyOnceWith('services', file)
+      expect(searchServices).toHaveBeenCalledTimes(1)
+      expect(executeImport).not.toHaveBeenCalled()
+
+      vi.mocked(searchServices).mockResolvedValue(paged([service(), service({ id: 's2', name: 'New treatment' })]))
+      await user.click(within(dialog).getByRole('button', { name: 'Import 1 service' }))
+      expect(await within(dialog).findByText('Created 1 service.')).toBeInTheDocument()
+      expect(executeImport).toHaveBeenCalledExactlyOnceWith('services', file, false)
+      await waitFor(() => expect(searchServices).toHaveBeenCalledTimes(2))
+      await user.click(within(dialog).getByRole('button', { name: 'Done' }))
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(screen.getByRole('row', { name: /New treatment/ })).toBeInTheDocument()
+    })
+
+    it('cancels without executing or reloading and opens a fresh dialog next time', async () => {
+      const user = userEvent.setup()
+      render(<ServicesPage />)
+      await screen.findByText('Gel Manicure')
+      await user.click(screen.getByRole('button', { name: 'Import Services' }))
+      await user.upload(screen.getByLabelText('Workbook (.xlsx)'), new File(['workbook'], 'services.xlsx'))
+      await user.click(screen.getByRole('button', { name: 'Cancel' }))
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(executeImport).not.toHaveBeenCalled()
+      expect(searchServices).toHaveBeenCalledTimes(1)
+      await user.click(screen.getByRole('button', { name: 'Import Services' }))
+      expect(screen.getByRole('button', { name: 'Preview import' })).toBeDisabled()
+      expect(screen.getByText('No workbook selected.')).toBeInTheDocument()
+    })
   })
 })

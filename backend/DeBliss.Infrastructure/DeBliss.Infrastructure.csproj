@@ -10,6 +10,7 @@
     <!-- compile assets are included because this project hosts the design-time
          DbContext factory and the EF Core migrations themselves. PrivateAssets
          keeps the design tooling out of the API's dependency graph. -->
+    <PackageReference Include="ClosedXML" Version="0.105.1" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
