@@ -1,74 +1,7 @@
 import type { ReactNode } from 'react'
-import type { AuthUser, RoleName } from '../api/auth.ts'
-
-type IconName =
-  | 'dashboard'
-  | 'calendar'
-  | 'customers'
-  | 'services'
-  | 'staff'
-  | 'billing'
-  | 'reminders'
-  | 'packages'
-  | 'loyalty'
-  | 'inventory'
-  | 'expenses'
-  | 'reports'
-  | 'marketing'
-  | 'settings'
-
-type NavGroup = 'workspace' | 'catalog' | 'operations' | 'soon'
-
-interface NavItem {
-  key: string
-  label: string
-  icon: IconName
-  /** Which visual section of the rail the item belongs to. */
-  group: NavGroup
-  /** The route a click navigates to. Items without one are not built yet. */
-  path?: string
-  /** Which roles may see the item at all. The sidebar is a courtesy filter —
-   *  the API is the actual gate. */
-  roles: readonly RoleName[]
-}
-
-/** Sidebar section order. Groups left with no visible items are skipped. */
-const NAV_GROUPS: { key: NavGroup; label: string }[] = [
-  { key: 'workspace', label: 'Workspace' },
-  { key: 'catalog', label: 'Catalog' },
-  { key: 'operations', label: 'Operations' },
-  { key: 'soon', label: 'Coming soon' },
-]
-
-/**
- * The full salon roadmap, grouped in operational order. The receptionist's
- * rail shows only the built operational modules; the owner additionally sees
- * the future modules as disabled "Soon" rows so the product shape reads at a
- * glance. Staff have no modules yet, so their rail is brand plus identity
- * alone.
- */
-const NAV_ITEMS: NavItem[] = [
-  { key: 'dashboard', label: 'Dashboard', icon: 'dashboard', group: 'workspace', path: '/receptionist/dashboard', roles: ['OWNER', 'RECEPTIONIST'] },
-  { key: 'calendar', label: 'Calendar', icon: 'calendar', group: 'workspace', path: '/calendar', roles: ['OWNER', 'RECEPTIONIST'] },
-  { key: 'customers', label: 'Customers', icon: 'customers', group: 'workspace', path: '/customers', roles: ['OWNER', 'RECEPTIONIST'] },
-  { key: 'services', label: 'Services', icon: 'services', group: 'catalog', path: '/services', roles: ['OWNER', 'RECEPTIONIST'] },
-  { key: 'staff', label: 'Staff', icon: 'staff', group: 'catalog', path: '/staff', roles: ['OWNER', 'RECEPTIONIST'] },
-  { key: 'billing', label: 'Billing', icon: 'billing', group: 'operations', path: '/billing', roles: ['OWNER', 'RECEPTIONIST'] },
-  { key: 'reminders', label: 'Reminders', icon: 'reminders', group: 'operations', path: '/reminders', roles: ['OWNER', 'RECEPTIONIST'] },
-  { key: 'inventory', label: 'Inventory', icon: 'inventory', group: 'operations', path: '/inventory', roles: ['OWNER', 'RECEPTIONIST'] },
-  { key: 'settings', label: 'Settings', icon: 'settings', group: 'operations', path: '/settings', roles: ['OWNER'] },
-  { key: 'packages', label: 'Packages', icon: 'packages', group: 'soon', roles: ['OWNER'] },
-  { key: 'loyalty', label: 'Loyalty', icon: 'loyalty', group: 'soon', roles: ['OWNER'] },
-  { key: 'expenses', label: 'Expenses', icon: 'expenses', group: 'soon', roles: ['OWNER'] },
-  { key: 'reports', label: 'Reports', icon: 'reports', group: 'soon', roles: ['OWNER'] },
-  { key: 'marketing', label: 'Marketing', icon: 'marketing', group: 'soon', roles: ['OWNER'] },
-]
-
-/** Sub-screens that belong to a rail item even though they live on their own path. */
-const ACTIVE_ALIASES: Record<string, string> = {
-  '/categories': '/services',
-  '/coupons': '/billing',
-}
+import type { AuthUser } from '../api/auth.ts'
+import { NAV_GROUPS, NAV_ITEMS, ACTIVE_ALIASES } from './navConfig.ts'
+import type { IconName } from './navConfig.ts'
 
 const ICON_PATHS: Record<IconName, ReactNode> = {
   dashboard: (
@@ -192,25 +125,21 @@ function NavIcon({ name }: { name: IconName }) {
 }
 
 /**
- * The application shell's left rail: brand, role-filtered section navigation
- * and the signed-in identity with sign-out. The active item is marked with
- * aria-current so tests and assistive tech read it.
+ * The application shell's left rail: brand, role-filtered section navigation.
+ * The active item is marked with aria-current so tests and assistive tech read
+ * it; identity and sign-out live in the top bar.
  */
 export function AppSidebar({
   currentPath,
   user,
   onNavigate,
-  onSignOut,
 }: {
   currentPath: string
   user: AuthUser
   onNavigate: (path: string) => void
-  onSignOut: () => void
 }) {
   const items = NAV_ITEMS.filter(item => item.roles.some(role => user.roles.includes(role)))
   const activePath = ACTIVE_ALIASES[currentPath] ?? currentPath
-  const displayName = `${user.firstName} ${user.lastName}`.trim()
-  const primaryRole = user.roles[0] ?? 'STAFF'
 
   return (
     <aside className="app-sidebar" aria-label="Main navigation">
@@ -265,16 +194,6 @@ export function AppSidebar({
           )
         })}
       </nav>
-
-      <div className="side-user">
-        <div className="side-user-text">
-          <span className="side-user-name">{displayName}</span>
-          <span className="side-user-role">{primaryRole}</span>
-        </div>
-        <button type="button" className="side-signout" onClick={onSignOut}>
-          Sign out
-        </button>
-      </div>
     </aside>
   )
 }

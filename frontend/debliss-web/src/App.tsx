@@ -14,6 +14,7 @@ import { DashboardPage } from './dashboard/DashboardPage.tsx'
 import { OwnerDashboardPage } from './dashboard/OwnerDashboardPage.tsx'
 import { StaffDashboardPage } from './dashboard/StaffDashboardPage.tsx'
 import { AppSidebar } from './layout/AppSidebar.tsx'
+import { AppTopBar } from './layout/AppTopBar.tsx'
 import { InventoryPage } from './inventory/InventoryPage.tsx'
 import { RemindersPage } from './reminders/RemindersPage.tsx'
 import { ServicesPage } from './services/ServicesPage.tsx'
@@ -70,16 +71,18 @@ function AppRoutes() {
 
   return (
     <div className="app-shell">
-      <AppSidebar
+      <AppTopBar
         currentPath={path}
         user={user}
-        onNavigate={navigateTo}
         onSignOut={() => {
           void logout()
         }}
       />
 
-      <main className={path === '/calendar' ? 'app-main app-main-wide' : 'app-main'}>
+      <div className="app-body">
+        <AppSidebar currentPath={path} user={user} onNavigate={navigateTo} />
+
+        <main className={path === '/calendar' ? 'app-main app-main-wide' : 'app-main'}>
         {path === '/receptionist/dashboard' && (
           <DashboardPage
             revision={dataRevision}
@@ -150,6 +153,7 @@ function AppRoutes() {
         {path === '/reminders' && <RemindersPage />}
         {path === '/settings' && <SettingsPage />}
       </main>
+      </div>
 
       {checkoutAppointmentId !== null && (
         <CheckoutPage

@@ -1,23 +1,28 @@
 :root {
   color-scheme: light dark;
 
-  --surface: light-dark(#fbf8f4, #1c1917);
-  --raised: light-dark(#f5f1ec, #26211e);
-  --text: light-dark(#262019, #efe9e3);
-  --muted: light-dark(#6f6357, #a89a8d);
-  --line: light-dark(#e4dcd2, #3b342e);
-  --accent: light-dark(#8a4f56, #d49aa0);
-  --accent-contrast: #fffaf6;
+  /* Neutral canvas, white cards: the workspace reads as software, not
+     stationery. Brand colour arrives through actions and accents only. */
+  --surface: light-dark(#f6f5f4, #161514);
+  --raised: light-dark(#ffffff, #201e1c);
+  --text: light-dark(#26231f, #eceae7);
+  --muted: light-dark(#6e6a64, #a39e98);
+  --line: light-dark(#e5e2de, #37332f);
+  --accent: light-dark(#7c2f43, #d795a1);
+  --accent-contrast: light-dark(#ffffff, #2a1218);
   --danger: light-dark(#a2342c, #e08d87);
   --ok: light-dark(#31683f, #8fca9d);
   --warn: light-dark(#a5741c, #d8b36a);
 
-  /* Georgia on headings is the salon's one editorial touch; everything else
-     stays in the OS sans so the app reads operational, not decorative. */
-  --font-display: Georgia, 'Times New Roman', serif;
-  --shadow-soft: 0 1px 2px rgb(41 29 24 / 0.05), 0 4px 14px rgb(41 29 24 / 0.05);
+  /* The operational interface is all sans. The serif survives only as brand
+     lettering (sidebar and login wordmarks) — data screens never wear it. */
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
+    Arial, sans-serif;
+  --font-display: var(--font-sans);
+  --font-serif: Georgia, 'Times New Roman', serif;
+  --shadow-soft: 0 1px 2px rgb(23 20 18 / 0.04), 0 1px 3px rgb(23 20 18 / 0.05);
 
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: var(--font-sans);
   line-height: 1.5;
 }
 
@@ -40,9 +45,82 @@ p {
   margin: 0;
 }
 
-/* Application shell: the left rail carries the main navigation, the main
-   column carries the module. Shared by every section. */
+/* Application shell: a pinned top bar for page context and account, then the
+   left rail and the module column. Shared by every section. */
 .app-shell {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  --topbar-h: 3.25rem;
+}
+
+.app-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  height: var(--topbar-h);
+  padding: 0 1.25rem 0 1.5rem;
+  background: var(--raised);
+  border-bottom: 1px solid var(--line);
+}
+
+.app-topbar-title {
+  font-size: 0.95rem;
+  font-weight: 650;
+}
+
+.app-topbar-user {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.app-topbar-id {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  line-height: 1.2;
+}
+
+.app-topbar-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.app-topbar-role {
+  color: var(--muted);
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.app-topbar-signout {
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 0.26rem 0.7rem;
+  border-radius: 0.45rem;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.app-topbar-signout:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.app-topbar-signout:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.app-body {
   flex: 1;
   min-height: 0;
   display: flex;
@@ -50,15 +128,15 @@ p {
 
 .app-sidebar {
   position: sticky;
-  top: 0;
+  top: var(--topbar-h);
   align-self: flex-start;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 1.1rem;
-  width: 14.5rem;
-  height: 100vh;
-  padding: 1.1rem 0.8rem;
+  gap: 1rem;
+  width: 13rem;
+  height: calc(100vh - var(--topbar-h));
+  padding: 1rem 0.7rem;
   overflow-y: auto;
   background: var(--raised);
   border-right: 1px solid var(--line);
@@ -67,8 +145,8 @@ p {
 .side-brand {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.2rem 0.45rem 0.9rem;
+  gap: 0.55rem;
+  padding: 0.15rem 0.45rem 0.75rem;
   border-bottom: 1px solid var(--line);
 }
 
@@ -92,7 +170,7 @@ p {
 }
 
 .side-brand-name {
-  font-family: var(--font-display);
+  font-family: var(--font-serif);
   font-size: 1.08rem;
   font-weight: 600;
   letter-spacing: 0.01em;
@@ -183,27 +261,57 @@ p {
   letter-spacing: 0.06em;
 }
 
+/* Narrow viewports: the rail collapses to icons so the module keeps width. */
+@media (max-width: 48rem) {
+  .app-sidebar {
+    width: 3.4rem;
+    padding: 1rem 0.45rem;
+  }
+
+  .side-brand-text,
+  .side-group-label,
+  .side-nav-label,
+  .side-nav-soon {
+    display: none;
+  }
+
+  .side-brand {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .side-nav-item {
+    justify-content: center;
+    padding: 0.55rem;
+  }
+
+  .app-topbar-id {
+    display: none;
+  }
+}
+
 .app-main {
   flex: 1;
   min-width: 0;
   width: 100%;
-  max-width: 64rem;
+  max-width: 72rem;
   margin: 0 auto;
-  padding: 2rem 1.25rem 4rem;
+  padding: 1.75rem 1.5rem 3rem;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1.35rem;
 }
 
 .panel {
   background: var(--raised);
   border: 1px solid var(--line);
-  border-radius: 0.9rem;
-  padding: 1.3rem 1.4rem;
+  border-radius: 0.7rem;
+  padding: 1.15rem 1.25rem;
   box-shadow: var(--shadow-soft);
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 1.1rem;
 }
 
 .panel-header {
@@ -215,15 +323,14 @@ p {
 }
 
 .panel-header h2 {
-  font-family: var(--font-display);
-  font-size: 1.12rem;
+  font-size: 1.05rem;
   font-weight: 600;
   letter-spacing: 0.005em;
 }
 
 /* The page title of a top-level panel is the one heading that gets real size. */
 .app-main > .panel > .panel-header h2 {
-  font-size: 1.42rem;
+  font-size: 1.3rem;
   line-height: 1.2;
 }
 
@@ -253,18 +360,19 @@ p {
 .button {
   font: inherit;
   font-size: 0.9rem;
+  font-weight: 500;
   padding: 0.42rem 0.95rem;
-  border-radius: 0.55rem;
+  border-radius: 0.5rem;
   border: 1px solid var(--line);
-  background: var(--surface);
+  background: var(--raised);
   color: var(--text);
   cursor: pointer;
   transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
 }
 
 .button:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
-  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: color-mix(in srgb, var(--accent) 5%, var(--raised));
 }
 
 .button:disabled {
@@ -276,7 +384,8 @@ p {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--accent-contrast);
-  box-shadow: 0 1px 2px rgb(41 29 24 / 0.12);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgb(23 20 18 / 0.14);
 }
 
 .button-primary:hover:not(:disabled) {
@@ -312,23 +421,27 @@ p {
   grid-column: 1 / -1;
 }
 
-input[type='text'],
-input[type='search'],
-input[type='number'],
-input[type='email'],
-input[type='password'],
-input[type='tel'],
-input[type='datetime-local'],
+/* Every text-like control in one rule. The :not() list keeps specificity at
+   (0,1,1) — level with scoped overrides like .cal-filter input — while
+   catching bare <input> (no type attribute) and date/time pickers that the
+   old per-type enumeration silently missed, leaving them browser-default. */
+input:not([type='checkbox'], [type='radio']),
 select,
 textarea {
   font: inherit;
   font-size: 0.9rem;
   color: var(--text);
-  background: var(--surface);
+  background: var(--raised);
   border: 1px solid var(--line);
-  border-radius: 0.5rem;
-  padding: 0.45rem 0.65rem;
+  border-radius: 0.45rem;
+  padding: 0.42rem 0.6rem;
   transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+input:not([type='checkbox'], [type='radio']):hover:not(:disabled):not(:focus-visible),
+select:hover:not(:disabled):not(:focus-visible),
+textarea:hover:not(:disabled):not(:focus-visible) {
+  border-color: color-mix(in srgb, var(--text) 24%, var(--line));
 }
 
 input:focus-visible,
@@ -336,7 +449,7 @@ select:focus-visible,
 textarea:focus-visible,
 .button:focus-visible,
 .side-nav-item:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
   outline-offset: 1px;
 }
 
@@ -348,6 +461,13 @@ textarea:focus-visible {
 
 textarea {
   resize: vertical;
+}
+
+/* Checkboxes and radios keep native geometry but adopt the brand accent —
+   without this they render in the browser's default blue. */
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--accent);
 }
 
 .checkbox {
@@ -493,7 +613,7 @@ textarea {
 .grid th,
 .grid td {
   text-align: left;
-  padding: 0.68rem 0.65rem;
+  padding: 0.55rem 0.6rem;
   border-bottom: 1px solid color-mix(in srgb, var(--line) 65%, transparent);
   vertical-align: middle;
 }
@@ -504,10 +624,15 @@ textarea {
   font-weight: 650;
   text-transform: uppercase;
   letter-spacing: 0.07em;
+  border-bottom: 1px solid var(--line);
 }
 
 .grid tbody tr {
   transition: background-color 120ms ease;
+}
+
+.grid tbody tr:hover {
+  background: color-mix(in srgb, var(--accent) 4%, transparent);
 }
 
 .grid tbody tr:last-child th,
@@ -633,23 +758,21 @@ textarea {
   --dash-champagne: light-dark(#a8843f, #d8b36a);
   display: flex;
   flex-direction: column;
-  gap: 1.4rem;
+  gap: 1.15rem;
 }
 
-/* Hero: a greeting, not a report title — a soft blush/champagne wash, kept
-   compact so the schedule below stays the hero content. */
+/* Hero: a compact page heading, not a poster. Flat card, one line of context. */
 .dash-hero {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   justify-content: space-between;
   gap: 0.9rem;
-  padding: 1.1rem 1.35rem 1.2rem;
+  padding: 0.9rem 1.1rem;
   border: 1px solid var(--line);
-  border-radius: 0.9rem;
-  background:
-    radial-gradient(130% 150% at 0% 0%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 62%),
-    linear-gradient(115deg, color-mix(in srgb, var(--dash-champagne) 9%, var(--raised)), var(--raised) 72%);
+  border-radius: 0.7rem;
+  background: var(--raised);
+  box-shadow: var(--shadow-soft);
 }
 
 .dash-hero-text {
@@ -659,17 +782,17 @@ textarea {
 }
 
 .dash-hero-eyebrow {
-  color: var(--dash-champagne);
+  color: var(--muted);
   font-size: 0.72rem;
   font-weight: 650;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
 .dash-greeting {
   font-family: var(--dash-serif);
-  font-size: clamp(1.55rem, 1rem + 1.4vw, 2.05rem);
-  font-weight: 600;
+  font-size: clamp(1.25rem, 1rem + 0.7vw, 1.5rem);
+  font-weight: 650;
   letter-spacing: 0.005em;
 }
 
@@ -726,14 +849,14 @@ textarea {
 .dash-grid {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-  gap: 1.5rem;
+  gap: 1.1rem;
   align-items: start;
 }
 
 .dash-col {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1.1rem;
   min-width: 0;
 }
 
@@ -743,30 +866,29 @@ textarea {
   }
 }
 
-/* Workload cards: each carries its own tone, a small contextual icon and a
-   quiet footnote — differentiated, but still workload only, never money. */
+/* KPI cards: small, dense, neutral. The tone survives as the icon's colour
+   only — the card itself stays white so the number reads first. */
 .dash-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+  gap: 0.6rem;
 }
 
 .dash-card {
   --tone: var(--muted);
-  background: color-mix(in srgb, var(--tone) 5%, var(--raised));
+  background: var(--raised);
   border: 1px solid var(--line);
-  border-radius: 0.8rem;
-  padding: 0.85rem 0.95rem;
+  border-radius: 0.55rem;
+  padding: 0.7rem 0.8rem;
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
-  transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+  gap: 0.25rem;
+  box-shadow: var(--shadow-soft);
+  transition: border-color 150ms ease;
 }
 
 .dash-card:hover {
   border-color: color-mix(in srgb, var(--tone) 45%, var(--line));
-  box-shadow: 0 6px 18px -12px color-mix(in srgb, var(--tone) 55%, transparent);
-  transform: translateY(-1px);
 }
 
 .dash-card--champagne {
@@ -796,18 +918,18 @@ textarea {
 .dash-card-icon {
   display: inline-grid;
   place-items: center;
-  width: 1.9rem;
-  height: 1.9rem;
-  border-radius: 50%;
-  font-size: 1rem;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 0.45rem;
+  font-size: 0.95rem;
   color: var(--tone);
-  background: color-mix(in srgb, var(--tone) 13%, transparent);
+  background: color-mix(in srgb, var(--tone) 12%, transparent);
 }
 
 .dash-card-value {
-  font-size: 1.55rem;
+  font-size: 1.3rem;
   font-weight: 700;
-  line-height: 1.1;
+  line-height: 1.15;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1577,8 +1699,8 @@ textarea {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.1rem;
-  padding: 0.4rem 0.3rem;
+  gap: 0.08rem;
+  padding: 0.32rem 0.3rem;
   background: var(--surface);
   border-bottom: 1px solid var(--line);
   border-left: 1px solid var(--line);
@@ -1626,6 +1748,7 @@ textarea {
   transform: translateY(-50%);
   font-size: 0.68rem;
   color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .cal-column {
@@ -1698,6 +1821,18 @@ textarea {
   pointer-events: none;
 }
 
+/* A dot anchors the line's left edge so "now" reads even in a dense column. */
+.cal-now::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: -0.31rem;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
 .cal-drag-ghost {
   position: fixed;
   z-index: 30;
@@ -1730,7 +1865,7 @@ textarea {
   line-height: 1.25;
   overflow: hidden;
   opacity: 0.92;
-  box-shadow: 0 10px 24px rgb(41 29 24 / 0.18);
+  box-shadow: 0 10px 24px rgb(23 20 18 / 0.18);
 }
 
 /* Booking blocks. Height follows duration; the left stripe carries status,
@@ -1762,6 +1897,16 @@ textarea {
 .cal-event.is-dragging {
   opacity: 0.35;
   pointer-events: none;
+}
+
+.cal-event:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  box-shadow: 0 2px 8px rgb(23 20 18 / 0.1);
+}
+
+.cal-event:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  outline-offset: 1px;
 }
 
 .cal-event.is-terminal {
@@ -2448,9 +2593,8 @@ textarea {
 
 .drawer-head-text h3 {
   margin: 0;
-  font-family: var(--font-display);
-  font-size: 1.2rem;
-  font-weight: 600;
+  font-size: 1.12rem;
+  font-weight: 650;
   line-height: 1.3;
 }
 
@@ -3085,10 +3229,6 @@ textarea {
   background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
-.payment-method input {
-  accent-color: var(--accent);
-}
-
 .checkout-actions {
   display: flex;
   justify-content: flex-end;
@@ -3271,28 +3411,17 @@ textarea {
   display: grid;
   place-items: center;
   padding: 2rem 1.25rem;
-  background:
-    radial-gradient(
-      42rem 26rem at 15% 0%,
-      color-mix(in srgb, var(--accent) 9%, transparent),
-      transparent 70%
-    ),
-    radial-gradient(
-      38rem 24rem at 100% 100%,
-      color-mix(in srgb, var(--dash-champagne, #a8843f) 10%, transparent),
-      transparent 70%
-    ),
-    var(--surface);
+  background: var(--surface);
 }
 
 .login-card {
   width: 100%;
   max-width: 24rem;
-  padding: 2.4rem 2.2rem 2.1rem;
+  padding: 2.2rem 2rem 1.9rem;
   background: var(--raised);
   border: 1px solid var(--line);
-  border-radius: 1rem;
-  box-shadow: 0 1.2rem 3rem rgb(31 25 20 / 0.1);
+  border-radius: 0.8rem;
+  box-shadow: 0 1px 2px rgb(23 20 18 / 0.05), 0 12px 32px rgb(23 20 18 / 0.08);
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
@@ -3327,7 +3456,7 @@ textarea {
 }
 
 .login-brand-name {
-  font-family: var(--font-display);
+  font-family: var(--font-serif);
   font-size: 1.08rem;
   font-weight: 600;
   letter-spacing: 0.01em;
@@ -3342,9 +3471,8 @@ textarea {
 
 .login-heading {
   margin: 0;
-  font-family: var(--font-display);
-  font-size: 1.5rem;
-  font-weight: 600;
+  font-size: 1.35rem;
+  font-weight: 650;
   text-align: center;
 }
 
@@ -3424,56 +3552,6 @@ textarea {
   width: 2.6rem;
   height: 2.6rem;
   font-size: 0.9rem;
-}
-
-/* Signed-in identity pinned under the rail's navigation. */
-.side-user {
-  margin-top: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
-  padding: 0.8rem 0.45rem 0.2rem;
-  border-top: 1px solid var(--line);
-}
-
-.side-user-text {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.3;
-}
-
-.side-user-name {
-  font-size: 0.88rem;
-  font-weight: 600;
-}
-
-.side-user-role {
-  color: var(--muted);
-  font-size: 0.68rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.side-signout {
-  align-self: flex-start;
-  font: inherit;
-  font-size: 0.82rem;
-  padding: 0.28rem 0.7rem;
-  border-radius: 0.45rem;
-  border: 1px solid var(--line);
-  background: transparent;
-  color: var(--text);
-  cursor: pointer;
-}
-
-.side-signout:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.side-signout:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
 }
 
 /* Role landing placeholders (owner/staff workspaces ship in later tasks). */
@@ -3618,7 +3696,7 @@ textarea {
 }
 
 .own-range-chip:hover {
-  color: var(--fg);
+  color: var(--text);
   border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
 }
 
@@ -3676,10 +3754,10 @@ textarea {
   align-items: center;
   flex-wrap: wrap;
   gap: 0.6rem;
-  margin: 0.4rem 0 0.15rem;
+  margin: 0.3rem 0 0.1rem;
   font-family: var(--dash-serif);
-  font-size: 2rem;
-  font-weight: 650;
+  font-size: 1.45rem;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1.15;
 }
@@ -3770,12 +3848,8 @@ textarea {
 
 .own-bar {
   width: 100%;
-  border-radius: 0.35rem 0.35rem 0.1rem 0.1rem;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--accent) 85%, white 0%),
-    color-mix(in srgb, var(--accent) 55%, transparent)
-  );
+  border-radius: 0.3rem 0.3rem 0.1rem 0.1rem;
+  background: color-mix(in srgb, var(--accent) 82%, var(--raised));
   transition: height 250ms ease;
 }
 
@@ -3920,7 +3994,7 @@ textarea {
 .own-status-num {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: var(--fg);
+  color: var(--text);
 }
 
 .own-conflicts {

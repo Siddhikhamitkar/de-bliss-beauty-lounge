@@ -14,10 +14,7 @@ export function StaffDashboardPage() {
         <div className="dash-hero-text">
           <p className="dash-hero-eyebrow">De Bliss Beauty Lounge</p>
           <h1 className="dash-greeting">
-            Welcome to De Bliss, {user?.firstName ?? 'there'}{' '}
-            <span className="dash-wave" aria-hidden="true">
-              ✨
-            </span>
+            Welcome to De Bliss, {user?.firstName ?? 'there'}
           </h1>
           <p className="dash-subline">Your staff workspace is being prepared.</p>
         </div>

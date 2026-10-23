@@ -10,7 +10,7 @@ import { Avatar } from '../components/Avatar.tsx'
 import { EmptyState } from '../components/EmptyState.tsx'
 import { ErrorState } from '../components/ErrorState.tsx'
 import { LoadingState } from '../components/LoadingState.tsx'
-import { formatMoney, formatTime } from '../format.ts'
+import { formatDate, formatMoney, formatTime } from '../format.ts'
 import { useAsync } from '../useAsync.ts'
 import {
   CardIcon,
@@ -74,12 +74,13 @@ export function OwnerDashboardPage({
     <section className="dash" aria-label="Owner dashboard">
       <header className="dash-hero">
         <div className="dash-hero-text">
-          <p className="dash-hero-eyebrow">De Bliss Beauty Lounge · Owner</p>
+          <p className="dash-hero-eyebrow">
+            {formatDate(isoDayOffset(0))} · De Bliss Beauty Lounge · Owner
+          </p>
           <h1 className="dash-greeting">
-            {firstName !== undefined && firstName !== '' ? `Welcome back, ${firstName}` : 'Welcome back'}{' '}
-            <span className="dash-wave" aria-hidden="true">
-              ✨
-            </span>
+            {firstName !== undefined && firstName !== ''
+              ? `Welcome back, ${firstName}`
+              : 'Welcome back'}
           </h1>
           <p className="dash-subline">The lounge&rsquo;s money and operations in one view.</p>
         </div>

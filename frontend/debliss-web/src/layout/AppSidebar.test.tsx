@@ -34,7 +34,7 @@ const STAFF: AuthUser = {
 describe('AppSidebar', () => {
   it('gives the receptionist only the built operational modules', () => {
     render(
-      <AppSidebar currentPath="/calendar" user={RECEPTIONIST} onNavigate={() => {}} onSignOut={() => {}} />,
+      <AppSidebar currentPath="/calendar" user={RECEPTIONIST} onNavigate={() => {}} />,
     )
 
     expect(screen.getByRole('complementary', { name: 'Main navigation' })).toBeInTheDocument()
@@ -51,7 +51,7 @@ describe('AppSidebar', () => {
 
   it('gives the owner the full roadmap with future modules visible but disabled', () => {
     render(
-      <AppSidebar currentPath="/owner/dashboard" user={OWNER} onNavigate={() => {}} onSignOut={() => {}} />,
+      <AppSidebar currentPath="/owner/dashboard" user={OWNER} onNavigate={() => {}} />,
     )
 
     // Inventory is built now: enabled, like the other operational modules.
@@ -66,7 +66,7 @@ describe('AppSidebar', () => {
     const user = userEvent.setup()
     const onNavigate = vi.fn()
     render(
-      <AppSidebar currentPath="/settings" user={OWNER} onNavigate={onNavigate} onSignOut={() => {}} />,
+      <AppSidebar currentPath="/settings" user={OWNER} onNavigate={onNavigate} />,
     )
 
     expect(screen.getByRole('button', { name: 'Settings' })).toBeEnabled()
@@ -78,22 +78,21 @@ describe('AppSidebar', () => {
 
   it('gives staff an empty rail — their modules are a later task', () => {
     render(
-      <AppSidebar currentPath="/staff/dashboard" user={STAFF} onNavigate={() => {}} onSignOut={() => {}} />,
+      <AppSidebar currentPath="/staff/dashboard" user={STAFF} onNavigate={() => {}} />,
     )
 
-    // No module entries at all — only the Sign out action remains.
+    // No module entries at all — the rail is brand plus navigation alone;
+    // identity and sign-out live in the top bar.
     expect(screen.queryByRole('button', { name: 'Dashboard' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Calendar' })).not.toBeInTheDocument()
-    expect(screen.queryAllByRole('button')).toHaveLength(1)
-    expect(screen.getByText('Sara Stylist')).toBeInTheDocument()
-    expect(screen.getByText('STAFF')).toBeInTheDocument()
+    expect(screen.queryAllByRole('button')).toHaveLength(0)
   })
 
   it('marks the current path active and navigates by path', async () => {
     const user = userEvent.setup()
     const onNavigate = vi.fn()
     render(
-      <AppSidebar currentPath="/calendar" user={RECEPTIONIST} onNavigate={onNavigate} onSignOut={() => {}} />,
+      <AppSidebar currentPath="/calendar" user={RECEPTIONIST} onNavigate={onNavigate} />,
     )
 
     expect(screen.getByRole('button', { name: 'Calendar' })).toHaveAttribute('aria-current', 'page')
@@ -108,28 +107,20 @@ describe('AppSidebar', () => {
 
   it('keeps Services active on its categories screen and Billing on coupons', () => {
     const { unmount } = render(
-      <AppSidebar currentPath="/categories" user={RECEPTIONIST} onNavigate={() => {}} onSignOut={() => {}} />,
+      <AppSidebar currentPath="/categories" user={RECEPTIONIST} onNavigate={() => {}} />,
     )
     expect(screen.getByRole('button', { name: 'Services' })).toHaveAttribute('aria-current', 'page')
     unmount()
 
     render(
-      <AppSidebar currentPath="/coupons" user={RECEPTIONIST} onNavigate={() => {}} onSignOut={() => {}} />,
+      <AppSidebar currentPath="/coupons" user={RECEPTIONIST} onNavigate={() => {}} />,
     )
     expect(screen.getByRole('button', { name: 'Billing' })).toHaveAttribute('aria-current', 'page')
   })
 
-  it('shows the signed-in identity and fires sign-out', async () => {
-    const user = userEvent.setup()
-    const onSignOut = vi.fn()
-    render(
-      <AppSidebar currentPath="/calendar" user={RECEPTIONIST} onNavigate={() => {}} onSignOut={onSignOut} />,
-    )
+  it('marks the dashboard item active on the owner landing path too', () => {
+    render(<AppSidebar currentPath="/owner/dashboard" user={OWNER} onNavigate={() => {}} />)
 
-    expect(screen.getByText('Nadia FrontDesk')).toBeInTheDocument()
-    expect(screen.getByText('RECEPTIONIST')).toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: 'Sign out' }))
-    expect(onSignOut).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: 'Dashboard' })).toHaveAttribute('aria-current', 'page')
   })
 })

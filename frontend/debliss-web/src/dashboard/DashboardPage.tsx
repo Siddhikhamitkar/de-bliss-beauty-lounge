@@ -85,10 +85,7 @@ export function DashboardPage({
           <h1 className="dash-greeting">
             {firstName !== undefined && firstName !== ''
               ? `${greetingFor(now.getHours())}, ${firstName}`
-              : greetingFor(now.getHours())}{' '}
-            <span className="dash-wave" aria-hidden="true">
-              👋
-            </span>
+              : greetingFor(now.getHours())}
           </h1>
           <p className="dash-subline">Here&rsquo;s what&rsquo;s happening at De Bliss today.</p>
         </div>
