@@ -73,6 +73,9 @@ export function ReceiptView({ receipt }: { receipt: Receipt }) {
             <dd>−{formatMoney(receipt.currency, receipt.manualDiscount)}</dd>
           </div>
         )}
+        {receipt.loyaltyDiscount > 0 && (
+          <div><dt>Loyalty discount</dt><dd>−{formatMoney(receipt.currency, receipt.loyaltyDiscount)}</dd></div>
+        )}
         {(receipt.taxRate ?? 0) > 0 && (
           <>
             <div>
@@ -105,6 +108,8 @@ export function ReceiptView({ receipt }: { receipt: Receipt }) {
       </dl>
 
       <dl className="receipt-meta receipt-payment">
+        <div><dt>Loyalty points redeemed</dt><dd>{receipt.loyaltyPointsRedeemed.toFixed(2)}</dd></div>
+        <div><dt>Loyalty points earned</dt><dd>{receipt.loyaltyPointsEarned.toFixed(2)}</dd></div>
         <div>
           <dt>Payment method</dt>
           <dd>{methodLabel(receipt.paymentMethod)}</dd>

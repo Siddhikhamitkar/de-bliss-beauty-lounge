@@ -75,7 +75,8 @@ public sealed record SaveStaffRequest(
     string? JobTitle,
     string? CalendarColor,
     bool IsActive,
-    int SortOrder);
+    int SortOrder,
+    StaffSalaryDetails? Salary = null);
 
 /// <summary>Body of the staff status toggle endpoint.</summary>
 public sealed record SetStaffStatusRequest(bool IsActive);

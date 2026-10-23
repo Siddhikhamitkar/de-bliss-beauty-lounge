@@ -15,13 +15,15 @@ import { CustomerDetails } from './CustomerDetails.tsx'
 import { CustomerNotes } from './CustomerNotes.tsx'
 import { CustomerOverview } from './CustomerOverview.tsx'
 import { CustomerSales } from './CustomerSales.tsx'
+import { CustomerLoyalty } from './CustomerLoyalty.tsx'
 
-type CustomerTabId = 'overview' | 'appointments' | 'sales' | 'details' | 'notes'
+type CustomerTabId = 'overview' | 'appointments' | 'sales' | 'details' | 'notes' | 'loyalty'
 
 const TABS: { id: CustomerTabId; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'appointments', label: 'Appointments' },
   { id: 'sales', label: 'Sales' },
+  { id: 'loyalty', label: 'Loyalty' },
   { id: 'details', label: 'Customer details' },
   { id: 'notes', label: 'Notes' },
 ]
@@ -100,6 +102,8 @@ export function CustomerDrawer({
         return <CustomerAppointmentHistory customerId={customer.id} />
       case 'sales':
         return <CustomerSales customerId={customer.id} />
+      case 'loyalty':
+        return <CustomerLoyalty key={customer.id} customerId={customer.id} />
       case 'details':
         return renderProfileTab(profileData => (
           <CustomerDetails profile={profileData} onEdit={() => onEdit(customer.id)} />

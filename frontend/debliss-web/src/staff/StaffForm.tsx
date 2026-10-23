@@ -2,12 +2,16 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { ApiError, describeFailure } from '../api/client.ts'
 import { createStaff, getStaff, updateStaff } from '../api/staff.ts'
-import type { SaveStaffRequest, StaffProfile } from '../api/contracts.ts'
+import type { SaveStaffRequest, StaffProfile, StaffSalaryDetails } from '../api/contracts.ts'
+import { getStaffSalary } from '../api/salary.ts'
+import { MONEY_ERROR, parseCents } from '../salary/money.ts'
+import '../salary/salary.css'
 import { useAsync } from '../useAsync.ts'
 import { FieldErrors } from '../components/FieldErrors.tsx'
 
 interface StaffEditorProps {
   staffId: string | null
+  canManageSalary?: boolean
   onSaved: () => void
   onCancel: () => void
 }
@@ -15,11 +19,20 @@ interface StaffEditorProps {
 // Loads the profile being edited, then hands a complete starting point to the
 // stateless StaffForm. Remounting via key resets the draft when the member
 // changes or after a save.
-export function StaffEditor({ staffId, onSaved, onCancel }: StaffEditorProps) {
-  const existing = useAsync<StaffProfile | null>(
-    () => (staffId === null ? Promise.resolve(null) : getStaff(staffId)),
-    [staffId],
-  )
+export function StaffEditor(props: StaffEditorProps) {
+  // A new identity/permission must not briefly display a previous financial draft.
+  return <LoadedStaffEditor key={`${props.staffId ?? 'new'}-${!!props.canManageSalary}`} {...props} />
+}
+
+function LoadedStaffEditor({ staffId, canManageSalary = false, onSaved, onCancel }: StaffEditorProps) {
+  const existing = useAsync(async () => {
+    if (staffId === null) return { profile: null, salary: null }
+    const [profile, salary] = await Promise.all([
+      getStaff(staffId),
+      canManageSalary ? getStaffSalary(staffId) : Promise.resolve(null),
+    ])
+    return { profile, salary }
+  }, [staffId, canManageSalary])
 
   if (existing.failure !== undefined) {
     return (
@@ -51,7 +64,9 @@ export function StaffEditor({ staffId, onSaved, onCancel }: StaffEditorProps) {
   return (
     <StaffForm
       key={staffId ?? 'new'}
-      initial={existing.data}
+      initial={existing.data.profile}
+      initialSalary={existing.data.salary}
+      canManageSalary={canManageSalary}
       onSaved={onSaved}
       onCancel={onCancel}
     />
@@ -60,6 +75,8 @@ export function StaffEditor({ staffId, onSaved, onCancel }: StaffEditorProps) {
 
 interface StaffFormProps {
   initial: StaffProfile | null
+  initialSalary?: StaffSalaryDetails | null
+  canManageSalary?: boolean
   onSaved: () => void
   onCancel: () => void
 }
@@ -115,8 +132,33 @@ function toDraft(staff: StaffProfile | null): Draft {
   }
 }
 
-export function StaffForm({ initial, onSaved, onCancel }: StaffFormProps) {
+const salaryMoneyFields = [
+  ['totalSalary', 'Agreed total salary (AED)'],
+  ['basicSalary', 'Basic salary (AED)'],
+  ['otherAllowances', 'Other allowances (AED)'],
+] as const
+const salaryBankFields = [
+  ['ibanNumber', 'IBAN', 50],
+  ['bankName', 'Bank name', 200],
+  ['bankAccountNumber', 'Bank account number', 100],
+] as const
+
+type SalaryDraft = Record<keyof StaffSalaryDetails, string>
+
+export function StaffForm({ initial, initialSalary, canManageSalary = false, onSaved, onCancel }: StaffFormProps) {
   const [draft, setDraft] = useState<Draft>(() => toDraft(initial))
+  const [salary, setSalary] = useState<SalaryDraft>(() => ({
+    totalSalary: initialSalary?.totalSalary?.toString() ?? '',
+    basicSalary: initialSalary?.basicSalary?.toString() ?? '',
+    otherAllowances: initialSalary?.otherAllowances?.toString() ?? '',
+    ibanNumber: initialSalary?.ibanNumber ?? '',
+    bankName: initialSalary?.bankName ?? '',
+    bankAccountNumber: initialSalary?.bankAccountNumber ?? '',
+  }))
+  const total = parseCents(salary.totalSalary)
+  const basic = salary.basicSalary.trim() === '' ? 0 : parseCents(salary.basicSalary)
+  const other = salary.otherAllowances.trim() === '' ? 0 : parseCents(salary.otherAllowances)
+  const salaryMismatch = total !== undefined && basic !== undefined && other !== undefined && total !== basic + other
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({})
   const [failure, setFailure] = useState<string>()
   const [isSaving, setIsSaving] = useState(false)
@@ -137,6 +179,25 @@ export function StaffForm({ initial, onSaved, onCancel }: StaffFormProps) {
     const sortOrder =
       draft.sortOrder.trim() === '' ? 0 : readNumber(draft.sortOrder, 'sortOrder', 'position', failures)
 
+    let salaryDetails: StaffSalaryDetails | undefined
+    if (canManageSalary) {
+      salaryDetails = {
+        totalSalary: null, basicSalary: null, otherAllowances: null,
+        ibanNumber: null, bankName: null, bankAccountNumber: null,
+      }
+      for (const [field] of salaryMoneyFields) {
+        if (salary[field].trim() === '') continue
+        const cents = parseCents(salary[field])
+        if (cents === undefined) failures[`salary.${field}`] = [MONEY_ERROR]
+        else salaryDetails[field] = cents / 100
+      }
+      for (const [field, label, max] of salaryBankFields) {
+        if (salary[field].length > max) failures[`salary.${field}`] = [`${label} must be ${max} characters or fewer.`]
+        // Keep leading zeros and internal formatting; these are identifiers, not numbers.
+        salaryDetails[field] = salary[field].trim() === '' ? null : salary[field]
+      }
+    }
+
     if (Object.keys(failures).length > 0) {
       setFieldErrors(failures)
       return
@@ -153,6 +214,7 @@ export function StaffForm({ initial, onSaved, onCancel }: StaffFormProps) {
       calendarColor: draft.calendarColor,
       isActive: draft.isActive,
       sortOrder,
+      ...(canManageSalary ? { salary: salaryDetails } : {}),
     }
 
     setIsSaving(true)
@@ -279,6 +341,33 @@ export function StaffForm({ initial, onSaved, onCancel }: StaffFormProps) {
           />
           Active
         </label>
+
+        {canManageSalary && (
+          <fieldset className="salary-section field-wide" disabled={isSaving}>
+            <legend>Salary & bank details · Owner only</legend>
+            <p className="panel-lede">Optional amounts in AED. Leave blank for not set; zero is a recorded amount.</p>
+            <div className="salary-grid">
+              {salaryMoneyFields.map(([field, label]) => (
+                <label className="field" key={field}>
+                  {label}
+                  <input inputMode="decimal" value={salary[field]} aria-invalid={!!fieldErrors[`salary.${field}`]}
+                    onChange={event => setSalary(current => ({ ...current, [field]: event.target.value }))} />
+                  <FieldErrors messages={fieldErrors[`salary.${field}`]} />
+                </label>
+              ))}
+              {salaryBankFields.map(([field, label, max]) => (
+                <label className="field" key={field}>
+                  {label}
+                  <input type="text" autoComplete="off" value={salary[field]} maxLength={max}
+                    aria-invalid={!!fieldErrors[`salary.${field}`]}
+                    onChange={event => setSalary(current => ({ ...current, [field]: event.target.value }))} />
+                  <FieldErrors messages={fieldErrors[`salary.${field}`]} />
+                </label>
+              ))}
+            </div>
+            {salaryMismatch && <p className="salary-warning" role="status">Basic salary and other allowances do not add up to the agreed total. The agreed total will not be changed.</p>}
+          </fieldset>
+        )}
 
         <div className="form-actions">
           <button type="submit" className="button button-primary" disabled={isSaving}>

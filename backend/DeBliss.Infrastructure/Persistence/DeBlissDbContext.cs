@@ -40,6 +40,8 @@ public class DeBlissDbContext(DbContextOptions<DeBlissDbContext> options)
 
     public DbSet<StaffAttendance> StaffAttendances => Set<StaffAttendance>();
 
+    public DbSet<SalarySlip> SalarySlips => Set<SalarySlip>();
+
     public DbSet<ServiceCategory> ServiceCategories => Set<ServiceCategory>();
 
     public DbSet<Service> Services => Set<Service>();
@@ -75,6 +77,10 @@ public class DeBlissDbContext(DbContextOptions<DeBlissDbContext> options)
     public DbSet<BookingClaim> BookingClaims => Set<BookingClaim>();
 
     public DbSet<SalonSettings> SalonSettings => Set<SalonSettings>();
+
+    public DbSet<DeBliss.Domain.Loyalty.LoyaltySettings> LoyaltySettings => Set<DeBliss.Domain.Loyalty.LoyaltySettings>();
+
+    public DbSet<DeBliss.Domain.Loyalty.CustomerLoyaltyTransaction> CustomerLoyaltyTransactions => Set<DeBliss.Domain.Loyalty.CustomerLoyaltyTransaction>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

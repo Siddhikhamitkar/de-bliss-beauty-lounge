@@ -43,7 +43,8 @@ public sealed class InvoiceService(
     IInventoryRepository inventory,
     ISalonSettingsRepository salonSettings,
     IUnitOfWork unitOfWork,
-    TimeProvider timeProvider) : IInvoiceService
+    TimeProvider timeProvider,
+    DeBliss.Application.Loyalty.ILoyaltyService loyalty) : IInvoiceService
 {
     private static readonly PaymentMethod[] PhaseOnePaymentMethods =
     [
@@ -360,63 +361,19 @@ public sealed class InvoiceService(
         Guid? actorUserId = null,
         CancellationToken cancellationToken = default)
     {
+        // Serializable range locks keep the ledger balance valid until payment and points commit together.
+        await using var transaction = await unitOfWork.BeginTransactionAsync(cancellationToken);
         var invoice = await LoadAsync(id, cancellationToken);
-
-        if (invoice.Status == InvoiceStatus.Paid)
-        {
-            throw new ConflictException($"Invoice '{invoice.InvoiceNumber}' has already been paid.");
-        }
-
-        if (invoice.Status != InvoiceStatus.Draft)
-        {
-            throw new ConflictException($"Invoice '{invoice.InvoiceNumber}' is not awaiting checkout.");
-        }
-
+        AssertDraft(invoice);
+        var pricing = await CalculateCheckoutAsync(invoice, request, cancellationToken);
+        var couponCheck = pricing.Coupon;
+        var manualCheck = pricing.Manual;
+        var settings = pricing.Settings;
+        var tax = pricing.Tax;
+        var tipCheck = pricing.Tip;
+        var payable = pricing.Payable;
         var errors = new ValidationErrorBuilder();
-
-        // A keyed discount reduces what is still owed after the bundle's own
-        // saving, so a percentage coupon is computed against the bundle price
-        // rather than the component subtotal. The saving is zero for a visit
-        // that was not booked as a bundle, which leaves that arithmetic alone.
-        var discountable = invoice.SubTotal - invoice.BundleDiscount;
-
-        var couponCheck = await CheckCouponAsync(request.CouponCode, discountable, errors, cancellationToken);
-        var manualCheck = ValidateManualDiscount(request, discountable, errors);
-
-        // The combined cap is only meaningful once each part passed on its own;
-        // a part that is already flagged would only produce a second, misleading
-        // message here.
-        if (!couponCheck.Flagged && !manualCheck.Flagged
-            && couponCheck.Discount + manualCheck.Discount > discountable)
-        {
-            errors.Add("manualDiscountValue", "Discounts cannot exceed the subtotal.");
-        }
-
-        var total = discountable - couponCheck.Discount - manualCheck.Discount;
-
-        // VAT is charged on what the customer actually pays for the visit —
-        // after every discount — at the salon's configured rate and mode. The
-        // tip is a discretionary gratuity on top of that: it never joins the
-        // taxable amount. Both the rate and the mode are snapshotted onto the
-        // invoice below, so a later settings change never rewrites a bill.
-        var settings = await salonSettings.GetAsync(cancellationToken) ?? DefaultSettings();
-        var tax = TaxMath.Compute(total, settings.TaxRate, settings.PricesIncludeTax);
-        var tipCheck = ValidateTip(request, total, tax, settings.PricesIncludeTax, errors);
-
-        // Inclusive prices already contain their VAT, so the payable amount is
-        // the post-discount total; exclusive prices carry VAT on top of it.
-        var payable = settings.PricesIncludeTax
-            ? total + tipCheck.Tip
-            : total + tax + tipCheck.Tip;
-
-        // The amount is only checked once the discounts and the tip are valid;
-        // comparing against a total that is about to be rejected would just add
-        // a misleading second message.
-        if (errors.IsValid)
-        {
-            ValidateAmount(request.Amount, payable, invoice.Currency, errors);
-        }
-
+        ValidateAmount(request.Amount, payable, invoice.Currency, errors);
         var method = ValidatePaymentMethod(request.PaymentMethod, errors);
         var reference = ValidateReference(request.Reference, errors);
 
@@ -490,7 +447,10 @@ public sealed class InvoiceService(
         invoice.CouponCode = couponCheck.Coupon?.Code;
         invoice.CouponDiscount = couponCheck.Discount;
         invoice.ManualDiscount = manualCheck.Discount;
-        invoice.DiscountTotal = invoice.BundleDiscount + couponCheck.Discount + manualCheck.Discount;
+        invoice.LoyaltyDiscount = pricing.Loyalty.Quote.Discount;
+        invoice.LoyaltyPointsRedeemed = pricing.Loyalty.Quote.PointsToRedeem;
+        invoice.LoyaltyPointsEarned = pricing.Loyalty.Quote.PointsEarned;
+        invoice.DiscountTotal = invoice.BundleDiscount + couponCheck.Discount + manualCheck.Discount + invoice.LoyaltyDiscount;
         invoice.TaxRate = settings.TaxRate;
         invoice.PricesIncludeTax = settings.PricesIncludeTax;
         invoice.TaxTotal = tax;
@@ -539,10 +499,53 @@ public sealed class InvoiceService(
             });
         }
 
+        loyalty.RecordCheckout(invoice, pricing.Loyalty, actorUserId);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         return MapReceipt(invoice);
     }
+
+    public async Task<CheckoutPreviewDto> PreviewCheckoutAsync(
+        Guid id, CheckoutRequest request, CancellationToken cancellationToken = default)
+    {
+        var invoice = await LoadAsync(id, cancellationToken);
+        AssertDraft(invoice);
+        var pricing = await CalculateCheckoutAsync(invoice, request, cancellationToken);
+        return new CheckoutPreviewDto(invoice.SubTotal, invoice.BundleDiscount,
+            pricing.Coupon.Discount, pricing.Manual.Discount,
+            pricing.Settings.TaxRate, pricing.Settings.PricesIncludeTax,
+            pricing.Tax, pricing.Tip.Tip, pricing.Payable, pricing.Loyalty.Quote);
+    }
+
+    private async Task<CheckoutPricing> CalculateCheckoutAsync(
+        Invoice invoice, CheckoutRequest request, CancellationToken cancellationToken)
+    {
+        var errors = new ValidationErrorBuilder();
+        var discountable = invoice.SubTotal - invoice.BundleDiscount;
+        var coupon = await CheckCouponAsync(request.CouponCode, discountable, errors, cancellationToken);
+        var manual = ValidateManualDiscount(request, discountable, errors);
+        if (!coupon.Flagged && !manual.Flagged && coupon.Discount + manual.Discount > discountable)
+        {
+            errors.Add("manualDiscountValue", "Discounts cannot exceed the subtotal.");
+        }
+        errors.ThrowIfInvalid();
+
+        var merchandise = discountable - coupon.Discount - manual.Discount;
+        var settings = await salonSettings.GetAsync(cancellationToken) ?? DefaultSettings();
+        var rewards = await loyalty.CalculateAsync(invoice.CustomerId, merchandise,
+            settings.TaxRate, settings.PricesIncludeTax, request.LoyaltyPointsToRedeem, cancellationToken);
+        var total = merchandise - rewards.Quote.Discount;
+        var tax = TaxMath.Compute(total, settings.TaxRate, settings.PricesIncludeTax);
+        var tip = ValidateTip(request, total, tax, settings.PricesIncludeTax, errors);
+        errors.ThrowIfInvalid();
+        var payable = total + tip.Tip + (settings.PricesIncludeTax ? 0m : tax);
+        return new CheckoutPricing(coupon, manual, settings, rewards, tax, tip, payable);
+    }
+
+    private sealed record CheckoutPricing(
+        CouponCheck Coupon, ManualCheck Manual, SalonSettings Settings,
+        DeBliss.Application.Loyalty.LoyaltyCalculation Loyalty, decimal Tax, TipCheck Tip, decimal Payable);
 
     public async Task<ReceiptDto> GetReceiptAsync(Guid id, CancellationToken cancellationToken = default)
     {
@@ -625,6 +628,8 @@ public sealed class InvoiceService(
     /// </summary>
     private static void RecalculateDraftTotals(Invoice invoice)
     {
+        // Even a free product must update the parent so a concurrent checkout cannot miss the line edit.
+        invoice.Revision++;
         invoice.SubTotal = invoice.Items.Sum(item => item.LineTotal);
         invoice.TotalAmount = invoice.SubTotal - invoice.BundleDiscount;
         invoice.DiscountTotal = invoice.BundleDiscount;
@@ -688,6 +693,12 @@ public sealed class InvoiceService(
         {
             errors.Add("tipAmount", "Enter a tip amount greater than zero.");
 
+            return new TipCheck(null, 0m);
+        }
+
+        if (decimal.Round(request.TipAmount.Value, 2) != request.TipAmount.Value)
+        {
+            errors.Add("tipAmount", "Enter a tip amount with at most two decimal places.");
             return new TipCheck(null, 0m);
         }
 
@@ -787,6 +798,12 @@ public sealed class InvoiceService(
         else if (value < 0m)
         {
             errors.Add("manualDiscountValue", "Enter a discount amount greater than zero.");
+            flagged = true;
+        }
+
+        if (value is { } preciseValue && decimal.Round(preciseValue, 2) != preciseValue)
+        {
+            errors.Add("manualDiscountValue", "Enter a discount with at most two decimal places.");
             flagged = true;
         }
 
@@ -954,7 +971,10 @@ public sealed class InvoiceService(
                 payment.Method.ToString(),
                 payment.Status.ToString(),
                 payment.Reference,
-                payment.PaidAt))]);
+                payment.PaidAt))],
+        invoice.LoyaltyDiscount,
+        invoice.LoyaltyPointsRedeemed,
+        invoice.LoyaltyPointsEarned);
 
     private static ReceiptDto MapReceipt(Invoice invoice)
     {
@@ -989,7 +1009,10 @@ public sealed class InvoiceService(
             payment.Method.ToString(),
             payment.Reference,
             payment.PaidAt,
-            invoice.IssuedAt);
+            invoice.IssuedAt,
+            invoice.LoyaltyDiscount,
+            invoice.LoyaltyPointsRedeemed,
+            invoice.LoyaltyPointsEarned);
     }
 
     private static string? DisplayName(Invoice invoice) =>

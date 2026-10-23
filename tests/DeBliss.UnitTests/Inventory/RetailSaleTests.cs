@@ -47,7 +47,10 @@ public class RetailSaleTests : IDisposable
             new InventoryRepository(_billing.Context),
             new SalonSettingsRepository(_billing.Context),
             _billing.Context,
-            _billing.Database.Clock);
+            _billing.Database.Clock,
+            new DeBliss.Application.Loyalty.LoyaltyService(
+                new LoyaltyRepository(_billing.Context), new CustomerRepository(_billing.Context),
+                _billing.Context, _billing.Database.Clock));
 
         var result = await invoices.StartFromAppointmentAsync(
             new CreateInvoiceRequest(AppointmentId: null, CustomerId: null, WalkInCustomerName: "Walk-in retail"));
@@ -230,7 +233,10 @@ public class RetailSaleTests : IDisposable
             new InventoryRepository(_billing.Context),
             new SalonSettingsRepository(_billing.Context),
             _billing.Context,
-            _billing.Database.Clock);
+            _billing.Database.Clock,
+            new DeBliss.Application.Loyalty.LoyaltyService(
+                new LoyaltyRepository(_billing.Context), new CustomerRepository(_billing.Context),
+                _billing.Context, _billing.Database.Clock));
 
         var result = await invoices.StartFromAppointmentAsync(new CreateInvoiceRequest(appointmentId));
         var line = Assert.Single(result.Invoice.Items);
@@ -269,7 +275,9 @@ public class RetailSaleTests : IDisposable
             new InventoryRepository(context),
             new SalonSettingsRepository(context),
             context,
-            _inventory.Database.Clock);
+            _inventory.Database.Clock,
+            new DeBliss.Application.Loyalty.LoyaltyService(
+                new LoyaltyRepository(context), new CustomerRepository(context), context, _inventory.Database.Clock));
 
         var result = await invoices.StartFromAppointmentAsync(new CreateInvoiceRequest(null));
 

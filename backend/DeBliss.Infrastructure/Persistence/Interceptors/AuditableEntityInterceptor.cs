@@ -36,6 +36,12 @@ public sealed class AuditableEntityInterceptor(TimeProvider timeProvider) : Save
             return;
         }
 
+        if (context.ChangeTracker.Entries<DeBliss.Domain.Loyalty.CustomerLoyaltyTransaction>()
+            .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted))
+        {
+            throw new InvalidOperationException("Loyalty history is immutable; corrections require reversal entries.");
+        }
+
         var now = timeProvider.GetUtcNow();
 
         foreach (var entry in context.ChangeTracker.Entries<AuditableEntity>())

@@ -190,8 +190,16 @@ any earlier migration or existing table.
 - **Commission** — deliberately untouched. The rule must come from the
   business first; attendance and appointment data are already enough to
   compute from when it does.
-- **Salary** — no salary or hours fields were added anywhere; a worked-hours
-  total can be derived from `CheckInAt`/`CheckOutAt` when that phase starts.
+- **Saved salary slips (2026-10-23 extension)** — `GET /api/staff/me/salary-slips?page=1&pageSize=20`
+  returns the existing paged envelope with only `id`, `salaryMonth`, `salaryYear`, `payDate`,
+  and `createdAt` per item. `GET /api/staff/me/salary-slips/{id}/pdf` returns the exact stored
+  historical PDF as an attachment. Both require STAFF plus the StaffSelf policy, reject an
+  empty staff GUID with 403, and derive ownership exclusively from the token. Unauthenticated
+  requests return 401; wrong roles or missing/invalid links return 403. Another member's PDF
+  and a missing PDF return the same sanitized 404. Successful responses use no-store.
+  Owner preview/save APIs remain Owner-only; previews are never listed until explicitly saved.
+  Separate salary and banking fields remain excluded from mobile DTOs. No schema change is
+  required, and attendance still does not automatically determine deductions.
 - **The Expo app** — authenticate against `/api/auth/login` (bearer token),
   keep the token, and call only the routes above. `staff_id` never leaves the
   server. Every success shape is a plain camelCase DTO; every failure is a

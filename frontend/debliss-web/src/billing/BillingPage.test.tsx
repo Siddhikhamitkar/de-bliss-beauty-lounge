@@ -97,6 +97,9 @@ function detail(overrides: Partial<Invoice> = {}): Invoice {
     bundleDiscount: 0,
     couponDiscount: 20,
     manualDiscount: 0,
+    loyaltyDiscount: 0,
+    loyaltyPointsRedeemed: 0,
+    loyaltyPointsEarned: 0,
     discountTotal: 20,
     totalAmount: 180,
     issuedAt: '2026-10-04T10:00:00Z',
@@ -126,6 +129,9 @@ function receipt(overrides: Partial<Receipt> = {}): Receipt {
     couponCode: 'BLISS20',
     couponDiscount: 20,
     manualDiscount: 0,
+    loyaltyDiscount: 0,
+    loyaltyPointsRedeemed: 0,
+    loyaltyPointsEarned: 0,
     totalAmount: 180,
     currency: 'AED',
     paymentMethod: 'Cash',
@@ -302,6 +308,17 @@ describe('BillingPage', () => {
     expect(within(drawer).getByText('AED 180.00')).toBeInTheDocument()
     // The coupon row stays, showing that no code was applied.
     expect(within(drawer).getByText('—')).toBeInTheDocument()
+  })
+
+  it('shows loyalty breakdown without subtracting it twice from the stored invoice total', async () => {
+    vi.mocked(getInvoice).mockResolvedValue(detail({ status: 'Paid', bundleDiscount: 10, couponDiscount: 20, manualDiscount: 5, loyaltyDiscount: 15, loyaltyPointsRedeemed: 15, loyaltyPointsEarned: 7.5, discountTotal: 50, taxRate: 5, pricesIncludeTax: false, taxTotal: 7.5, tipAmount: 10, totalAmount: 167.5 }))
+    renderPage()
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'INV-2026-0001' }))
+    const drawer = await screen.findByRole('dialog', { name: 'Invoice INV-2026-0001' })
+    expect((await within(drawer).findByText('Loyalty discount')).nextElementSibling).toHaveTextContent('−AED 15.00')
+    expect(within(drawer).getByText('Total before VAT').nextElementSibling).toHaveTextContent('AED 150.00')
+    expect(within(drawer).getByText('Total', { selector: 'dt' }).nextElementSibling).toHaveTextContent('AED 167.50')
+    expect(within(drawer).getByText('Loyalty points earned').nextElementSibling).toHaveTextContent('7.50')
   })
 
   it('resumes checkout for a draft invoice from its drawer', async () => {

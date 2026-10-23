@@ -56,6 +56,8 @@ public static class DependencyInjection
         services.AddScoped<IServiceBundleRepository, ServiceBundleRepository>();
         services.AddScoped<IStaffDirectory, StaffDirectory>();
         services.AddScoped<IStaffRepository, StaffRepository>();
+        services.AddScoped<ISalarySlipRepository, SalarySlipRepository>();
+        services.AddSingleton<ISalarySlipPdf, DeBliss.Infrastructure.Staffing.SalarySlipPdf>();
         services.AddScoped<IScheduleRepository, ScheduleRepository>();
         services.AddScoped<IStaffAttendanceRepository, StaffAttendanceRepository>();
         services.AddScoped<ICustomerRepository, CustomerRepository>();
@@ -64,6 +66,7 @@ public static class DependencyInjection
         services.AddScoped<IStaffAppointmentPort, AppointmentRepository>();
         services.AddScoped<IBookingClaimRepository, BookingClaimRepository>();
         services.AddScoped<IInvoiceRepository, InvoiceRepository>();
+        services.AddScoped<DeBliss.Application.Loyalty.Ports.ILoyaltyRepository, LoyaltyRepository>();
         services.AddScoped<ICouponRepository, CouponRepository>();
         services.AddScoped<IInventoryRepository, InventoryRepository>();
         services.AddScoped<ISalonSettingsRepository, SalonSettingsRepository>();

@@ -22,6 +22,7 @@ public static class DependencyInjection
         services.AddScoped<IServiceCatalogueService, ServiceCatalogueService>();
         services.AddScoped<IServiceBundleService, ServiceBundleService>();
         services.AddScoped<IStaffService, StaffService>();
+        services.AddScoped<ISalarySlipService, SalarySlipService>();
         services.AddScoped<IStaffScheduleService, StaffScheduleService>();
         services.AddScoped<IStaffAvailabilityService, StaffAvailabilityService>();
         services.AddScoped<IStaffAttendanceService, StaffAttendanceService>();
@@ -32,6 +33,7 @@ public static class DependencyInjection
         services.AddScoped<ICustomerBookingService, CustomerBookingService>();
         services.AddScoped<IPublicAvailabilityService, PublicAvailabilityService>();
         services.AddScoped<IInvoiceService, InvoiceService>();
+        services.AddScoped<DeBliss.Application.Loyalty.ILoyaltyService, DeBliss.Application.Loyalty.LoyaltyService>();
         services.AddScoped<ICouponService, CouponService>();
         services.AddScoped<ISettingsService, SettingsService>();
         services.AddScoped<IInventoryService, InventoryService>();

@@ -68,4 +68,6 @@ public interface IInvoiceService
 
     /// <summary>The printable receipt for a paid invoice, built from the stored amounts.</summary>
     Task<ReceiptDto> GetReceiptAsync(Guid id, CancellationToken cancellationToken = default);
+
+    Task<CheckoutPreviewDto> PreviewCheckoutAsync(Guid id, CheckoutRequest request, CancellationToken cancellationToken = default);
 }

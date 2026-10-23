@@ -20,7 +20,10 @@ interface Editor {
   staffId: string | null
 }
 
-export function StaffPage({ canViewAttendance = false }: { canViewAttendance?: boolean }) {
+export function StaffPage({ canViewAttendance = false, canManageSalary = false }: {
+  canViewAttendance?: boolean
+  canManageSalary?: boolean
+}) {
   const [search, setSearch] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [status, setStatus] = useState<StaffStatusFilter>('All')
@@ -51,6 +54,7 @@ export function StaffPage({ canViewAttendance = false }: { canViewAttendance?: b
     return (
       <StaffEditor
         staffId={editor.staffId}
+        canManageSalary={canManageSalary}
         onSaved={() => {
           setEditor(null)
           staff.reload()

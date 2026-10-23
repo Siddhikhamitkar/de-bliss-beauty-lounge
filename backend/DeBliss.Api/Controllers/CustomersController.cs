@@ -17,8 +17,20 @@ namespace DeBliss.Api.Controllers;
 [Route("api/customers")]
 [Produces("application/json")]
 [Authorize(Policy = AuthPolicies.Operational)]
-public sealed class CustomersController(ICustomerService customers) : ControllerBase
+public sealed class CustomersController(
+    ICustomerService customers,
+    DeBliss.Application.Loyalty.ILoyaltyService loyalty) : ControllerBase
 {
+    [HttpGet("{id:guid}/loyalty")]
+    public async Task<ActionResult<DeBliss.Application.Loyalty.Dtos.CustomerLoyaltySummaryDto>> GetLoyalty(
+        Guid id, CancellationToken cancellationToken) =>
+        Ok(await loyalty.GetSummaryAsync(id, cancellationToken));
+
+    [HttpGet("{id:guid}/loyalty/transactions")]
+    public async Task<ActionResult<PagedResult<DeBliss.Application.Loyalty.Dtos.LoyaltyTransactionDto>>> ListLoyaltyTransactions(
+        Guid id, CancellationToken cancellationToken, [FromQuery] int page = 1, [FromQuery] int pageSize = 50) =>
+        Ok(await loyalty.ListTransactionsAsync(id, page, pageSize, cancellationToken));
+
     /// <remarks>Will require <c>Permissions.Customers.ViewCustomers</c> once authorisation exists.</remarks>
     [HttpGet]
     [ProducesResponseType(typeof(PagedResult<CustomerSummaryDto>), StatusCodes.Status200OK)]

@@ -86,9 +86,13 @@ cannot rewrite a past visit. Until the appointment module starts writing
 bookings the counts are simply zero and the history is an empty state; the
 queries need no change when real data arrives.
 
-The summary DTO leaves room for the figures later modules will add —
-spending, packages, loyalty, reviews, offers, product/service history — so
-the profile page can grow without a redesign.
+The summary DTO leaves room for spending, packages, reviews, offers and
+product/service history. The read-only Loyalty tab now loads
+`GET /api/customers/{id}/loyalty` and paginated `/loyalty/transactions`: available
+points, lifetime earned, gross redeemed, any points debt, and immutable history.
+Only Owner and Receptionist can read these internal routes. Customer identity
+is reused; there is no manual balance editor or public loyalty endpoint. See
+[Loyalty & Rewards](LOYALTY-REWARDS-SPECIFICATION.md) for earning/redemption rules.
 
 ### Active / inactive is a soft status, never a delete
 

@@ -17,8 +17,12 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         builder.Property(invoice => invoice.CouponCode).HasMaxLength(50);
         builder.Property(invoice => invoice.BundleNameSnapshot).HasMaxLength(150);
 
-        builder.Property(invoice => invoice.Status).HasConversion<string>().HasMaxLength(20);
+        builder.Property(invoice => invoice.Status).HasConversion<string>().HasMaxLength(20).IsConcurrencyToken();
+        builder.Property(invoice => invoice.Revision).IsConcurrencyToken();
 
+        builder.Property(invoice => invoice.LoyaltyDiscount).HasPrecision(18, 2);
+        builder.Property(invoice => invoice.LoyaltyPointsRedeemed).HasPrecision(18, 2);
+        builder.Property(invoice => invoice.LoyaltyPointsEarned).HasPrecision(18, 2);
         builder.Property(invoice => invoice.SubTotal).HasPrecision(18, 2);
         builder.Property(invoice => invoice.DiscountTotal).HasPrecision(18, 2);
         builder.Property(invoice => invoice.CouponDiscount).HasPrecision(18, 2);

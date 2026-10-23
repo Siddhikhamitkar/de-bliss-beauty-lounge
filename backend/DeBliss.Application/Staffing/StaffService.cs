@@ -62,6 +62,7 @@ public sealed class StaffService(
             SortOrder = request.SortOrder
         };
 
+        ApplySalary(member, validated.Salary);
         staff.Add(member);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
@@ -86,6 +87,7 @@ public sealed class StaffService(
         member.CalendarColor = validated.CalendarColor;
         member.IsActive = request.IsActive;
         member.SortOrder = request.SortOrder;
+        ApplySalary(member, validated.Salary);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -232,9 +234,79 @@ public sealed class StaffService(
             errors.Add("sortOrder", "Display position cannot be negative.");
         }
 
+        var salary = ValidateSalary(request.Salary, errors);
+
         errors.ThrowIfInvalid();
 
-        return new ValidatedStaff(firstName, lastName, email, phoneNumber, jobTitle, calendarColor);
+        return new ValidatedStaff(firstName, lastName, email, phoneNumber, jobTitle, calendarColor, salary);
+    }
+
+    private static StaffSalaryDetails? ValidateSalary(StaffSalaryDetails? salary, ValidationErrorBuilder errors)
+    {
+        if (salary is null)
+        {
+            return null;
+        }
+
+        ValidateSalaryAmount(salary.TotalSalary, "salary.totalSalary", errors);
+        ValidateSalaryAmount(salary.BasicSalary, "salary.basicSalary", errors);
+        ValidateSalaryAmount(salary.OtherAllowances, "salary.otherAllowances", errors);
+
+        var normalized = salary with
+        {
+            IbanNumber = NormalizeOptional(salary.IbanNumber),
+            BankName = NormalizeOptional(salary.BankName),
+            BankAccountNumber = NormalizeOptional(salary.BankAccountNumber)
+        };
+
+        if (normalized.IbanNumber?.Length > 50)
+        {
+            errors.Add("salary.ibanNumber", "IBAN must be 50 characters or fewer.");
+        }
+
+        if (normalized.BankName?.Length > 200)
+        {
+            errors.Add("salary.bankName", "Bank name must be 200 characters or fewer.");
+        }
+
+        if (normalized.BankAccountNumber?.Length > 100)
+        {
+            errors.Add("salary.bankAccountNumber", "Bank account number must be 100 characters or fewer.");
+        }
+
+        return normalized;
+    }
+
+    private static void ValidateSalaryAmount(decimal? amount, string field, ValidationErrorBuilder errors)
+    {
+        if (amount is not { } value)
+        {
+            return;
+        }
+
+        if (value is < 0 or > 999999999.99m)
+        {
+            errors.Add(field, "Amount must be between 0 and 999999999.99.");
+        }
+        else if (decimal.Round(value, 2) != value)
+        {
+            errors.Add(field, "Amount must have at most two decimal places.");
+        }
+    }
+
+    private static void ApplySalary(Staff member, StaffSalaryDetails? salary)
+    {
+        if (salary is null)
+        {
+            return;
+        }
+
+        member.TotalSalary = salary.TotalSalary;
+        member.BasicSalary = salary.BasicSalary;
+        member.OtherAllowances = salary.OtherAllowances;
+        member.IbanNumber = salary.IbanNumber;
+        member.BankName = salary.BankName;
+        member.BankAccountNumber = salary.BankAccountNumber;
     }
 
     private static bool IsValidEmail(string email)
@@ -321,5 +393,6 @@ public sealed class StaffService(
         string? Email,
         string? PhoneNumber,
         string? JobTitle,
-        string? CalendarColor);
+        string? CalendarColor,
+        StaffSalaryDetails? Salary);
 }

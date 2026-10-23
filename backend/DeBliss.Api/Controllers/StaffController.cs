@@ -1,4 +1,5 @@
 using DeBliss.Application.Common.Paging;
+using DeBliss.Application.Identity;
 using DeBliss.Application.Staffing;
 using DeBliss.Application.Staffing.Dtos;
 using Microsoft.AspNetCore.Mvc;
@@ -60,6 +61,11 @@ public sealed class StaffController(IStaffService staff, IStaffAvailabilityServi
         [FromBody] SaveStaffRequest request,
         CancellationToken cancellationToken)
     {
+        if (request.Salary is not null && !User.IsInRole(RoleNames.Owner))
+        {
+            return Forbid();
+        }
+
         var created = await staff.CreateAsync(request, cancellationToken);
 
         return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
@@ -84,6 +90,11 @@ public sealed class StaffController(IStaffService staff, IStaffAvailabilityServi
         [FromBody] SaveStaffRequest request,
         CancellationToken cancellationToken)
     {
+        if (request.Salary is not null && !User.IsInRole(RoleNames.Owner))
+        {
+            return Forbid();
+        }
+
         return Ok(await staff.UpdateAsync(id, request, cancellationToken));
     }
 

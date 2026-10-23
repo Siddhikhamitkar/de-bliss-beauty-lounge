@@ -2,6 +2,7 @@ import { request, toQueryString } from './client.ts'
 import type {
   AddInvoiceLineRequest,
   CheckoutInvoiceRequest,
+  CheckoutPreview,
   Coupon,
   CouponStatusFilter,
   CouponValidation,
@@ -72,6 +73,11 @@ export function updateInvoiceLine(
 /** Removes a product line from a draft bill; service lines come from the booking and stay. */
 export function removeInvoiceLine(id: string, lineId: string): Promise<Invoice> {
   return request('DELETE', `/invoices/${id}/lines/${lineId}`)
+}
+
+/** Server-authoritative totals and operational loyalty rules; no settings access required. */
+export function getCheckoutPreview(id: string, body: CheckoutInvoiceRequest): Promise<CheckoutPreview> {
+  return request('POST', `/invoices/${id}/checkout-preview`, body)
 }
 
 /** Records the payment and closes the invoice; returns the receipt to print. */

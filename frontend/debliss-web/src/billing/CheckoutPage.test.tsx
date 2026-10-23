@@ -1,9 +1,10 @@
-import { render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   addInvoiceLine,
   checkoutInvoice,
+  getCheckoutPreview,
   getInvoice,
   getReceipt,
   removeInvoiceLine,
@@ -16,6 +17,7 @@ import { getTaxSettings } from '../api/settings.ts'
 import { getSellableProducts } from '../api/inventory.ts'
 import { ApiError } from '../api/client.ts'
 import type {
+  CheckoutPreview,
   Invoice,
   InvoiceItem,
   InventoryProductOption,
@@ -33,6 +35,7 @@ vi.mock('../api/billing.ts', () => ({
   removeInvoiceLine: vi.fn(),
   setInvoiceTip: vi.fn(),
   checkoutInvoice: vi.fn(),
+  getCheckoutPreview: vi.fn(),
   getReceipt: vi.fn(),
   validateCoupon: vi.fn(),
   searchCoupons: vi.fn(),
@@ -103,7 +106,9 @@ function invoice(overrides: Partial<Invoice> = {}): Invoice {
     status: 'Draft',
     currency: 'AED',
     appointmentId: 'a1',
-    customerId: 'c1',
+    // Existing arithmetic tests exercise unlinked (no-loyalty) checkout.
+    // Linked-customer quote tests below opt in explicitly.
+    customerId: null,
     customerName: 'Lina Mansour',
     walkInCustomerName: null,
     couponId: null,
@@ -112,6 +117,9 @@ function invoice(overrides: Partial<Invoice> = {}): Invoice {
     bundleDiscount: 0,
     couponDiscount: 0,
     manualDiscount: 0,
+    loyaltyDiscount: 0,
+    loyaltyPointsRedeemed: 0,
+    loyaltyPointsEarned: 0,
     discountTotal: 0,
     totalAmount: 200,
     issuedAt: '2026-10-04T10:00:00Z',
@@ -141,6 +149,9 @@ function receipt(overrides: Partial<Receipt> = {}): Receipt {
     couponCode: null,
     couponDiscount: 0,
     manualDiscount: 0,
+    loyaltyDiscount: 0,
+    loyaltyPointsRedeemed: 0,
+    loyaltyPointsEarned: 0,
     totalAmount: 200,
     currency: 'AED',
     paymentMethod: 'Cash',
@@ -149,6 +160,29 @@ function receipt(overrides: Partial<Receipt> = {}): Receipt {
     issuedAt: '2026-10-04T10:00:00Z',
     ...overrides,
   }
+}
+
+function preview(points = 0, overrides: Partial<CheckoutPreview> = {}): CheckoutPreview {
+  return {
+    subTotal: 200, bundleDiscount: 0, couponDiscount: 0, manualDiscount: 0,
+    taxRate: 5, pricesIncludeTax: false, taxTotal: (200 - points) * 0.05,
+    tipAmount: 0, totalAmount: (200 - points) * 1.05,
+    loyalty: {
+      isEnabled: true, availablePoints: 80, availableValue: 80, pointValueAed: 1,
+      maximumRedeemablePoints: 80, maximumDiscount: 80, minimumRedemptionPoints: 10,
+      maximumRedemptionPercentage: 50, allowPartialRedemption: true, minimumInvoiceAmount: null,
+      unavailableReason: null, pointsToRedeem: points, discount: points, eligibleSpend: 200 - points,
+      pointsEarned: (200 - points) * 0.05,
+    },
+    ...overrides,
+  }
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason: unknown) => void
+  const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no })
+  return { promise, resolve, reject }
 }
 
 function renderCheckout() {
@@ -686,5 +720,185 @@ describe('CheckoutPage', () => {
     render(<CheckoutPage invoiceId="inv1" onClose={vi.fn()} onPaid={vi.fn()} />)
 
     expect(await screen.findByText('INV-2026-0001 · Walk-in customer')).toBeInTheDocument()
+    expect(screen.getByText(/Link a registered customer/)).toBeInTheDocument()
+    expect(getCheckoutPreview).not.toHaveBeenCalled()
+  })
+
+  describe('linked-customer loyalty quotes', () => {
+    beforeEach(() => {
+      vi.mocked(startInvoice).mockResolvedValue(invoice({ customerId: 'c1' }))
+      vi.mocked(getCheckoutPreview).mockImplementation(async (_id, request) => preview(request.loyaltyPointsToRedeem ?? 0))
+    })
+
+    it('loads a zero-point quote even when disabled and uses server VAT and payable', async () => {
+      vi.mocked(getCheckoutPreview).mockResolvedValue(preview(0, { loyalty: { ...preview().loyalty, isEnabled: false, unavailableReason: 'Program disabled.', pointsEarned: 0 } }))
+      renderCheckout()
+      expect(await screen.findByText('Loyalty program is disabled.')).toBeInTheDocument()
+      expect(screen.getByLabelText('Amount collected')).toHaveValue(210)
+      expect(screen.getByText('+AED 10.00')).toBeInTheDocument()
+      expect(getCheckoutPreview).toHaveBeenCalledWith('inv1', expect.objectContaining({ loyaltyPointsToRedeem: 0 }))
+      expect(screen.getByRole('button', { name: 'Complete Payment' })).toBeEnabled()
+    })
+
+    it('quotes selected points, tracks amount, sends redemption and prints points on receipt', async () => {
+      const user = userEvent.setup()
+      vi.mocked(checkoutInvoice).mockResolvedValue(receipt({ totalAmount: 189, loyaltyDiscount: 20, loyaltyPointsRedeemed: 20, loyaltyPointsEarned: 9, taxRate: 5, taxTotal: 9 }))
+      renderCheckout()
+      const input = await screen.findByLabelText('Loyalty points to redeem')
+      fireEvent.change(input, { target: { value: '20' } })
+      await waitFor(() => expect(screen.getByLabelText('Amount collected')).toHaveValue(189))
+      expect(getCheckoutPreview).toHaveBeenLastCalledWith('inv1', expect.objectContaining({ loyaltyPointsToRedeem: 20 }))
+      expect(within(screen.getByRole('region', { name: 'Checkout loyalty' })).getByText('−AED 20.00')).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Complete Payment' }))
+      expect(checkoutInvoice).toHaveBeenCalledWith('inv1', expect.objectContaining({ loyaltyPointsToRedeem: 20, amount: 189 }))
+      const printed = await screen.findByRole('article', { name: 'Receipt INV-2026-0001' })
+      expect(within(printed).getByText('Loyalty points earned').nextElementSibling).toHaveTextContent('9.00')
+      expect(within(printed).getByText('Loyalty points redeemed').nextElementSibling).toHaveTextContent('20.00')
+    })
+
+    it('keeps a manually overridden amount when the quote changes', async () => {
+      renderCheckout()
+      await screen.findByLabelText('Loyalty points to redeem')
+      fireEvent.change(screen.getByLabelText('Amount collected'), { target: { value: '199' } })
+      fireEvent.change(screen.getByLabelText('Loyalty points to redeem'), { target: { value: '20' } })
+      await screen.findByText('AED 189.00')
+      expect(screen.getByLabelText('Amount collected')).toHaveValue(199)
+    })
+
+    it('never applies an older requested quote after manual discount changes', async () => {
+      const stale = deferred<CheckoutPreview>()
+      const latest = deferred<CheckoutPreview>()
+      vi.mocked(getCheckoutPreview).mockImplementation(async (_id, request) => {
+        if (request.manualDiscountValue === 10) return latest.promise
+        return request.loyaltyPointsToRedeem === 20 ? stale.promise : preview()
+      })
+      renderCheckout()
+      fireEvent.change(await screen.findByLabelText('Loyalty points to redeem'), { target: { value: '20' } })
+      await waitFor(() => expect(getCheckoutPreview).toHaveBeenLastCalledWith('inv1', expect.objectContaining({ loyaltyPointsToRedeem: 20 })))
+      expect(screen.getByRole('button', { name: 'Complete Payment' })).toBeDisabled()
+      fireEvent.change(screen.getByLabelText('Discount value'), { target: { value: '10' } })
+      await act(async () => stale.resolve(preview(20)))
+      expect(screen.getByLabelText('Amount collected')).toHaveValue(null)
+      expect(screen.queryByText('AED 189.00')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Complete Payment' })).toBeDisabled()
+      await act(async () => latest.resolve(preview(20, { manualDiscount: 10, taxTotal: 8.5, totalAmount: 178.5 })))
+      await waitFor(() => expect(screen.getByLabelText('Amount collected')).toHaveValue(178.5))
+    })
+
+    it('ignores a stale selection response after points change', async () => {
+      const stale = deferred<CheckoutPreview>()
+      vi.mocked(getCheckoutPreview).mockImplementation(async (_id, request) => request.loyaltyPointsToRedeem === 20 ? stale.promise : preview(request.loyaltyPointsToRedeem ?? 0))
+      renderCheckout()
+      fireEvent.change(await screen.findByLabelText('Loyalty points to redeem'), { target: { value: '20' } })
+      await waitFor(() => expect(getCheckoutPreview).toHaveBeenLastCalledWith('inv1', expect.objectContaining({ loyaltyPointsToRedeem: 20 })))
+      fireEvent.change(screen.getByLabelText('Loyalty points to redeem'), { target: { value: '30' } })
+      await waitFor(() => expect(screen.getByLabelText('Amount collected')).toHaveValue(178.5))
+      await act(async () => stale.resolve(preview(20)))
+      expect(screen.getByLabelText('Amount collected')).toHaveValue(178.5)
+    })
+
+    it('does not resurrect an old quote when the selection returns to its initial value', async () => {
+      const pending = deferred<CheckoutPreview>()
+      renderCheckout()
+      await screen.findByLabelText('Loyalty points to redeem')
+      vi.mocked(getCheckoutPreview).mockReturnValue(pending.promise)
+      fireEvent.change(screen.getByLabelText('Loyalty points to redeem'), { target: { value: '20' } })
+      fireEvent.change(screen.getByLabelText('Loyalty points to redeem'), { target: { value: '0' } })
+      expect(screen.getByRole('button', { name: 'Complete Payment' })).toBeDisabled()
+      expect(screen.getByLabelText('Amount collected')).toHaveValue(null)
+      await act(async () => pending.resolve(preview()))
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Complete Payment' })).toBeEnabled())
+    })
+
+    it.each(['tip', 'coupon'])('ignores stale redemption after a %s edit and requotes the new request', async kind => {
+      const stale = deferred<CheckoutPreview>()
+      vi.mocked(getCheckoutPreview).mockImplementation(async (_id, request) => {
+        if (request.tipPercentage === 10 || request.couponCode === 'BLISS20') return preview(request.loyaltyPointsToRedeem ?? 0, { totalAmount: 175, tipAmount: kind === 'tip' ? 17 : 0, couponDiscount: kind === 'coupon' ? 40 : 0 })
+        return request.loyaltyPointsToRedeem === 20 ? stale.promise : preview()
+      })
+      renderCheckout()
+      fireEvent.change(await screen.findByLabelText('Loyalty points to redeem'), { target: { value: '20' } })
+      await waitFor(() => expect(getCheckoutPreview).toHaveBeenLastCalledWith('inv1', expect.objectContaining({ loyaltyPointsToRedeem: 20 })))
+      const user = userEvent.setup()
+      if (kind === 'tip') await user.click(screen.getByRole('radio', { name: '10%' }))
+      else {
+        fireEvent.change(screen.getByPlaceholderText('e.g. BLISS20'), { target: { value: 'BLISS20' } })
+        await user.click(screen.getByRole('button', { name: 'Apply' }))
+      }
+      await waitFor(() => expect(screen.getByLabelText('Amount collected')).toHaveValue(175))
+      await act(async () => stale.resolve(preview(20)))
+      expect(screen.getByLabelText('Amount collected')).toHaveValue(175)
+      expect(getCheckoutPreview).toHaveBeenLastCalledWith('inv1', expect.objectContaining(kind === 'tip' ? { tipPercentage: 10 } : { couponCode: 'BLISS20' }))
+    })
+
+    it('blocks quotes throughout a line edit and invoice reload, then uses the new snapshot', async () => {
+      const refreshed = deferred<Invoice>()
+      const first = invoice({ customerId: 'c1', items: [productLine()] })
+      vi.mocked(startInvoice).mockResolvedValueOnce(first).mockReturnValueOnce(refreshed.promise)
+      renderCheckout()
+      await screen.findByLabelText('Loyalty points to redeem')
+      const quantity = screen.getByLabelText('Quantity of Olaplex No. 3')
+      fireEvent.change(quantity, { target: { value: '2' } })
+      expect(screen.getByRole('button', { name: 'Complete Payment' })).toBeDisabled()
+      fireEvent.blur(quantity)
+      await waitFor(() => expect(startInvoice).toHaveBeenCalledTimes(2))
+      expect(screen.getByRole('button', { name: 'Complete Payment' })).toBeDisabled()
+      expect(screen.getByLabelText('Amount collected')).toHaveValue(null)
+      vi.mocked(getCheckoutPreview).mockResolvedValue(preview(0, { subTotal: 190, totalAmount: 199.5 }))
+      await act(async () => refreshed.resolve({ ...first, subTotal: 190, items: [productLine({ quantity: 2, lineTotal: 190 })] }))
+      await waitFor(() => expect(screen.getByLabelText('Amount collected')).toHaveValue(199.5))
+      expect(screen.getByRole('button', { name: 'Complete Payment' })).toBeEnabled()
+    })
+
+    it('blocks failed base quotes until an explicit retry succeeds', async () => {
+      vi.mocked(getCheckoutPreview).mockRejectedValueOnce(new Error('Quote unavailable'))
+      renderCheckout()
+      expect(await screen.findByText(/Checkout quote failed: Quote unavailable/)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Complete Payment' })).toBeDisabled()
+      await userEvent.setup().click(screen.getByRole('button', { name: 'Try again' }))
+      await waitFor(() => expect(screen.getByLabelText('Amount collected')).toHaveValue(210))
+      expect(screen.getByRole('button', { name: 'Complete Payment' })).toBeEnabled()
+    })
+
+    it('requires invalid redemption to be removed rather than silently collecting a stale total', async () => {
+      const user = userEvent.setup()
+      vi.mocked(getCheckoutPreview).mockImplementation(async (_id, request) => {
+        if ((request.loyaltyPointsToRedeem ?? 0) > 0) throw new ApiError(400, { errors: { loyaltyPointsToRedeem: ['Balance changed: not enough points.'] } })
+        return preview()
+      })
+      renderCheckout()
+      fireEvent.change(await screen.findByLabelText('Loyalty points to redeem'), { target: { value: '20' } })
+      expect(await screen.findByText(/Checkout quote failed: Balance changed/)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Complete Payment' })).toBeDisabled()
+      expect(screen.getByLabelText('Amount collected')).toHaveValue(null)
+      await user.click(screen.getByRole('button', { name: 'Remove loyalty redemption' }))
+      await waitFor(() => expect(screen.getByLabelText('Amount collected')).toHaveValue(210))
+      expect(screen.getByRole('button', { name: 'Complete Payment' })).toBeEnabled()
+    })
+
+    it('offers a full balance button, never partial input, when partial redemption is off', async () => {
+      vi.mocked(getCheckoutPreview).mockImplementation(async (_id, request) => {
+        const result = preview(request.loyaltyPointsToRedeem ?? 0)
+        return { ...result, loyalty: { ...result.loyalty, allowPartialRedemption: false } }
+      })
+      renderCheckout()
+      await userEvent.setup().click(await screen.findByRole('button', { name: 'Redeem full balance' }))
+      expect(screen.queryByLabelText('Loyalty points to redeem')).not.toBeInTheDocument()
+      await waitFor(() => expect(screen.getByLabelText('Amount collected')).toHaveValue(126))
+      expect(getCheckoutPreview).toHaveBeenLastCalledWith('inv1', expect.objectContaining({ loyaltyPointsToRedeem: 80 }))
+    })
+
+    it('refreshes the quote and clears redemption after a checkout conflict', async () => {
+      const user = userEvent.setup()
+      vi.mocked(checkoutInvoice).mockRejectedValue(new ApiError(409, { detail: 'The customer balance changed.' }))
+      renderCheckout()
+      fireEvent.change(await screen.findByLabelText('Loyalty points to redeem'), { target: { value: '20' } })
+      await waitFor(() => expect(screen.getByLabelText('Amount collected')).toHaveValue(189))
+      await user.click(screen.getByRole('button', { name: 'Complete Payment' }))
+      expect(await screen.findByText(/Review the refreshed total and select loyalty points again/)).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByLabelText('Amount collected')).toHaveValue(210))
+      expect(screen.getByLabelText('Loyalty points to redeem')).toHaveValue(0)
+      expect(getCheckoutPreview).toHaveBeenLastCalledWith('inv1', expect.objectContaining({ loyaltyPointsToRedeem: 0 }))
+    })
   })
 })

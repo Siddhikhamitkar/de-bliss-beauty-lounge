@@ -55,6 +55,8 @@ public class Invoice : AuditableEntity, ISoftDeletable
 
     public InvoiceStatus Status { get; set; }
 
+    public int Revision { get; set; }
+
     /// <summary>ISO 4217 code. Set by the application from salon configuration.</summary>
     public string Currency { get; set; } = null!;
 
@@ -78,6 +80,12 @@ public class Invoice : AuditableEntity, ISoftDeletable
     /// out like <see cref="CouponDiscount"/> and <see cref="ManualDiscount"/>.
     /// </summary>
     public decimal BundleDiscount { get; set; }
+
+    public decimal LoyaltyDiscount { get; set; }
+
+    public decimal LoyaltyPointsRedeemed { get; set; }
+
+    public decimal LoyaltyPointsEarned { get; set; }
 
     public decimal TaxTotal { get; set; }
 

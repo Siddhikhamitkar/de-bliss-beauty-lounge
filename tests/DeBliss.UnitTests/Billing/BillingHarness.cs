@@ -32,7 +32,9 @@ internal sealed class BillingHarness : IDisposable
             new InventoryRepository(Context),
             new SalonSettingsRepository(Context),
             Context,
-            Database.Clock);
+            Database.Clock,
+            new DeBliss.Application.Loyalty.LoyaltyService(
+                new LoyaltyRepository(Context), new CustomerRepository(Context), Context, Database.Clock));
 
         Coupons = new CouponService(new CouponRepository(Context), Context, Database.Clock);
         Settings = new SettingsService(new SalonSettingsRepository(Context), Context);

@@ -23,6 +23,18 @@ public class Staff : AuditableEntity
     /// <summary>Colour used to render this staff member's calendar column.</summary>
     public string? CalendarColor { get; set; }
 
+    public decimal? TotalSalary { get; set; }
+
+    public decimal? BasicSalary { get; set; }
+
+    public decimal? OtherAllowances { get; set; }
+
+    public string? IbanNumber { get; set; }
+
+    public string? BankName { get; set; }
+
+    public string? BankAccountNumber { get; set; }
+
     public bool IsActive { get; set; } = true;
 
     /// <summary>Controls column order on the calendar.</summary>

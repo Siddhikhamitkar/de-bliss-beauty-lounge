@@ -224,6 +224,70 @@ export interface SaveStaffRequest {
   calendarColor: string | null
   isActive: boolean
   sortOrder: number
+  /** Owner-only; omitted by operational editors to preserve existing finances. */
+  salary?: StaffSalaryDetails
+}
+
+/** Protected financial record, deliberately absent from StaffProfile/StaffSummary. */
+export interface StaffSalaryDetails {
+  totalSalary: number | null
+  basicSalary: number | null
+  otherAllowances: number | null
+  ibanNumber: string | null
+  bankName: string | null
+  bankAccountNumber: string | null
+}
+
+export interface SalarySlipRequest {
+  staffId: string
+  salaryMonth: number
+  salaryYear: number
+  payDate: string
+  employeeId: string | null
+  workingDays: number
+  totalLeave: number
+  leaveWithoutPay: number
+  lateMarks: number
+  basicSalary: number
+  houseRentAllowance: number
+  otherAllowance: number
+  commission: number
+  leaveDeduction: number
+  otherDeductions: number
+}
+
+export interface SalarySlipSummaryDto {
+  id: string
+  staffId: string
+  employeeName: string
+  salaryMonth: number
+  salaryYear: number
+  payDate: string
+  netSalary: number
+  createdAt: string
+}
+
+/** Immutable snapshot returned by preview and saved-record endpoints. */
+export interface SalarySlipDto extends SalarySlipRequest {
+  id: string
+  employeeName: string
+  agreedTotalSalary: number | null
+  totalEarnings: number
+  totalDeductions: number
+  netSalary: number
+  bankName: string | null
+  accountName: string | null
+  bankAccountNumber: string | null
+  ibanNumber: string | null
+  createdAt: string
+  createdBy: string
+  templateVersion: string
+}
+
+export interface SalarySlipPreview {
+  slip: SalarySlipDto
+  pdfBase64: string
+  previewToken: string
 }
 
 /** One working interval in a day, as HH:mm local salon time. */
@@ -640,6 +704,9 @@ export interface Invoice {
   bundleDiscount: number
   couponDiscount: number
   manualDiscount: number
+  loyaltyDiscount: number
+  loyaltyPointsRedeemed: number
+  loyaltyPointsEarned: number
   discountTotal: number
   /** VAT snapshot: the rate and mode in force when the bill was finalized. */
   taxRate?: number
@@ -660,6 +727,7 @@ export interface Invoice {
 
 /** The checkout payload; every field is validated again on the server. */
 export interface CheckoutInvoiceRequest {
+  loyaltyPointsToRedeem?: number
   couponCode: string | null
   manualDiscountType: DiscountType | null
   manualDiscountValue: number | null
@@ -698,6 +766,9 @@ export interface Receipt {
   couponCode: string | null
   couponDiscount: number
   manualDiscount: number
+  loyaltyDiscount: number
+  loyaltyPointsRedeemed: number
+  loyaltyPointsEarned: number
   /** VAT snapshot taken at checkout, matching the stored invoice exactly. */
   taxRate?: number
   pricesIncludeTax?: boolean
@@ -709,6 +780,72 @@ export interface Receipt {
   paymentReference: string | null
   paidAt: string
   issuedAt: string
+}
+
+/** Owner-only program configuration. Operational checkout uses LoyaltyQuote instead. */
+export interface LoyaltySettings {
+  isEnabled: boolean
+  earningPercentage: number
+  pointValueAed: number
+  minimumRedemptionPoints: number
+  maximumRedemptionPercentage: number
+  allowPartialRedemption: boolean
+  minimumInvoiceAmount: number | null
+}
+
+export interface LoyaltyTransaction {
+  id: string
+  customerId: string
+  invoiceId: string
+  type: 'Earn' | 'Redeem' | 'Reversal'
+  points: number
+  occurredAt: string
+  description: string
+  eligibleSpend: number
+  earningPercentage: number
+  pointValueAed: number
+  createdByUserId: string
+  reversesTransactionId: string | null
+}
+
+export interface CustomerLoyaltySummary {
+  customerId: string
+  availablePoints: number
+  lifetimePointsEarned: number
+  pointsRedeemed: number
+  pointsDebt: number
+  recentTransactions: LoyaltyTransaction[]
+}
+
+export interface LoyaltyQuote {
+  isEnabled: boolean
+  availablePoints: number
+  availableValue: number
+  pointValueAed: number
+  maximumRedeemablePoints: number
+  maximumDiscount: number
+  minimumRedemptionPoints: number
+  maximumRedemptionPercentage: number
+  allowPartialRedemption: boolean
+  minimumInvoiceAmount: number | null
+  unavailableReason: string | null
+  pointsToRedeem: number
+  discount: number
+  eligibleSpend: number
+  pointsEarned: number
+}
+
+export interface CheckoutPreview {
+  subTotal: number
+  bundleDiscount: number
+  couponDiscount: number
+  manualDiscount: number
+  taxRate: number
+  pricesIncludeTax: boolean
+  taxTotal: number
+  tipAmount: number
+  totalAmount: number
+  loyalty: LoyaltyQuote
 }
 
 /** The salon's tax configuration — one row, owner-editable. */

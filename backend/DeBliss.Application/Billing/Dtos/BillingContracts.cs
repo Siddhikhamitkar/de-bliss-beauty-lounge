@@ -128,7 +128,10 @@ public sealed record InvoiceDto(
     DateTimeOffset CreatedAt,
     DateTimeOffset? UpdatedAt,
     IReadOnlyList<InvoiceItemDto> Items,
-    IReadOnlyList<InvoicePaymentDto> Payments);
+    IReadOnlyList<InvoicePaymentDto> Payments,
+    decimal LoyaltyDiscount,
+    decimal LoyaltyPointsRedeemed,
+    decimal LoyaltyPointsEarned);
 
 /// <summary>
 /// Body of "start a checkout". The appointment form posts just the
@@ -176,7 +179,20 @@ public sealed record CheckoutRequest(
     decimal? Amount,
     string? Reference,
     decimal? TipPercentage = null,
-    decimal? TipAmount = null);
+    decimal? TipAmount = null,
+    decimal LoyaltyPointsToRedeem = 0m);
+
+public sealed record CheckoutPreviewDto(
+    decimal SubTotal,
+    decimal BundleDiscount,
+    decimal CouponDiscount,
+    decimal ManualDiscount,
+    decimal TaxRate,
+    bool PricesIncludeTax,
+    decimal TaxTotal,
+    decimal TipAmount,
+    decimal TotalAmount,
+    DeBliss.Application.Loyalty.Dtos.LoyaltyQuoteDto Loyalty);
 
 /// <summary>
 /// Body of "save the tip choice on the draft". Exactly one field is set — a
@@ -222,7 +238,10 @@ public sealed record ReceiptDto(
     string PaymentMethod,
     string? PaymentReference,
     DateTimeOffset PaidAt,
-    DateTimeOffset? IssuedAt);
+    DateTimeOffset? IssuedAt,
+    decimal LoyaltyDiscount,
+    decimal LoyaltyPointsRedeemed,
+    decimal LoyaltyPointsEarned);
 
 /// <summary>How the coupon list is narrowed by state. Sent by name, as the API binds it.</summary>
 public enum CouponStatusFilter

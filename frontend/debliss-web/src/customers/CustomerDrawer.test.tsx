@@ -12,6 +12,7 @@ import {
   updateCustomerNote,
 } from '../api/customers.ts'
 import { searchInvoices } from '../api/billing.ts'
+import { getCustomerLoyalty } from '../api/loyalty.ts'
 import type {
   CustomerAppointmentItem,
   CustomerNote,
@@ -22,6 +23,8 @@ import type {
 } from '../api/contracts.ts'
 import { formatDate, formatDateTime } from '../format.ts'
 import { CustomerDrawer } from './CustomerDrawer.tsx'
+
+vi.mock('../api/loyalty.ts', () => ({ getCustomerLoyalty: vi.fn(), getLoyaltyTransactions: vi.fn() }))
 
 vi.mock('../api/customers.ts', () => ({
   searchCustomers: vi.fn(),
@@ -165,6 +168,7 @@ function renderDrawer(overrides: Partial<ComponentProps<typeof CustomerDrawer>> 
 
 describe('CustomerDrawer', () => {
   beforeEach(() => {
+    vi.mocked(getCustomerLoyalty).mockResolvedValue({ customerId: 'c1', availablePoints: 0, lifetimePointsEarned: 0, pointsRedeemed: 0, pointsDebt: 0, recentTransactions: [] })
     vi.mocked(getCustomer).mockResolvedValue(profile)
     vi.mocked(setCustomerStatus).mockResolvedValue(profile)
     vi.mocked(listCustomerNotes).mockResolvedValue([note])
@@ -196,7 +200,7 @@ describe('CustomerDrawer', () => {
     const tabs = within(screen.getByRole('tablist', { name: 'Customer sections' }))
       .getAllByRole('tab')
       .map(tab => tab.textContent)
-    expect(tabs).toEqual(['Overview', 'Appointments', 'Sales', 'Customer details', 'Notes'])
+    expect(tabs).toEqual(['Overview', 'Appointments', 'Sales', 'Loyalty', 'Customer details', 'Notes'])
     expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('tabpanel')).toHaveAttribute(
       'aria-labelledby',
@@ -255,6 +259,8 @@ describe('CustomerDrawer', () => {
 
     await user.keyboard('{ArrowRight}')
     await user.keyboard('{ArrowRight}')
+    expect(screen.getByRole('tab', { name: 'Loyalty' })).toHaveAttribute('aria-selected', 'true')
+    await user.keyboard('{ArrowRight}')
     await user.keyboard('{ArrowRight}')
     expect(screen.getByRole('tab', { name: 'Notes' })).toHaveAttribute('aria-selected', 'true')
 
@@ -263,6 +269,15 @@ describe('CustomerDrawer', () => {
 
     await user.keyboard('{ArrowLeft}')
     expect(screen.getByRole('tab', { name: 'Notes' })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('loads the read-only Loyalty tab on demand', async () => {
+    renderDrawer()
+    expect(getCustomerLoyalty).not.toHaveBeenCalled()
+    await userEvent.setup().click(screen.getByRole('tab', { name: 'Loyalty' }))
+    expect(await screen.findByText('No loyalty transactions yet.')).toBeInTheDocument()
+    expect(getCustomerLoyalty).toHaveBeenCalledExactlyOnceWith('c1')
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', 'customer-tab-loyalty')
   })
 
   it('splits the history into upcoming and past cards with their full line-up', async () => {

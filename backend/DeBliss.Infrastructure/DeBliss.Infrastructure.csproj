@@ -11,6 +11,9 @@
          DbContext factory and the EF Core migrations themselves. PrivateAssets
          keeps the design tooling out of the API's dependency graph. -->
     <PackageReference Include="ClosedXML" Version="0.105.1" />
+    <PackageReference Include="PDFsharp" Version="6.2.4" />
+    <!-- Keep PDFsharp's PKCS dependency on the patched .NET 10 servicing version. -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
@@ -22,6 +25,10 @@
   <ItemGroup>
     <ProjectReference Include="..\DeBliss.Application\DeBliss.Application.csproj" />
     <ProjectReference Include="..\DeBliss.Domain\DeBliss.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Staffing\Assets\*.pdf;Staffing\Assets\*.ttf;Staffing\Assets\*.txt" />
   </ItemGroup>
 
 </Project>

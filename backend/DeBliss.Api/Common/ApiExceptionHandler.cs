@@ -48,6 +48,15 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : I
             // (typically product stock) between this request reading it and
             // saving. Nothing was written, so the caller can safely reload and
             // retry — which is exactly what the message asks for.
+            Microsoft.Data.SqlClient.SqlException { Number: 1205 } or
+            DbUpdateException { InnerException: Microsoft.Data.SqlClient.SqlException { Number: 1205 } } => (
+                StatusCodes.Status409Conflict,
+                new ProblemDetails
+                {
+                    Title = "Checkout figures changed.",
+                    Detail = "Another checkout changed the available figures. Reload and try again; this checkout was not completed.",
+                    Status = StatusCodes.Status409Conflict
+                }),
             DbUpdateConcurrencyException => (
                 StatusCodes.Status409Conflict,
                 new ProblemDetails

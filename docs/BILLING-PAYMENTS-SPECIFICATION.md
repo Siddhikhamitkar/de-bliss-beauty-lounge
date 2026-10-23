@@ -32,9 +32,16 @@ Deliberately **not** built in Phase 1 (any of these returning would be scope
 creep):
 
 - Split payments, payment gateways, refund workflows.
-- Package / loyalty redemption, gift cards.
-- Tax engine, advanced accounting, complex promotions.
-- Authentication enforcement — permissions are prepared as constants only.
+- Package redemption and gift cards.
+- Advanced accounting and complex promotions.
+
+The [Loyalty & Rewards extension](LOYALTY-REWARDS-SPECIFICATION.md) adds rewards
+discounts to the existing VAT/tip checkout. Operational APIs use the existing
+Owner/Receptionist policy; loyalty settings use OwnerOnly. Loyalty is a discount,
+not a tender: `DiscountTotal` includes `LoyaltyDiscount`; Cash/Card/BankTransfer
+records only the final payable amount. Invoice/receipt snapshots include earned
+and redeemed points. Checkout preview and finalization share backend calculations,
+and serializable finalization commits invoice, payment, stock and points together.
 
 ---
 

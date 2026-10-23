@@ -6,10 +6,10 @@ is the authoritative description of the module as implemented; the rules below
 are enforced in the `DeBliss.Application.Staffing` services and covered by the
 test suites in `tests/DeBliss.UnitTests` and `frontend/debliss-web`.
 
-This is the second Phase 1 module. It builds on the foundation and the
-Services & Pricing module, and **does not duplicate them**: `Staff`,
-`StaffService` and the staff lookup existed already, so no new tables were
-introduced — see *Concepts* below for how this module uses them.
+The original staffing module builds on the foundation and Services & Pricing
+module, reusing `Staff`, `StaffService` and the staff lookup. The salary
+extension adds private financial fields to `Staff` and historical
+`SalarySlips`; it does not implement payment processing or bank transfers.
 
 ## Scope
 
@@ -28,21 +28,32 @@ introduced — see *Concepts* below for how this module uses them.
   perform this service at this time"
 - React admin screens for all of the above, plus a working-hours editor
 
-**Deferred to later modules:** the appointment calendar (the availability
-service already exposes the overlap seam it will plug into), customers,
-billing, authentication and authorisation. Endpoints carry `<remarks>` naming
-the permission each will require once authorisation exists; until then the
-API is open.
+**Authorization:** operational staff endpoints require Owner or Receptionist.
+Salary and banking field reads, salary writes, and administration salary-slip endpoints require
+Owner. The application has no separate Admin role. Staff may list and download only their
+own saved PDF slips through `GET /api/staff/me/salary-slips` and `GET /api/staff/me/salary-slips/{id}/pdf`.
+Both require the STAFF role and a nonempty token-derived staff link. The list exposes only document ID,
+period, pay date and creation time; ordinary staff-mobile and public-customer responses still contain
+no salary amounts or banking fields. PDF documents themselves retain their authorized historical content.
+
+Salary slips are an administrative document utility, not a payroll engine.
+Attendance does not automatically calculate deductions; leave deduction is
+entered manually. Bank transfers, payment execution and automatic commissions
+remain out of scope.
 
 ## Concepts
 
 ### The staff table predates this module
 
 `Staff`, `StaffService` and the staff lookup were created with the original
-database schema, so this module **introduced no database changes and no new
-migration** — it adds application behaviour over the existing tables. Job
-title, email, phone number and calendar colour were already optional columns;
-nothing in the schema needed to change.
+database schema. The original profile/scheduling implementation required no
+schema change. The salary extension adds six nullable columns to `Staff` and
+one `SalarySlips` table through
+`20261023144139_AddStaffSalaryAndSalarySlips`; existing staff have unset
+financial details, not invented zero salaries or bank information.
+The migration was separately approved and applied to the existing
+`DeBlissDb-Demo` database on 2026-10-23. No unrelated migrations were applied.
+Migrations must not run automatically at startup or target a replacement database.
 
 ### One many-to-many, one source of truth
 
@@ -258,21 +269,172 @@ React + TypeScript + Vite in `frontend/debliss-web`; the staff module lives in
   the rest of the app; a failed toggle reports the error inline without
   leaving the list stale.
 
+## Salary and historical payslips
+
+### Private staff financial details
+
+The existing Owner staff editor adds Total Salary, Basic Salary, Other
+Allowances, IBAN Number, Bank Name and Bank Account Number. The existing
+`POST /api/staff` and `PUT /api/staff/{id}` accept an optional `salary` object.
+Omitting it preserves existing financial values. Providing it replaces those
+six fields atomically with the ordinary staff update. Receptionists submitting
+this object receive `403`; their normal staff editing remains available.
+
+The `salary` properties are `totalSalary`, `basicSalary`, `otherAllowances`,
+`ibanNumber`, `bankName` and `bankAccountNumber`. Each is nullable. Financial
+readback is deliberately separate: `GET /api/staff/{id}/salary` is Owner-only.
+Shared staff detail, list, status-change and mobile DTOs do not expose them.
+
+Salary amounts are decimal AED values from zero through 999,999,999.99, with
+at most two decimal places. IBAN (50 characters), bank name (200) and account
+number (100) are optional text, trimmed only at the edges; leading zeros and
+internal formatting are preserved. The agreed Total Salary is stored
+independently. A component mismatch is an editor warning, never an implicit
+recalculation or overwrite.
+
+### Owner workflow and API
+
+Salary Slips appears under Operations for Owner only. Active employee
+selection prefills saved Basic Salary and Other Allowances; house rent,
+commission and deductions default to zero. Saved bank information is reviewed
+without retyping. Employee ID is entered per slip because the existing Staff
+model has no employee-code field. Account name uses the employee's full name;
+no sample account holder or banking information is supplied as a default.
+
+| Method & path | Purpose |
+| --- | --- |
+| `GET /api/staff/{id}/salary` | Private financial details for the staff editor and slip prefilling |
+| `POST /api/salary-slips/preview` | Validate and generate PDF plus an encrypted preview token; no database write |
+| `POST /api/salary-slips` | Explicitly save `{ previewToken }`; returns `201` |
+| `GET /api/salary-slips?staffId&year&page&pageSize` | Paged history, without bank details |
+| `GET /api/salary-slips/{id}` | Reopen the saved snapshot |
+| `GET /api/salary-slips/{id}/pdf` | Download the original saved PDF bytes |
+
+All these routes require Owner and send no-store cache directives.
+Authenticated Receptionist, Staff and Customer requests are forbidden; anonymous
+requests are challenged. The creator is taken from the authenticated `sub`,
+never from submitted employee or creator fields.
+
+A preview accepts staff ID, salary month/year, pay date, optional employee ID,
+working days, total leave, leave without pay, late marks, Basic Salary, House
+Rent Allowance, Other Allowance, Commission, Leave Deduction and Other
+Deductions. Backend validation is authoritative: month 1–12, salary year
+2000–2100, pay-date year 2000–2101, attendance between zero and the calendar
+days in the period with at most one decimal place, and integer late marks
+within that range. Leave without pay cannot exceed total leave. There is no
+inferred working-day/leave policy or automatic salary deduction.
+
+- Total Earnings = Basic + House Rent + Other Allowance + Commission.
+- Total Deductions = Leave Deduction + Other Deductions.
+- Net Salary = Total Earnings − Total Deductions; a negative net is rejected.
+- Agreed Total Salary is a reference, not an enforced monthly net.
+- Backend arithmetic uses `decimal`; UI totals use integer cents.
+
+Generate displays the PDF for review without creating a saved record. Back to
+edit requires a fresh preview. Save accepts only the protected token, not
+editable totals or a caller-supplied snapshot. Tokens expire after 30 minutes
+and are bound to their creator; invalid, expired or altered tokens require
+regeneration. The protected payload contains both the snapshot and PDF bytes,
+so profile changes between preview and save cannot silently change the reviewed
+document. No preview tokens or banking values are stored in browser storage.
+
+### Persistence, branding and deployment
+
+`SalarySlips` contains the staff reference, displayed name/employee ID, period,
+pay date, attendance, agreed salary, each earning/deduction, computed totals,
+displayed bank details, creator, creation timestamp, template version and PDF
+bytes. A unique staff/year/month index prevents duplicates, including competing
+saves. Duplicates return `409`; there is no overwrite or update/delete endpoint.
+The staff foreign key is restrictive, preserving history. Saved downloads read
+the stored bytes and never regenerate from current employee details.
+
+The PDF is text-based A4, generated with PDFsharp 6.2.4 (MIT) and embedded
+Noto Sans Regular/Bold fonts (SIL Open Font License 1.1). The original De Bliss
+logo's eight resource streams are preserved byte-for-byte in a branding-only PDF;
+no sample employee or bank details are embedded. Normal slips fit one page;
+maximum-length names and identifiers wrap onto additional A4 pages without
+truncation. Complex-script shaping is not implemented and requires separate
+validation before using scripts that need shaping.
+
+The document includes employee and attendance sections, earnings/deductions,
+Net Salary in AED and full banking details when available. List screens exclude
+banking details and the editor's read-only banking summary masks account
+identifiers. Treat PDFs and database backups as confidential financial records.
+
+ASP.NET Core Data Protection protects preview payloads. Multi-instance hosting
+must share and protect its key ring; key loss invalidates outstanding previews,
+not saved PDFs. PDF generation must not rely on external services or fonts
+installed on the operating system. No production deployment, database reset,
+replacement database, business-data seeding or bank transfer is part of this
+feature.
+
+### Verification constraints
+
+Salary-specific backend tests use object-list repositories, ephemeral protection
+keys and TestServer, without creating a database. The legacy backend suite
+contains SQLite-creating fixtures and must not be run under the current
+no-new-database instruction. Model/migration inspection may construct EF metadata
+without opening a connection. Read-only SQL checks are restricted to the existing
+`DeBlissDb-Demo`. The approved additive migration and matching API are active.
+Live checks load existing staff and generate an unsaved PDF preview; permanent
+salary/profile writes remain reserved for an Owner entering actual business data.
+
 ## Testing
 
-- `tests/DeBliss.UnitTests` — xUnit: the staffing application services (run
-  against a real SQLite database): profile CRUD and the field rules, the
-  replace-set service assignment, the working-hours week save and its
-  per-day errors, time-off CRUD with the historical-delete rule, and the
-  availability check (working hours and breaks, time off, blocked times,
-  inactive staff, unknown services); plus API integration tests over an
-  in-memory TestServer covering every route above, the RFC 9457 error
-  contract and permission-surface drift.
-- `frontend/debliss-web` — vitest + Testing Library + jsdom (65 tests): the
-  API client, formatters, pagination, `useAsync`, the service form, and the
-  staff module (list, profile form, service assignment, working-hours
-  editor, time off, profile page).
+Salary verification on 2026-10-23:
 
-Every rule in this document has at least one automated test on one side or
-the other, and the golden paths were additionally verified by hand in the
-browser against a seeded `DeBlissDb`.
+- Backend: 195 passed, 0 failed, 0 skipped: 91 salary tests plus 104
+  database-free service-import regression tests. This is not the complete
+  legacy backend suite; its SQLite-creating fixtures were intentionally excluded.
+- Frontend: 491 passed across 47 files, including 71 new salary tests.
+  The default worker count exhausted worker startup/time budgets; rerunning
+  with `--maxWorkers=2` passed without changing assertions or timeouts.
+- API build: 0 errors and 0 warnings. Frontend TypeScript/production build passed;
+  lint had 0 errors and the existing `AuthContext.tsx` fast-refresh warning.
+- EF model matches the migration. After explicit approval, only the salary
+  migration was applied to `DeBlissDb-Demo`: six nullable Staff columns, the
+  snapshot table, restrictive foreign key and unique employee/year/month index.
+  All 28 existing business-table row counts remained unchanged; six staff remain,
+  all new financial fields are unset, and no salary records were inserted.
+- Real PDF rendering: normal slip one A4 page; maximum-length slip two A4 pages.
+  Text extraction preserved amounts, identifiers and leading zeros. Rendered
+  pages were visually inspected; eight original logo resource streams matched.
+- Pre-activation browser checks used temporary mocked API persistence and real
+  PDF bytes. Compact 339px checks covered prefill, validation, preview without
+  save, back/edit/regeneration, token-only save, duplicate errors, read-only
+  history/reopen/download, blank new-staff finances and owner edits.
+- Post-activation headless Edge checks used real login, API and existing data:
+  all six staff salary reads, Owner Staff Edit, salary selection, negative-net
+  validation, PDF preview, back/edit and empty history passed. No save was sent.
+  Desktop 1440px and mobile 390px form screenshots were visually inspected;
+  mobile had no horizontal overflow. Native PDF viewer rendering was not verified.
+- Twelve existing read-only API endpoints and Staff, Customers, Services,
+  Calendar, Billing and Inventory screens passed without browser console or
+  page errors. Receptionist editing and the staff mobile profile still work;
+  direct Receptionist/Staff salary requests return `403`.
+- The standard frontend on port 5173 initially still reached an outdated API.
+  The standard Debug API was rebuilt and restarted on port 5132, preserving
+  the existing proxy and session configuration. The same live checks then
+  passed on port 5173 with Erica K, including Staff Edit and PDF preview.
+  No further migration or business-data writes were performed. Both API
+  instances (5132/5138) and frontends (5173/5176) remain available, with
+  development seeders disabled.
+
+Reproducible database-free gates:
+
+```bash
+dotnet test tests/DeBliss.UnitTests/DeBliss.UnitTests.csproj --configuration SalaryVerification --filter 'FullyQualifiedName~Salary|FullyQualifiedName~ServiceImportServiceTests|FullyQualifiedName~ServiceImportApiTests'
+dotnet build backend/DeBliss.Api/DeBliss.Api.csproj --configuration SalaryVerification
+npm test --prefix frontend/debliss-web -- --maxWorkers=2
+npm run lint --prefix frontend/debliss-web
+npm run build --prefix frontend/debliss-web
+```
+
+For the remaining real-data persistence walkthrough, an authorized Owner can
+edit/reload an existing staff member's real salary/banking fields; open Operations
+> Salary slips; select that employee and enter the actual period and amounts;
+generate, edit/regenerate, explicitly save, then reopen/download from History.
+Change the staff profile and confirm the saved snapshot/PDF remains unchanged;
+retry the same period and expect a conflict. A Receptionist/Staff account must
+not see financial fields or the salary route, and authenticated direct requests
+to the protected salary endpoints must return `403`.

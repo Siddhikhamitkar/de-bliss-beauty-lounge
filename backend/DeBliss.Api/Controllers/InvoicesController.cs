@@ -20,6 +20,11 @@ namespace DeBliss.Api.Controllers;
 [Authorize(Policy = AuthPolicies.Operational)]
 public sealed class InvoicesController(IInvoiceService invoices) : ControllerBase
 {
+    [HttpPost("{id:guid}/checkout-preview")]
+    public async Task<ActionResult<CheckoutPreviewDto>> PreviewCheckout(
+        Guid id, [FromBody] CheckoutRequest request, CancellationToken cancellationToken) =>
+        Ok(await invoices.PreviewCheckoutAsync(id, request, cancellationToken));
+
     /// <remarks>Will require <c>Permissions.Billing.ViewInvoices</c> once authorisation exists.</remarks>
     [HttpGet]
     [ProducesResponseType(typeof(PagedResult<InvoiceSummaryDto>), StatusCodes.Status200OK)]

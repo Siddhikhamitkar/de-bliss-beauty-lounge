@@ -111,6 +111,10 @@ export function InvoiceDrawer({ invoice, onClose, onResumeCheckout }: InvoiceDra
               )}
               <dt>Coupon</dt>
               <dd>{details.data.couponCode ?? '—'}</dd>
+              <dt>Loyalty points redeemed</dt>
+              <dd>{details.data.loyaltyPointsRedeemed.toFixed(2)}</dd>
+              <dt>Loyalty points earned</dt>
+              <dd>{details.data.loyaltyPointsEarned.toFixed(2)}</dd>
             </dl>
           </section>
 
@@ -166,6 +170,9 @@ export function InvoiceDrawer({ invoice, onClose, onResumeCheckout }: InvoiceDra
                   <dt>Manual discount</dt>
                   <dd>−{formatMoney(details.data.currency, details.data.manualDiscount)}</dd>
                 </div>
+              )}
+              {details.data.loyaltyDiscount > 0 && (
+                <div><dt>Loyalty discount</dt><dd>−{formatMoney(details.data.currency, details.data.loyaltyDiscount)}</dd></div>
               )}
               {(details.data.taxRate ?? 0) > 0 && (
                 <>

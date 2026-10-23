@@ -25,6 +25,7 @@ import type {
   CouponValidation,
   DiscountType,
   InventoryProductOption,
+  Invoice,
   InvoiceItem,
   PaymentMethod,
   Receipt,
@@ -36,6 +37,7 @@ import { LoadingState } from '../components/LoadingState.tsx'
 import { formatMoney, formatPrice } from '../format.ts'
 import { useAsync } from '../useAsync.ts'
 import { ReceiptOverlay } from './ReceiptOverlay.tsx'
+import { useCheckoutPreview } from './useCheckoutPreview.ts'
 
 interface CheckoutPageProps {
   /** The completed appointment being checked out; the invoice loads on mount. */
@@ -143,6 +145,10 @@ export function CheckoutPage({ appointmentId, invoiceId, onClose, onPaid }: Chec
   const [tipPercentage, setTipPercentage] = useState<number | null>(null)
   const [tipCustomInput, setTipCustomInput] = useState('')
   const [tipFailure, setTipFailure] = useState<string>()
+  const [pointsInput, setPointsInput] = useState('0')
+  // useAsync keeps its previous data during reload. Block quotes until the new
+  // line snapshot arrives, rather than authorizing the pre-mutation invoice.
+  const [refreshingFrom, setRefreshingFrom] = useState<Invoice>()
 
   // Resuming a checkout whose invoice was already paid shows its receipt.
   const paidInvoiceId = record !== undefined && record.status === 'Paid' ? record.id : undefined
@@ -189,45 +195,55 @@ export function CheckoutPage({ appointmentId, invoiceId, onClose, onPaid }: Chec
     }
   }
 
-  const subtotal = record?.subTotal ?? 0
+  const hasCustomer = record?.customerId != null
   const currency = record?.currency ?? ''
   const bundleName = record?.bundleName ?? null
-  const bundleDiscount = record?.bundleDiscount ?? 0
-  const taxRate = taxSettings.data?.taxRate ?? 0
-  const pricesIncludeTax = taxSettings.data?.pricesIncludeTax ?? false
-
-  // The bundle's saving comes off first, so a percentage coupon or manual
-  // discount is computed against what is still owed — the same base the server
-  // validates against. It is zero for a visit that was not booked as a bundle.
-  const discountable = round2(subtotal - bundleDiscount)
-  const couponDiscount = coupon?.discountAmount ?? 0
+  const discountable = round2((record?.subTotal ?? 0) - (record?.bundleDiscount ?? 0))
   const discountNumber = parseNumber(discountValue)
-  const manualDiscount =
-    discountNumber !== null && discountNumber > 0
-      ? discountType === 'Percentage'
-        ? round2((discountNumber / 100) * discountable)
-        : discountNumber
-      : 0
-  const total = round2(Math.max(0, discountable - couponDiscount - manualDiscount))
-
-  // VAT mirrors TaxMath on the server: added on top of the discounted amount,
-  // or already inside it when prices are tax-inclusive — never both. Tips ride
-  // on top of the VAT-adjusted amount and never join the taxable base.
-  const taxTotal = round2(
-    pricesIncludeTax ? (total * taxRate) / (100 + taxRate) : (total * taxRate) / 100,
-  )
-  const tipBase = pricesIncludeTax ? total : round2(total + taxTotal)
   const tipCustom = tipMode === 'custom' ? parseNumber(tipCustomInput) : null
-  const tipTotal =
+  const points = parseNumber(pointsInput)
+  const invalidPoints = points === null || !Number.isFinite(points) || points < 0
+  const uncommittedLines = Object.entries(qtyEdits).some(([id, value]) => {
+    const item = record?.items.find(line => line.id === id)
+    return item !== undefined && parseNumber(value) !== item.quantity
+  })
+  const linesPending = lineBusy || (refreshingFrom !== undefined && refreshingFrom === record) || uncommittedLines
+  const previewRequest: CheckoutInvoiceRequest = {
+    couponCode: coupon?.code ?? null,
+    manualDiscountType: discountNumber !== null && discountNumber !== 0 ? discountType : null,
+    manualDiscountValue: discountNumber !== null && discountNumber !== 0 ? discountNumber : null,
+    paymentMethod: 'Cash', amount: null, reference: null,
+    tipPercentage: tipMode === 'percentage' ? tipPercentage : null,
+    tipAmount: tipMode === 'custom' ? tipCustom : null,
+    loyaltyPointsToRedeem: invalidPoints ? 0 : points,
+  }
+  const quote = useCheckoutPreview(record, previewRequest,
+    JSON.stringify([couponInput, discountType, discountValue, tipMode, tipCustomInput, qtyEdits]),
+    linesPending || couponBusy || invoice.failure !== undefined, pointsInput)
+  const preview = invalidPoints ? undefined : quote.data
+  const loyalty = quote.base?.loyalty
+  const quoteBlocked = hasCustomer && preview === undefined
+  // Linked customers always use the complete server preview, not locally
+  // reconstructed VAT/tip. Walk-ins retain the existing no-loyalty arithmetic.
+  const subtotal = preview?.subTotal ?? record?.subTotal ?? 0
+  const bundleDiscount = preview?.bundleDiscount ?? record?.bundleDiscount ?? 0
+  const couponDiscount = preview?.couponDiscount ?? coupon?.discountAmount ?? 0
+  const manualDiscount = preview?.manualDiscount ?? (
+    discountNumber !== null && discountNumber > 0
+      ? discountType === 'Percentage' ? round2((discountNumber / 100) * discountable) : discountNumber
+      : 0)
+  const loyaltyDiscount = preview?.loyalty.discount ?? 0
+  const total = round2(Math.max(0, subtotal - bundleDiscount - couponDiscount - manualDiscount - loyaltyDiscount))
+  const taxRate = preview?.taxRate ?? taxSettings.data?.taxRate ?? 0
+  const pricesIncludeTax = preview?.pricesIncludeTax ?? taxSettings.data?.pricesIncludeTax ?? false
+  const taxTotal = preview?.taxTotal ?? round2(pricesIncludeTax ? (total * taxRate) / (100 + taxRate) : (total * taxRate) / 100)
+  const tipBase = pricesIncludeTax ? total : round2(total + taxTotal)
+  const tipTotal = preview?.tipAmount ?? (
     tipMode === 'percentage' && tipPercentage !== null
       ? round2((tipBase * tipPercentage) / 100)
-      : tipCustom !== null && tipCustom > 0
-        ? tipCustom
-        : 0
-  const payable = round2(total + tipTotal + (pricesIncludeTax ? 0 : taxTotal))
-
-  // The amount tracks the live payable until the receptionist overtypes it.
-  const amount = amountOverride ?? payable.toFixed(2)
+      : tipCustom !== null && tipCustom > 0 ? tipCustom : 0)
+  const payable = preview?.totalAmount ?? round2(total + tipTotal + (pricesIncludeTax ? 0 : taxTotal))
+  const amount = amountOverride ?? (quoteBlocked ? '' : payable.toFixed(2))
 
   function applyCoupon() {
     const code = couponInput.trim()
@@ -286,12 +302,13 @@ export function CheckoutPage({ appointmentId, invoiceId, onClose, onPaid }: Chec
   }
 
   function completePayment() {
-    if (record === undefined) {
+    if (record === undefined || quoteBlocked || linesPending || submitting || couponBusy) {
       return
     }
 
     const parsedAmount = parseNumber(amount)
     const request: CheckoutInvoiceRequest = {
+      ...(hasCustomer ? { loyaltyPointsToRedeem: preview!.loyalty.pointsToRedeem } : {}),
       couponCode: coupon?.code ?? null,
       manualDiscountType: manualDiscount > 0 ? discountType : null,
       manualDiscountValue: manualDiscount > 0 ? discountNumber : null,
@@ -317,6 +334,12 @@ export function CheckoutPage({ appointmentId, invoiceId, onClose, onPaid }: Chec
         } else {
           setSubmitFailure(describeFailure(error))
         }
+        if (hasCustomer && error instanceof ApiError && (error.status === 409 || error.errors['loyaltyPointsToRedeem'] !== undefined)) {
+          setPointsInput('0')
+          setAmountOverride(undefined)
+          quote.reload()
+          setSubmitFailure(`${describeFailure(error)} Review the refreshed total and select loyalty points again before collecting payment.`)
+        }
       })
       .finally(() => setSubmitting(false))
   }
@@ -339,6 +362,7 @@ export function CheckoutPage({ appointmentId, invoiceId, onClose, onPaid }: Chec
       .then(() => {
         setSelectedProductId('')
         setProductQty('1')
+        setRefreshingFrom(record)
         invoice.reload()
       })
       .catch((error: unknown) => setLineFailure(lineErrorText(error)))
@@ -368,7 +392,11 @@ export function CheckoutPage({ appointmentId, invoiceId, onClose, onPaid }: Chec
     setLineFailure(undefined)
 
     updateInvoiceLine(record.id, item.id, { quantity })
-      .then(() => invoice.reload())
+      .then(() => {
+        setQtyEdits({})
+        setRefreshingFrom(record)
+        invoice.reload()
+      })
       .catch((error: unknown) => setLineFailure(lineErrorText(error)))
       .finally(() => setLineBusy(false))
   }
@@ -382,7 +410,11 @@ export function CheckoutPage({ appointmentId, invoiceId, onClose, onPaid }: Chec
     setLineFailure(undefined)
 
     removeInvoiceLine(record.id, item.id)
-      .then(() => invoice.reload())
+      .then(() => {
+        setQtyEdits({})
+        setRefreshingFrom(record)
+        invoice.reload()
+      })
       .catch((error: unknown) => setLineFailure(lineErrorText(error)))
       .finally(() => setLineBusy(false))
   }
@@ -418,7 +450,7 @@ export function CheckoutPage({ appointmentId, invoiceId, onClose, onPaid }: Chec
           <p className="banner" role="alert">{receiptFailure}</p>
         )}
 
-        {taxSettings.failure !== undefined && (
+        {!hasCustomer && taxSettings.failure !== undefined && (
           <p className="banner" role="alert">
             Could not load the VAT settings — the preview below may not match what the server
             charges: {taxSettings.failure}
@@ -571,6 +603,7 @@ export function CheckoutPage({ appointmentId, invoiceId, onClose, onPaid }: Chec
                         name="couponCode"
                         placeholder="e.g. BLISS20"
                         value={couponInput}
+                        disabled={couponBusy}
                         onChange={event => setCouponInput(event.target.value)}
                       />
                       <button
@@ -727,7 +760,47 @@ export function CheckoutPage({ appointmentId, invoiceId, onClose, onPaid }: Chec
                 />
               </div>
 
-              <div className="receipt-totals">
+              <section className="tab-section" aria-label="Checkout loyalty">
+                <div className="tab-section-head"><h4>Loyalty</h4></div>
+                {!hasCustomer ? <p className="row-subtext">Link a registered customer to the invoice to earn or redeem loyalty points.</p> : <>
+                  {quote.pending && <LoadingState label="Updating checkout quote…" />}
+                  {quote.failure !== undefined && <ErrorState message={`Checkout quote failed: ${quote.failure} Review your discounts and redemption, then retry.`} onRetry={quote.reload} />}
+                  {invalidPoints && <p className="banner" role="alert">Enter zero or a positive number of loyalty points.</p>}
+                  {loyalty !== undefined && <>
+                    <dl className="kv-grid">
+                      <dt>Available points</dt><dd>{loyalty.availablePoints.toFixed(2)}</dd>
+                      <dt>AED equivalent</dt><dd>{formatMoney('AED', loyalty.availableValue)}</dd>
+                      <dt>Maximum redeemable points</dt><dd>{loyalty.maximumRedeemablePoints.toFixed(2)}</dd>
+                      <dt>Maximum loyalty discount</dt><dd>{formatMoney('AED', loyalty.maximumDiscount)}</dd>
+                      <dt>Minimum redemption points</dt><dd>{loyalty.minimumRedemptionPoints.toFixed(2)}</dd>
+                      <dt>Maximum redemption percentage</dt><dd>{loyalty.maximumRedemptionPercentage}%</dd>
+                      {loyalty.minimumInvoiceAmount !== null && <><dt>Minimum invoice amount</dt><dd>{formatMoney('AED', loyalty.minimumInvoiceAmount)}</dd></>}
+                    </dl>
+                    {!loyalty.isEnabled && <p className="row-subtext">Loyalty program is disabled.</p>}
+                    {loyalty.unavailableReason !== null && <p className="row-subtext">{loyalty.unavailableReason}</p>}
+                    {loyalty.isEnabled && (loyalty.allowPartialRedemption ? <label className="field">
+                      <span>Loyalty points to redeem</span>
+                      <input type="number" min="0" max={loyalty.maximumRedeemablePoints} step="0.01" value={pointsInput} onChange={event => setPointsInput(event.target.value)} />
+                    </label> : <>
+                      <p className="row-subtext">Full balance only: the entire balance must fit all redemption limits. Partial amounts are not allowed.</p>
+                      <button type="button" className="button" disabled={loyalty.maximumRedeemablePoints <= 0 || loyalty.maximumRedeemablePoints !== loyalty.availablePoints} onClick={() => setPointsInput(String(loyalty.maximumRedeemablePoints))}>Redeem full balance</button>
+                    </>)}
+                  </>}
+                  {pointsInput !== '0' && <button type="button" className="button" onClick={() => setPointsInput('0')}>Remove loyalty redemption</button>}
+                  <FieldErrors messages={fieldErrors?.['loyaltyPointsToRedeem']} />
+                  {preview !== undefined && <>
+                    <dl className="receipt-totals">
+                      <div><dt>Existing discounts</dt><dd>−{formatMoney(currency, bundleDiscount + couponDiscount + manualDiscount)}</dd></div>
+                      <div><dt>Loyalty discount</dt><dd>−{formatMoney(currency, loyaltyDiscount)}</dd></div>
+                      <div><dt>Points to redeem</dt><dd>{preview.loyalty.pointsToRedeem.toFixed(2)}</dd></div>
+                      <div><dt>Points earned on payment</dt><dd>{preview.loyalty.pointsEarned.toFixed(2)}</dd></div>
+                    </dl>
+                    <p className="row-subtext">Earning excludes VAT, tips and all discounts. Points are rounded to 2 decimal places.</p>
+                  </>}
+                </>}
+              </section>
+
+              {!quoteBlocked && <div className="receipt-totals">
                 {taxRate > 0 && (
                   <>
                     <div>
@@ -753,11 +826,11 @@ export function CheckoutPage({ appointmentId, invoiceId, onClose, onPaid }: Chec
                     <dd>+{formatMoney(currency, tipTotal)}</dd>
                   </div>
                 )}
-              </div>
+              </div>}
 
               <div className="checkout-total-row">
-                <span>TOTAL</span>
-                <span className="checkout-total-value">{formatMoney(currency, payable)}</span>
+                <span>{hasCustomer ? 'After-loyalty payable' : 'TOTAL'}</span>
+                <span className="checkout-total-value">{quoteBlocked ? 'Awaiting valid quote' : formatMoney(currency, payable)}</span>
               </div>
             </div>
 
@@ -814,7 +887,7 @@ export function CheckoutPage({ appointmentId, invoiceId, onClose, onPaid }: Chec
               <button
                 type="button"
                 className="button button-primary"
-                disabled={submitting || couponBusy}
+                disabled={submitting || couponBusy || quoteBlocked || linesPending}
                 onClick={completePayment}
               >
                 Complete Payment

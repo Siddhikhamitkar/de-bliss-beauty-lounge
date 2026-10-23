@@ -12,6 +12,8 @@ builder.Services.AddDeblissOpenApi();
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddDeblissSecurity(builder.Configuration);
+builder.Services.AddDataProtection();
+builder.Services.AddSingleton<DeBliss.Application.Staffing.Ports.ISalarySlipPreviewTokens, SalarySlipPreviewTokens>();
 
 builder.Services.AddControllers();
 

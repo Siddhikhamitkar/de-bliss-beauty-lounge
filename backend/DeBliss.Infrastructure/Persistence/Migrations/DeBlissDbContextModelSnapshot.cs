@@ -127,6 +127,18 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("IssuedAt")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<decimal>("LoyaltyDiscount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("LoyaltyPointsEarned")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("LoyaltyPointsRedeemed")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<decimal>("ManualDiscount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -138,10 +150,15 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                     b.Property<bool>("PricesIncludeTax")
                         .HasColumnType("bit");
 
+                    b.Property<int>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int");
+
                     b.Property<Guid?>("ServiceBundleId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Status")
+                        .IsConcurrencyToken()
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
@@ -701,6 +718,146 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                         .HasFilter("[InvoiceId] IS NOT NULL");
 
                     b.ToTable("StockMovements", (string)null);
+                });
+
+            modelBuilder.Entity("DeBliss.Domain.Loyalty.CustomerLoyaltyTransaction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<decimal>("EarningPercentage")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<decimal>("EligibleSpend")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("InvoiceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("PointValueAed")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("Points")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid?>("ReversesTransactionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique();
+
+                    b.HasIndex("ReversesTransactionId");
+
+                    b.HasIndex("CustomerId", "OccurredAt");
+
+                    b.HasIndex("InvoiceId", "Type")
+                        .IsUnique()
+                        .HasFilter("[Type] IN ('Earn','Redeem')");
+
+                    b.ToTable("CustomerLoyaltyTransactions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_CustomerLoyaltyTransactions_EarningPercentage", "CAST([EarningPercentage] AS decimal(5,2)) BETWEEN 0 AND 100");
+
+                            t.HasCheckConstraint("CK_CustomerLoyaltyTransactions_EligibleSpend", "CAST([EligibleSpend] AS decimal(18,2)) >= 0");
+
+                            t.HasCheckConstraint("CK_CustomerLoyaltyTransactions_PointValueAed", "CAST([PointValueAed] AS decimal(18,4)) BETWEEN 0.0001 AND 1000");
+
+                            t.HasCheckConstraint("CK_CustomerLoyaltyTransactions_PointsAndType", "([Type] = 'Earn' AND CAST([Points] AS decimal(18,2)) > 0) OR ([Type] = 'Redeem' AND CAST([Points] AS decimal(18,2)) < 0) OR ([Type] = 'Reversal' AND CAST([Points] AS decimal(18,2)) <> 0)");
+                        });
+                });
+
+            modelBuilder.Entity("DeBliss.Domain.Loyalty.LoyaltySettings", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("AllowPartialRedemption")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<decimal>("EarningPercentage")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("MaximumRedemptionPercentage")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<decimal?>("MinimumInvoiceAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("MinimumRedemptionPoints")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("PointValueAed")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UpdatedByUserId");
+
+                    b.ToTable("LoyaltySettings", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_LoyaltySettings_EarningPercentage", "CAST([EarningPercentage] AS decimal(5,2)) BETWEEN 0 AND 100");
+
+                            t.HasCheckConstraint("CK_LoyaltySettings_MaximumRedemptionPercentage", "CAST([MaximumRedemptionPercentage] AS decimal(5,2)) BETWEEN 0 AND 100");
+
+                            t.HasCheckConstraint("CK_LoyaltySettings_MinimumInvoiceAmount", "[MinimumInvoiceAmount] IS NULL OR CAST([MinimumInvoiceAmount] AS decimal(18,2)) BETWEEN 0 AND 1000000000");
+
+                            t.HasCheckConstraint("CK_LoyaltySettings_MinimumRedemptionPoints", "CAST([MinimumRedemptionPoints] AS decimal(18,2)) BETWEEN 0 AND 1000000000");
+
+                            t.HasCheckConstraint("CK_LoyaltySettings_PointValueAed", "CAST([PointValueAed] AS decimal(18,4)) BETWEEN 0.0001 AND 1000");
+                        });
                 });
 
             modelBuilder.Entity("DeBliss.Domain.Notifications.AppointmentReminder", b =>
@@ -1293,11 +1450,146 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                     b.ToTable("SalonSettings", (string)null);
                 });
 
+            modelBuilder.Entity("DeBliss.Domain.Staffing.SalarySlip", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AccountName")
+                        .IsRequired()
+                        .HasMaxLength(201)
+                        .HasColumnType("nvarchar(201)");
+
+                    b.Property<decimal?>("AgreedTotalSalary")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("BankAccountNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("BankName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<decimal>("BasicSalary")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("Commission")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("EmployeeId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("EmployeeName")
+                        .IsRequired()
+                        .HasMaxLength(201)
+                        .HasColumnType("nvarchar(201)");
+
+                    b.Property<decimal>("HouseRentAllowance")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("IbanNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("LateMarks")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("LeaveDeduction")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("LeaveWithoutPay")
+                        .HasPrecision(4, 1)
+                        .HasColumnType("decimal(4,1)");
+
+                    b.Property<decimal>("NetSalary")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("OtherAllowance")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("OtherDeductions")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateOnly>("PayDate")
+                        .HasColumnType("date");
+
+                    b.Property<byte[]>("Pdf")
+                        .IsRequired()
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<int>("SalaryMonth")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SalaryYear")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("StaffId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TemplateVersion")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("1");
+
+                    b.Property<decimal>("TotalDeductions")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TotalEarnings")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TotalLeave")
+                        .HasPrecision(4, 1)
+                        .HasColumnType("decimal(4,1)");
+
+                    b.Property<decimal>("WorkingDays")
+                        .HasPrecision(4, 1)
+                        .HasColumnType("decimal(4,1)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StaffId", "SalaryYear", "SalaryMonth")
+                        .IsUnique();
+
+                    b.ToTable("SalarySlips", (string)null);
+                });
+
             modelBuilder.Entity("DeBliss.Domain.Staffing.Staff", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("BankAccountNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("BankName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<decimal?>("BasicSalary")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("CalendarColor")
                         .HasMaxLength(9)
@@ -1315,6 +1607,10 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("IbanNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -1327,12 +1623,20 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<decimal?>("OtherAllowances")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<string>("PhoneNumber")
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
 
                     b.Property<int>("SortOrder")
                         .HasColumnType("int");
+
+                    b.Property<decimal?>("TotalSalary")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("datetimeoffset");
@@ -1671,6 +1975,49 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                     b.Navigation("ReversalOf");
                 });
 
+            modelBuilder.Entity("DeBliss.Domain.Loyalty.CustomerLoyaltyTransaction", b =>
+                {
+                    b.HasOne("DeBliss.Domain.Identity.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("DeBliss.Domain.Customers.Customer", "Customer")
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("DeBliss.Domain.Billing.Invoice", "Invoice")
+                        .WithMany()
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("DeBliss.Domain.Loyalty.CustomerLoyaltyTransaction", "ReversesTransaction")
+                        .WithMany()
+                        .HasForeignKey("ReversesTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("Customer");
+
+                    b.Navigation("Invoice");
+
+                    b.Navigation("ReversesTransaction");
+                });
+
+            modelBuilder.Entity("DeBliss.Domain.Loyalty.LoyaltySettings", b =>
+                {
+                    b.HasOne("DeBliss.Domain.Identity.User", "UpdatedByUser")
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("UpdatedByUser");
+                });
+
             modelBuilder.Entity("DeBliss.Domain.Notifications.AppointmentReminder", b =>
                 {
                     b.HasOne("DeBliss.Domain.Scheduling.Appointment", "Appointment")
@@ -1837,6 +2184,17 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                     b.Navigation("Service");
 
                     b.Navigation("ServiceBundle");
+                });
+
+            modelBuilder.Entity("DeBliss.Domain.Staffing.SalarySlip", b =>
+                {
+                    b.HasOne("DeBliss.Domain.Staffing.Staff", "Staff")
+                        .WithMany()
+                        .HasForeignKey("StaffId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Staff");
                 });
 
             modelBuilder.Entity("DeBliss.Domain.Staffing.Staff", b =>

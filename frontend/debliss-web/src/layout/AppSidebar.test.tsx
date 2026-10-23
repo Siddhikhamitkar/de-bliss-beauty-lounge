@@ -56,8 +56,9 @@ describe('AppSidebar', () => {
 
     // Inventory is built now: enabled, like the other operational modules.
     expect(screen.getByRole('button', { name: 'Inventory' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Loyalty' })).toBeEnabled()
 
-    for (const label of ['Packages', 'Loyalty', 'Expenses', 'Reports', 'Marketing']) {
+    for (const label of ['Packages', 'Expenses', 'Reports', 'Marketing']) {
       expect(screen.getByRole('button', { name: new RegExp(`^${label}`) })).toBeDisabled()
     }
   })

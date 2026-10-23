@@ -17,6 +17,12 @@ public class StaffConfiguration : IEntityTypeConfiguration<Staff>
         builder.Property(staff => staff.PhoneNumber).HasMaxLength(30);
         builder.Property(staff => staff.JobTitle).HasMaxLength(100);
         builder.Property(staff => staff.CalendarColor).HasMaxLength(9);
+        builder.Property(staff => staff.TotalSalary).HasPrecision(18, 2);
+        builder.Property(staff => staff.BasicSalary).HasPrecision(18, 2);
+        builder.Property(staff => staff.OtherAllowances).HasPrecision(18, 2);
+        builder.Property(staff => staff.IbanNumber).HasMaxLength(50);
+        builder.Property(staff => staff.BankName).HasMaxLength(200);
+        builder.Property(staff => staff.BankAccountNumber).HasMaxLength(100);
 
         // A staff member is booked, not deleted: IsActive retires them from the
         // calendar while their historical appointments stay intact.

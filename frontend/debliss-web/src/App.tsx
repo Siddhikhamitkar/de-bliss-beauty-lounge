@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { homePathFor, isKnownPath, isPathAllowed, navigateTo, usePathname } from './app/router.ts'
 import type { CustomerSummary } from './api/contracts.ts'
 import { AuthProvider, useAuth } from './auth/AuthContext.tsx'
@@ -19,7 +19,10 @@ import { InventoryPage } from './inventory/InventoryPage.tsx'
 import { RemindersPage } from './reminders/RemindersPage.tsx'
 import { ServicesPage } from './services/ServicesPage.tsx'
 import { SettingsPage } from './settings/SettingsPage.tsx'
+import { LoyaltySettingsPage } from './settings/LoyaltySettingsPage.tsx'
 import { StaffPage } from './staff/StaffPage.tsx'
+
+const SalarySlipsPage = lazy(() => import('./salary/SalarySlipsPage.tsx').then(module => ({ default: module.SalarySlipsPage })))
 
 function App() {
   return (
@@ -129,7 +132,10 @@ function AppRoutes() {
         )}
         {path === '/services' && <ServicesPage onManageCategories={() => navigateTo('/categories')} />}
         {path === '/categories' && <CategoriesPage />}
-        {path === '/staff' && <StaffPage canViewAttendance={user.roles.includes('OWNER')} />}
+        {path === '/staff' && <StaffPage canViewAttendance={user.roles.includes('OWNER')} canManageSalary={user.roles.includes('OWNER')} />}
+        {path === '/salary-slips' && (
+          <Suspense fallback={<p role="status">Loading salary slips…</p>}><SalarySlipsPage /></Suspense>
+        )}
         {path === '/customers' && (
           <CustomersPage
             pendingCreate={pendingCustomerCreate}
@@ -152,6 +158,7 @@ function AppRoutes() {
         {path === '/inventory' && <InventoryPage canManageInventory={user.roles.includes('OWNER')} />}
         {path === '/reminders' && <RemindersPage />}
         {path === '/settings' && <SettingsPage />}
+        {path === '/loyalty' && <LoyaltySettingsPage />}
       </main>
       </div>
 
