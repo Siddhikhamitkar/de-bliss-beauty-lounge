@@ -1,4 +1,5 @@
 using DeBliss.Application.Common.Exceptions;
+using DeBliss.Application.Scheduling;
 using DeBliss.Application.ServiceCatalogue.Dtos;
 using DeBliss.Application.ServiceCatalogue.Ports;
 using DeBliss.Application.Staffing.Dtos;
@@ -11,7 +12,8 @@ public sealed class StaffAvailabilityService(
     IStaffRepository staff,
     IServiceRepository services,
     IScheduleRepository schedule,
-    IAppointmentConflictPort appointments) : IStaffAvailabilityService
+    IAppointmentConflictPort appointments,
+    ISalonTimeZone salonTimeZone) : IStaffAvailabilityService
 {
     public async Task<StaffAvailabilityCheckDto> CheckAsync(
         Guid staffId,
@@ -96,19 +98,25 @@ public sealed class StaffAvailabilityService(
             return false;
         }
 
+        // Working hours are salon wall-clock times, but callers may send any
+        // offset (the web UI sends UTC). Compare in the salon's zone so a
+        // 10:00 Dubai booking is checked as 10:00, not as 06:00 UTC.
+        var localStart = TimeZoneInfo.ConvertTime(start, salonTimeZone.Zone);
+        var localEnd = TimeZoneInfo.ConvertTime(end, salonTimeZone.Zone);
+
         // A slot ending exactly at midnight belongs to the previous day.
-        var dayEnd = end.TimeOfDay == TimeSpan.Zero ? end.AddTicks(-1) : end;
-        var sameDay = start.Year == dayEnd.Year && start.Month == dayEnd.Month && start.Day == dayEnd.Day;
+        var dayEnd = localEnd.TimeOfDay == TimeSpan.Zero ? localEnd.AddTicks(-1) : localEnd;
+        var sameDay = localStart.Date == dayEnd.Date;
 
         if (!sameDay)
         {
             return false;
         }
 
-        var endTime = end.TimeOfDay == TimeSpan.Zero ? TimeSpan.FromHours(24) : end.TimeOfDay;
+        var endTime = localEnd.TimeOfDay == TimeSpan.Zero ? TimeSpan.FromHours(24) : localEnd.TimeOfDay;
         var covered = member.WorkingHours.Any(row =>
-            row.DayOfWeek == start.DayOfWeek
-            && row.StartTime <= start.TimeOfDay
+            row.DayOfWeek == localStart.DayOfWeek
+            && row.StartTime <= localStart.TimeOfDay
             && endTime <= row.EndTime);
 
         if (!covered)

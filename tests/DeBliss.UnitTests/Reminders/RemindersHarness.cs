@@ -41,7 +41,7 @@ internal sealed class RemindersHarness : IDisposable
         var ruleRepository = new ReminderRuleRepository(Context);
 
         var availability = new StaffAvailabilityService(
-            staffRepository, serviceRepository, scheduleRepository, appointmentRepository);
+            staffRepository, serviceRepository, scheduleRepository, appointmentRepository, FixedSalonTimeZone.Utc);
 
         var planner = new ReminderPlanner(ruleRepository, reminderRepository, Database.Clock);
 

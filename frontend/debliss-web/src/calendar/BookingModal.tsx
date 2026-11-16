@@ -69,6 +69,17 @@ function composeDateTime(dateKey: string, timeValue: string): Date | null {
 
 class ClientValidationError extends Error {}
 
+/** Server error keys the form renders beside a field; any other key goes to the banner. */
+const PLACED_FIELD_ERRORS = new Set([
+  'firstName',
+  'lastName',
+  'phoneNumber',
+  'services',
+  'serviceBundleId',
+  'startsAt',
+  'notes',
+])
+
 /**
  * The whole booking decision in one dialog: who, what, who performs it, when.
  * The backend stays the authority — availability conflicts and validation come
@@ -422,6 +433,13 @@ export function BookingModal({ booking, onClose, onSaved }: BookingModalProps) {
         setDuplicateWarning(error.message)
       } else if (error instanceof ApiError && Object.keys(error.errors).length > 0) {
         setFieldErrors(error.errors)
+        // A field the form has no slot for would otherwise fail silently.
+        const unplaced = Object.entries(error.errors)
+          .filter(([field]) => !PLACED_FIELD_ERRORS.has(field))
+          .flatMap(([, messages]) => messages)
+        if (unplaced.length > 0) {
+          setFailure(unplaced.join(' '))
+        }
       } else {
         setFailure(describeFailure(error))
       }
@@ -450,10 +468,6 @@ export function BookingModal({ booking, onClose, onSaved }: BookingModalProps) {
             ×
           </button>
         </div>
-
-        {failure !== undefined && (
-          <p className="banner" role="alert">{failure}</p>
-        )}
 
         <form className="booking-form" onSubmit={submit} noValidate>
           <fieldset className="booking-section">
@@ -761,6 +775,7 @@ export function BookingModal({ booking, onClose, onSaved }: BookingModalProps) {
                   : 'This staff member is not available for the selected window — the booking may be rejected.'}
               </p>
             )}
+            <FieldErrors messages={fieldErrors.startsAt} />
           </fieldset>
 
           <label className="field">
@@ -771,7 +786,14 @@ export function BookingModal({ booking, onClose, onSaved }: BookingModalProps) {
               maxLength={2000}
               rows={2}
             />
+            <FieldErrors messages={fieldErrors.notes} />
           </label>
+
+          {/* Next to the submit button, so the outcome of a click is in view
+              even when the form is scrolled to the bottom. */}
+          {failure !== undefined && (
+            <p className="banner" role="alert">{failure}</p>
+          )}
 
           <div className="form-actions">
             <button type="submit" className="button button-primary" disabled={isSaving}>

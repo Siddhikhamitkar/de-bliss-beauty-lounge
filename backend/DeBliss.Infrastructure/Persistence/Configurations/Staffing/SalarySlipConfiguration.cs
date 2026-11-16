@@ -31,7 +31,7 @@ public sealed class SalarySlipConfiguration : IEntityTypeConfiguration<SalarySli
         builder.Property(slip => slip.AccountName).HasMaxLength(201).IsRequired();
         builder.Property(slip => slip.BankAccountNumber).HasMaxLength(100);
         builder.Property(slip => slip.IbanNumber).HasMaxLength(50);
-        builder.Property(slip => slip.Pdf).HasColumnType("varbinary(max)").IsRequired();
+        builder.Property(slip => slip.Pdf).IsRequired(); // byte[] maps to varbinary(max) on SQL Server by default; an explicit type breaks the SQLite test database.
         builder.Property(slip => slip.TemplateVersion).HasMaxLength(20).HasDefaultValue("1").IsRequired();
 
         builder.HasIndex(slip => new { slip.StaffId, slip.SalaryYear, slip.SalaryMonth }).IsUnique();

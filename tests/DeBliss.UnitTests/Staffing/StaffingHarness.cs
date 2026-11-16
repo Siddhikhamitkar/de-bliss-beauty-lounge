@@ -15,7 +15,7 @@ namespace DeBliss.UnitTests.Staffing;
 /// </summary>
 internal sealed class StaffingHarness : IDisposable
 {
-    public StaffingHarness()
+    public StaffingHarness(TimeZoneInfo? salonZone = null)
     {
         Database = new SqliteTestDatabase();
         Context = Database.CreateContext();
@@ -29,7 +29,11 @@ internal sealed class StaffingHarness : IDisposable
         Staff = new StaffManagementService(staffRepository, serviceRepository, Context);
         Schedule = new StaffScheduleService(staffRepository, scheduleRepository, Database.Clock, Context);
         Availability = new StaffAvailabilityService(
-            staffRepository, serviceRepository, scheduleRepository, Appointments);
+            staffRepository,
+            serviceRepository,
+            scheduleRepository,
+            Appointments,
+            salonZone is null ? FixedSalonTimeZone.Utc : new FixedSalonTimeZone(salonZone));
         Attendance = new StaffAttendanceService(
             staffRepository, attendanceRepository, Database.Clock, Context);
         Mobile = new StaffMobileService(staffRepository, Schedule, Appointments, Database.Clock);

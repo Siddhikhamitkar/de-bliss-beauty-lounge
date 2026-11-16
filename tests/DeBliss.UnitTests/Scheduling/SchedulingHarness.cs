@@ -30,7 +30,7 @@ internal sealed class SchedulingHarness : IDisposable
         var scheduleRepository = new ScheduleRepository(Context);
 
         var availability = new StaffAvailabilityService(
-            staffRepository, serviceRepository, scheduleRepository, appointmentRepository);
+            staffRepository, serviceRepository, scheduleRepository, appointmentRepository, FixedSalonTimeZone.Utc);
         var reminderPlanner = new ReminderPlanner(
             new ReminderRuleRepository(Context),
             new AppointmentReminderRepository(Context),

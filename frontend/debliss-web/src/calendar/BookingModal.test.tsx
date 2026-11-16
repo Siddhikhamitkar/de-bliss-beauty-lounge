@@ -371,6 +371,31 @@ describe('BookingModal', () => {
     expect(createAppointment).not.toHaveBeenCalled()
   })
 
+  it('shows a server objection to the start time, and to fields with no slot, instead of failing silently', async () => {
+    const user = userEvent.setup()
+    vi.mocked(createAppointment).mockRejectedValueOnce(
+      new ApiError(400, {
+        status: 400,
+        errors: {
+          startsAt: ['Start time cannot be in the past.'],
+          customerId: ['Customer is inactive.'],
+        },
+      }),
+    )
+    render(
+      <BookingModal booking={createBooking('s1', 10 * 60)} onClose={() => {}} onSaved={() => {}} />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Walk-in' }))
+    await user.type(screen.getByPlaceholderText('Walk-in guest'), 'Guest Maya')
+    await user.click(await screen.findByRole('button', { name: /Signature Cut/ }))
+    await waitFor(() => expect(screen.getByLabelText('Staff')).toHaveValue('s1'))
+    await user.click(screen.getByRole('button', { name: 'Book appointment' }))
+
+    expect(await screen.findByText('Start time cannot be in the past.')).toBeInTheDocument()
+    expect(screen.getByText('Customer is inactive.')).toHaveClass('banner')
+  })
+
   it('refuses to book a service with no staff chosen for it', async () => {
     const user = userEvent.setup()
     vi.mocked(getService).mockResolvedValue(fullService('svc1', 'Signature Cut', []))

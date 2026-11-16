@@ -83,6 +83,29 @@ public class StaffAvailabilityServiceTests
     }
 
     [Fact]
+    public async Task Working_hours_are_checked_in_salon_time_whatever_offset_the_caller_sends()
+    {
+        // Monday 10:00-19:00 in Dubai (UTC+4), as in the demo data.
+        using var harness = new StaffingHarness(TimeZoneInfo.FindSystemTimeZoneById("Asia/Dubai"));
+        var staffId = await harness.SeedStaffAsync("Layla", "Haddad");
+        await harness.SeedWorkingHoursAsync(staffId, DayOfWeek.Monday, new TimeSpan(10, 0, 0), new TimeSpan(19, 0, 0));
+
+        var dubai = TimeSpan.FromHours(4);
+        var elevenDubai = new DateTimeOffset(2026, 10, 5, 11, 0, 0, dubai);
+        var tenPmDubai = new DateTimeOffset(2026, 10, 5, 22, 0, 0, dubai);
+
+        // 11:00 Dubai is inside the shift, sent as Dubai time or as UTC (07:00Z).
+        Assert.True((await harness.Availability.CheckAsync(
+            staffId, elevenDubai, elevenDubai.AddMinutes(45))).IsAvailable);
+        Assert.True((await harness.Availability.CheckAsync(
+            staffId, elevenDubai.ToUniversalTime(), elevenDubai.AddMinutes(45).ToUniversalTime())).IsAvailable);
+
+        // 22:00 Dubai (18:00Z) is after the shift, however it is sent.
+        Assert.False((await harness.Availability.CheckAsync(
+            staffId, tenPmDubai.ToUniversalTime(), tenPmDubai.AddMinutes(45).ToUniversalTime())).IsAvailable);
+    }
+
+    [Fact]
     public async Task A_slot_after_the_working_day_is_unavailable()
     {
         var (harness, staffId, _) = await ArrangeAsync();
