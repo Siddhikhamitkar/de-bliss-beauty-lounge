@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../api/client.ts'
@@ -128,55 +128,26 @@ describe('CustomerEditor', () => {
     expect(await screen.findByText('Enter a valid email address.')).toBeInTheDocument()
   })
 
-  it('asks before saving a likely duplicate, then saves once confirmed', async () => {
+  it('shows the customer who already has the mobile number beside the field, with no save-anyway', async () => {
     const user = userEvent.setup()
     const onSaved = vi.fn()
-    vi.mocked(createCustomer)
-      .mockRejectedValueOnce(
-        new ApiError(409, {
-          status: 409,
-          detail: 'Lina Mansour already uses this mobile number. Save anyway?',
-        }),
-      )
-      .mockResolvedValueOnce(profile)
+    vi.mocked(createCustomer).mockRejectedValue(
+      new ApiError(409, {
+        status: 409,
+        detail: 'Lina Mansour already uses this mobile number.',
+      }),
+    )
     render(<CustomerEditor customerId={null} onSaved={onSaved} onCancel={() => {}} />)
 
     await screen.findByRole('heading', { name: 'New customer' })
     await fillRequiredFields(user)
     await user.click(screen.getByRole('button', { name: 'Save customer' }))
 
-    expect(
-      await screen.findByText('Lina Mansour already uses this mobile number. Save anyway?'),
-    ).toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: 'Save anyway' }))
-
-    await waitFor(() => expect(onSaved).toHaveBeenCalledOnce())
-    expect(createCustomer).toHaveBeenCalledTimes(2)
-    expect(createCustomer).toHaveBeenLastCalledWith(
-      expect.objectContaining({ allowDuplicatePhone: true }),
-    )
-  })
-
-  it('drops the duplicate warning without a second save when cancelled', async () => {
-    const user = userEvent.setup()
-    vi.mocked(createCustomer).mockRejectedValue(
-      new ApiError(409, {
-        status: 409,
-        detail: 'Lina Mansour already uses this mobile number. Save anyway?',
-      }),
-    )
-    render(<CustomerEditor customerId={null} onSaved={() => {}} onCancel={() => {}} />)
-
-    await screen.findByRole('heading', { name: 'New customer' })
-    await fillRequiredFields(user)
-    await user.click(screen.getByRole('button', { name: 'Save customer' }))
-
-    await screen.findByRole('dialog')
-    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }))
-
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(await screen.findByText('Lina Mansour already uses this mobile number.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Save anyway' })).not.toBeInTheDocument()
     expect(createCustomer).toHaveBeenCalledTimes(1)
+    expect(createCustomer).toHaveBeenLastCalledWith(expect.objectContaining({ allowDuplicatePhone: false }))
+    expect(onSaved).not.toHaveBeenCalled()
   })
 
   it('shows a form-level banner when the failure carries no field errors', async () => {

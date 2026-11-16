@@ -101,18 +101,123 @@ public class AppointmentServiceTests
     }
 
     [Fact]
-    public async Task Creating_for_a_walk_in_records_the_name_and_phone_without_a_customer()
+    public async Task A_walk_in_without_a_mobile_number_stays_an_anonymous_walk_in()
+    {
+        var fixture = await ArrangeAsync();
+        using var _ = fixture.Harness;
+
+        var created = await fixture.Harness.Appointments.CreateAsync(
+            Request(null, services: [new(fixture.ServiceId, fixture.StaffId)], walkInCustomerName: "Maya"));
+
+        Assert.Null(created.CustomerId);
+        Assert.Equal("Maya", created.CustomerName);
+    }
+
+    [Fact]
+    public async Task A_new_customer_typed_at_the_desk_is_created_without_an_email_and_reused_for_the_next_booking()
+    {
+        var fixture = await ArrangeAsync();
+        using var _ = fixture.Harness;
+
+        var first = await fixture.Harness.Appointments.CreateAsync(
+            Request(null, startsAt: At(10), services: [new(fixture.ServiceId, fixture.StaffId)]) with
+            {
+                NewCustomer = new NewAppointmentCustomerInput("Reem", "Khalil", "050 333 4444"),
+            });
+
+        // Same person, number written differently, name typed differently:
+        // the number decides, and the existing record is reused untouched.
+        var second = await fixture.Harness.Appointments.CreateAsync(
+            Request(null, startsAt: At(14), services: [new(fixture.ServiceId, fixture.StaffId)]) with
+            {
+                NewCustomer = new NewAppointmentCustomerInput("R.", "Khalil", "+971 50 333 4444"),
+            });
+
+        Assert.NotNull(first.CustomerId);
+        Assert.Equal(first.CustomerId, second.CustomerId);
+
+        await using var db = fixture.Harness.Database.CreateContext();
+        var matches = await db.Customers.Where(row => row.NormalizedPhoneNumber == "+971503334444").ToListAsync();
+        var customer = Assert.Single(matches);
+        Assert.Equal("Reem", customer.FirstName);
+        Assert.Null(customer.Email);
+        Assert.Equal(DeBliss.Domain.Customers.CustomerAccountStatus.PendingActivation, customer.AccountStatus);
+        Assert.Equal(2, await db.Appointments.CountAsync(row => row.CustomerId == customer.Id));
+    }
+
+    [Fact]
+    public async Task A_new_customer_needs_a_name_and_a_readable_mobile_number()
+    {
+        var fixture = await ArrangeAsync();
+        using var _ = fixture.Harness;
+
+        var failure = await Assert.ThrowsAsync<ValidationFailedException>(() =>
+            fixture.Harness.Appointments.CreateAsync(
+                Request(null, services: [new(fixture.ServiceId, fixture.StaffId)]) with
+                {
+                    NewCustomer = new NewAppointmentCustomerInput("", "Khalil", "12"),
+                }));
+
+        Assert.True(failure.Errors.ContainsKey("firstName"));
+        Assert.True(failure.Errors.ContainsKey("phoneNumber"));
+    }
+
+    [Fact]
+    public async Task A_refused_booking_leaves_no_new_customer_behind()
+    {
+        var fixture = await ArrangeAsync();
+        using var _ = fixture.Harness;
+
+        await Assert.ThrowsAsync<ValidationFailedException>(() =>
+            fixture.Harness.Appointments.CreateAsync(
+                Request(null, startsAt: At(10).AddDays(-30), services: [new(fixture.ServiceId, fixture.StaffId)]) with
+                {
+                    NewCustomer = new NewAppointmentCustomerInput("Late", "Comer", "+971 50 555 0001"),
+                }));
+
+        await using var db = fixture.Harness.Database.CreateContext();
+        Assert.False(await db.Customers.AnyAsync(row => row.NormalizedPhoneNumber == "+971505550001"));
+    }
+
+    [Fact]
+    public async Task The_database_refuses_a_second_customer_with_the_same_mobile_number()
+    {
+        var fixture = await ArrangeAsync();
+        using var _ = fixture.Harness;
+
+        // Two writers that both decided the number was free: the unique index
+        // is what stops the second, whatever the application checked first.
+        await using (var first = fixture.Harness.Database.CreateContext())
+        {
+            first.Customers.Add(new DeBliss.Domain.Customers.Customer { FirstName = "A", LastName = "One", PhoneNumber = "050 777 0000" });
+            await first.SaveChangesAsync();
+        }
+
+        await using var second = fixture.Harness.Database.CreateContext();
+        second.Customers.Add(new DeBliss.Domain.Customers.Customer { FirstName = "B", LastName = "Two", PhoneNumber = "+971507770000" });
+
+        await Assert.ThrowsAsync<DbUpdateException>(() => second.SaveChangesAsync());
+    }
+
+    [Fact]
+    public async Task A_walk_in_who_leaves_a_mobile_number_gets_a_customer_record_pending_activation()
     {
         var fixture = await ArrangeAsync();
         using var _ = fixture.Harness;
 
         var created = await fixture.Harness.Appointments.CreateAsync(
             Request(null, services: [new(fixture.ServiceId, fixture.StaffId)],
-                walkInCustomerName: "Maya", walkInCustomerPhone: "+971 50 111 2222"));
+                walkInCustomerName: "Maya Rahman", walkInCustomerPhone: "+971 50 111 2222"));
 
-        Assert.Null(created.CustomerId);
-        Assert.Equal("Maya", created.CustomerName);
-        Assert.Equal("+971 50 111 2222", created.CustomerPhone);
+        Assert.NotNull(created.CustomerId);
+
+        await using var db = fixture.Harness.Database.CreateContext();
+        var customer = await db.Customers.SingleAsync(row => row.Id == created.CustomerId);
+        Assert.Equal("Maya", customer.FirstName);
+        Assert.Equal("Rahman", customer.LastName);
+        Assert.Equal("+971501112222", customer.NormalizedPhoneNumber);
+        Assert.Equal(DeBliss.Domain.Customers.CustomerAccountStatus.PendingActivation, customer.AccountStatus);
+        Assert.Null(customer.Email);
     }
 
     [Fact]

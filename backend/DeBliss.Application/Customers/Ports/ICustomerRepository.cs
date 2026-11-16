@@ -32,6 +32,17 @@ public interface ICustomerRepository
     /// </summary>
     Task<IReadOnlyList<Customer>> GetByNormalizedPhoneAsync(string normalizedPhone, Guid? excludeId, CancellationToken ct = default);
 
+    /// <summary>The customer whose canonical (E.164) mobile number this is, tracked; null when none.</summary>
+    Task<Customer?> FindByCanonicalPhoneAsync(string canonicalPhone, CancellationToken ct = default);
+
+    /// <summary>
+    /// Saves <paramref name="candidate"/> unless a customer already holds its
+    /// mobile number, in which case that customer is returned instead. Safe
+    /// under concurrency: the unique index decides a race, and the loser gets the
+    /// winner's record. Saves immediately, so call it before staging other changes.
+    /// </summary>
+    Task<(Customer Customer, bool Created)> AddOrGetByPhoneAsync(Customer candidate, CancellationToken ct = default);
+
     /// <summary>Tracked note belonging to the customer, or null.</summary>
     Task<CustomerNote?> GetNoteAsync(Guid customerId, Guid noteId, CancellationToken ct = default);
 

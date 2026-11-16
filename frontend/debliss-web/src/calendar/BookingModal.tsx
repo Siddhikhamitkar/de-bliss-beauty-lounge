@@ -7,14 +7,12 @@ import type {
   CustomerSummary,
   EligibleStaff,
   SaveAppointmentRequest,
-  SaveCustomerRequest,
   ServiceSummary,
 } from '../api/contracts.ts'
 import { getService, listBookableBundles, searchIndividualServices } from '../api/catalogue.ts'
-import { createCustomer, searchCustomers } from '../api/customers.ts'
+import { searchCustomers } from '../api/customers.ts'
 import { checkStaffAvailability } from '../api/staff.ts'
 import { createAppointment, updateAppointment } from '../api/scheduling.ts'
-import { ConfirmationDialog } from '../components/ConfirmationDialog.tsx'
 import { FieldErrors } from '../components/FieldErrors.tsx'
 import { formatDuration, formatPrice } from '../format.ts'
 import { dayKeyOf, formatClock, parseDayKey } from './calendarTime.ts'
@@ -135,7 +133,6 @@ export function BookingModal({ booking, onClose, onSaved }: BookingModalProps) {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({})
   const [failure, setFailure] = useState<string>()
   const [isSaving, setIsSaving] = useState(false)
-  const [duplicateWarning, setDuplicateWarning] = useState<string>()
   const [availability, setAvailability] = useState<{
     window: AvailabilityWindow
     isAvailable: boolean
@@ -355,8 +352,9 @@ export function BookingModal({ booking, onClose, onSaved }: BookingModalProps) {
 
   const customers = useCustomerSearch(appliedQuery)
 
-  async function buildSaveRequest(allowDuplicatePhone: boolean): Promise<SaveAppointmentRequest> {
+  async function buildSaveRequest(): Promise<SaveAppointmentRequest> {
     let customerId: string | null = null
+    let newCustomerInput: SaveAppointmentRequest['newCustomer'] = null
     let walkInCustomerName: string | null = null
     let walkInCustomerPhone: string | null = null
 
@@ -366,19 +364,14 @@ export function BookingModal({ booking, onClose, onSaved }: BookingModalProps) {
         throw new ClientValidationError('Choose a customer, or switch to New customer / Walk-in.')
       }
     } else if (customerMode === 'new') {
-      const request: SaveCustomerRequest = {
+      // The server matches on the mobile number: an existing customer with
+      // this number gets the booking; otherwise a new record is created
+      // (pending activation, no email needed) in the same request.
+      newCustomerInput = {
         firstName: newCustomer.firstName,
         lastName: newCustomer.lastName,
         phoneNumber: newCustomer.phoneNumber,
-        email: null,
-        dateOfBirth: null,
-        gender: null,
-        address: null,
-        isActive: true,
-        allowDuplicatePhone,
       }
-      const created = await createCustomer(request)
-      customerId = created.id
     } else {
       walkInCustomerName = walkIn.name.trim() === '' ? null : walkIn.name.trim()
       walkInCustomerPhone = walkIn.phone.trim() === '' ? null : walkIn.phone.trim()
@@ -408,16 +401,17 @@ export function BookingModal({ booking, onClose, onSaved }: BookingModalProps) {
       services,
       notes: notes.trim() === '' ? null : notes.trim(),
       serviceBundleId: bundleId,
+      newCustomer: newCustomerInput,
     }
   }
 
-  async function save(allowDuplicatePhone: boolean): Promise<void> {
+  async function save(): Promise<void> {
     setFailure(undefined)
     setFieldErrors({})
     setIsSaving(true)
 
     try {
-      const body = await buildSaveRequest(allowDuplicatePhone)
+      const body = await buildSaveRequest()
       if (appointment === null) {
         await createAppointment(body)
       } else {
@@ -425,12 +419,8 @@ export function BookingModal({ booking, onClose, onSaved }: BookingModalProps) {
       }
       onSaved()
     } catch (error) {
-      // The 409 on a new customer names the existing one; park the message in
-      // a dialog and let the receptionist decide whether to save anyway.
       if (error instanceof ClientValidationError) {
         setFailure(error.message)
-      } else if (error instanceof ApiError && error.status === 409 && customerMode === 'new') {
-        setDuplicateWarning(error.message)
       } else if (error instanceof ApiError && Object.keys(error.errors).length > 0) {
         setFieldErrors(error.errors)
         // A field the form has no slot for would otherwise fail silently.
@@ -450,7 +440,7 @@ export function BookingModal({ booking, onClose, onSaved }: BookingModalProps) {
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    void save(false)
+    void save()
   }
 
   return (
@@ -579,6 +569,7 @@ export function BookingModal({ booking, onClose, onSaved }: BookingModalProps) {
                     }
                     maxLength={30}
                   />
+                  <span className="booking-hint">If this number is already on file, the booking goes to that customer.</span>
                   <FieldErrors messages={fieldErrors.phoneNumber} />
                 </label>
               </div>
@@ -805,20 +796,6 @@ export function BookingModal({ booking, onClose, onSaved }: BookingModalProps) {
           </div>
         </form>
 
-        {duplicateWarning !== undefined && (
-          <ConfirmationDialog
-            title="Possible duplicate customer"
-            confirmLabel="Save anyway"
-            busy={isSaving}
-            onConfirm={() => {
-              setDuplicateWarning(undefined)
-              void save(true)
-            }}
-            onCancel={() => setDuplicateWarning(undefined)}
-          >
-            <p>{duplicateWarning}</p>
-          </ConfirmationDialog>
-        )}
       </div>
     </div>
   )

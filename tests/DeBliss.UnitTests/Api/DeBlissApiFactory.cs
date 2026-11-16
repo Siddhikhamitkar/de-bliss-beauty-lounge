@@ -47,8 +47,14 @@ internal sealed class DeBlissApiFactory : WebApplicationFactory<Program>
         builder.ConfigureTestServices(services =>
         {
             ReplaceSqlServerWithSqlite(services);
+
+            services.RemoveAll<DeBliss.Application.Identity.Ports.ICustomerOtpSender>();
+            services.AddSingleton<DeBliss.Application.Identity.Ports.ICustomerOtpSender>(Otp);
         });
     }
+
+    /// <summary>Every one-time code the API "sent", readable by the tests.</summary>
+    public CapturingOtpSender Otp { get; } = new();
 
     private void ReplaceSqlServerWithSqlite(IServiceCollection services)
     {

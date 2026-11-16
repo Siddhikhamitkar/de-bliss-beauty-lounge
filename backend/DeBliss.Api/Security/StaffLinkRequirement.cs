@@ -17,6 +17,9 @@ public static class AuthClaimNames
 
     /// <summary>Present only when the login is linked to an existing Customer record.</summary>
     public const string CustomerId = "customer_id";
+
+    /// <summary>The user's security stamp when the token was issued; a password reset changes it.</summary>
+    public const string SecurityStamp = "sstamp";
 }
 
 /// <summary>

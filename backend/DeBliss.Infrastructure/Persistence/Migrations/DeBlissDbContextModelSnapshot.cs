@@ -358,6 +358,13 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("AccountStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("PendingActivation");
+
                     b.Property<string>("Address")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
@@ -397,6 +404,13 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                     b.Property<bool>("MarketingConsent")
                         .HasColumnType("bit");
 
+                    b.Property<DateTimeOffset?>("MobileVerifiedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("NormalizedPhoneNumber")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
                     b.Property<string>("PhoneNumber")
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
@@ -429,6 +443,10 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                     b.HasIndex("Email");
 
                     b.HasIndex("IsActive");
+
+                    b.HasIndex("NormalizedPhoneNumber")
+                        .IsUnique()
+                        .HasFilter("[NormalizedPhoneNumber] IS NOT NULL");
 
                     b.HasIndex("PhoneNumber");
 
@@ -473,6 +491,65 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                     b.ToTable("CustomerNotes", (string)null);
                 });
 
+            modelBuilder.Entity("DeBliss.Domain.Customers.CustomerVerificationCode", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CodeHash")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTimeOffset?>("ConsumedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("CustomerId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("PhoneNumber")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("Purpose")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTimeOffset?>("TokenExpiresAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("TokenHash")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTimeOffset?>("VerifiedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique()
+                        .HasFilter("[TokenHash] IS NOT NULL");
+
+                    b.HasIndex("PhoneNumber", "Purpose", "CreatedAt");
+
+                    b.ToTable("CustomerVerificationCodes", (string)null);
+                });
+
             modelBuilder.Entity("DeBliss.Domain.Identity.Role", b =>
                 {
                     b.Property<Guid>("Id")
@@ -512,7 +589,6 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                         .HasColumnType("datetimeoffset");
 
                     b.Property<string>("Email")
-                        .IsRequired()
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
 
@@ -540,13 +616,18 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
 
+                    b.Property<string>("SecurityStamp")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("datetimeoffset");
 
                     b.HasKey("Id");
 
                     b.HasIndex("Email")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[Email] IS NOT NULL");
 
                     b.ToTable("Users", (string)null);
                 });
@@ -1922,6 +2003,14 @@ namespace DeBliss.Infrastructure.Persistence.Migrations
                     b.Navigation("CreatedByUser");
 
                     b.Navigation("Customer");
+                });
+
+            modelBuilder.Entity("DeBliss.Domain.Customers.CustomerVerificationCode", b =>
+                {
+                    b.HasOne("DeBliss.Domain.Customers.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("DeBliss.Domain.Identity.UserRole", b =>

@@ -82,10 +82,53 @@ public class DeBlissDbContext(DbContextOptions<DeBlissDbContext> options)
 
     public DbSet<DeBliss.Domain.Loyalty.CustomerLoyaltyTransaction> CustomerLoyaltyTransactions => Set<DeBliss.Domain.Loyalty.CustomerLoyaltyTransaction>();
 
+    public DbSet<CustomerVerificationCode> CustomerVerificationCodes => Set<CustomerVerificationCode>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(DeBlissDbContext).Assembly);
+    }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        DeriveCustomerColumns();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        DeriveCustomerColumns();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    /// <summary>
+    /// Keeps <see cref="Customer.NormalizedPhoneNumber"/> in step with the number
+    /// as entered, whichever module wrote it (front desk, booking, import,
+    /// registration), so the unique index always guards the real identity key.
+    /// A number that changes without proof of ownership also loses its
+    /// verified mark, so it cannot be used for mobile sign-in.
+    /// </summary>
+    private void DeriveCustomerColumns()
+    {
+        foreach (var entry in ChangeTracker.Entries<Customer>())
+        {
+            if (entry.State is not (EntityState.Added or EntityState.Modified))
+            {
+                continue;
+            }
+
+            var normalized = MobileNumber.Normalize(entry.Entity.PhoneNumber);
+
+            if (entry.State == EntityState.Modified
+                && entry.Property(customer => customer.NormalizedPhoneNumber).OriginalValue != normalized
+                && !entry.Property(customer => customer.MobileVerifiedAt).IsModified)
+            {
+                entry.Entity.MobileVerifiedAt = null;
+            }
+
+            entry.Entity.NormalizedPhoneNumber = normalized;
+        }
     }
 
     public async Task<IUnitOfWorkTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)

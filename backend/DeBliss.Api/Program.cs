@@ -12,6 +12,9 @@ builder.Services.AddDeblissOpenApi();
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddDeblissSecurity(builder.Configuration);
+builder.Services.AddDeblissRateLimiting();
+builder.Services.Configure<DeBliss.Application.Identity.CustomerOtpOptions>(
+    builder.Configuration.GetSection(DeBliss.Application.Identity.CustomerOtpOptions.SectionName));
 builder.Services.AddDataProtection();
 builder.Services.AddSingleton<DeBliss.Application.Staffing.Ports.ISalarySlipPreviewTokens, SalarySlipPreviewTokens>();
 
@@ -46,6 +49,7 @@ app.UseHttpsRedirection();
 // Authentication before authorization before the endpoints they guard.
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.MapControllers();
 

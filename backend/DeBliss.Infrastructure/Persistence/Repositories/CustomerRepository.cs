@@ -61,16 +61,7 @@ public sealed class CustomerRepository(DeBlissDbContext context) : ICustomerRepo
     {
         var matches = context.Customers
             .AsNoTracking()
-            .Where(customer =>
-                customer.PhoneNumber != null
-                && customer.PhoneNumber
-                    .Replace(" ", "")
-                    .Replace("-", "")
-                    .Replace("(", "")
-                    .Replace(")", "")
-                    .Replace(".", "")
-                    .Replace("+", "")
-                    .Replace("/", "") == normalizedPhone);
+            .Where(customer => customer.NormalizedPhoneNumber == normalizedPhone);
 
         if (excludeId is { } id)
         {
@@ -82,6 +73,53 @@ public sealed class CustomerRepository(DeBlissDbContext context) : ICustomerRepo
             .ThenBy(customer => customer.FirstName)
             .ToListAsync(ct);
     }
+
+    public Task<Customer?> FindByCanonicalPhoneAsync(string canonicalPhone, CancellationToken ct = default)
+    {
+        return context.Customers.FirstOrDefaultAsync(
+            customer => customer.NormalizedPhoneNumber == canonicalPhone,
+            ct);
+    }
+
+    public async Task<(Customer Customer, bool Created)> AddOrGetByPhoneAsync(Customer candidate, CancellationToken ct = default)
+    {
+        var canonical = MobileNumber.Normalize(candidate.PhoneNumber)
+            ?? throw new ArgumentException("A find-or-create needs a readable mobile number.", nameof(candidate));
+
+        if (await FindByCanonicalPhoneAsync(canonical, ct) is { } existing)
+        {
+            return (existing, false);
+        }
+
+        try
+        {
+            context.Customers.Add(candidate);
+            await context.SaveChangesAsync(ct);
+
+            return (candidate, true);
+        }
+        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+        {
+            // Another request created this number's record between our read
+            // and our insert; the unique index refused the second row. Drop it
+            // and hand back the winner, so both bookings land on one customer.
+            context.Entry(candidate).State = EntityState.Detached;
+
+            var winner = await FindByCanonicalPhoneAsync(canonical, ct)
+                ?? throw new InvalidOperationException("Unique violation without a matching customer.", ex);
+
+            return (winner, false);
+        }
+    }
+
+    internal static bool IsUniqueViolation(DbUpdateException exception) =>
+        exception.InnerException switch
+        {
+            Microsoft.Data.SqlClient.SqlException sql => sql.Number is 2601 or 2627,
+            { } other => other.GetType().Name == "SqliteException"
+                && other.Message.Contains("UNIQUE", StringComparison.OrdinalIgnoreCase),
+            null => false
+        };
 
     public Task<CustomerNote?> GetNoteAsync(Guid customerId, Guid noteId, CancellationToken ct = default)
     {

@@ -681,24 +681,18 @@ public sealed class CustomerBookingApiTests : ApiTestBase
         return (staffId, serviceId, day);
     }
 
+    private int _customerSequence;
+
+    /// <summary>
+    /// A signed-in customer, created the real way (mobile number proven with a
+    /// code), with the email added at activation so the email sign-in path is
+    /// exercised too.
+    /// </summary>
     private async Task<HttpClient> RegisterCustomerAsync(string email)
     {
-        using var registration = AnonymousClient;
-
-        var response = await registration.PostAsJsonAsync("/api/public/customers/register", new
-        {
-            firstName = "Test",
-            lastName = "Customer",
-            email,
-            password = Password,
-        }, Json);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var errorBody = await response.Content.ReadAsStringAsync();
-            throw new InvalidOperationException(
-                $"Registration returned {(int)response.StatusCode}: {errorBody}");
-        }
+        var phone = $"+971 50 600 {++_customerSequence:0000}";
+        var (activated, _) = await ActivateCustomerAsync(phone, Password, email);
+        activated.Dispose();
 
         var client = AnonymousClient;
         await AuthenticateAsync(client, email, Password);

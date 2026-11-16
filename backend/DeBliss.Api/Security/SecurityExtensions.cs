@@ -71,15 +71,33 @@ public static class SecurityExtensions
                     },
                     // A token presented after logout is rejected even though its
                     // signature and lifetime are still valid.
-                    OnTokenValidated = context =>
+                    OnTokenValidated = async context =>
                     {
                         if (context.Principal?.FindFirst("jti")?.Value is { } tokenId &&
                             revocations.IsRevoked(tokenId))
                         {
                             context.Fail("The presented token has been revoked.");
+                            return;
                         }
 
-                        return Task.CompletedTask;
+                        // Customer sessions end when the password is reset: the
+                        // reset changes the user's security stamp, and a token
+                        // carrying a different (or no) stamp is refused. Team
+                        // tokens are not affected by this check.
+                        if (context.Principal?.HasClaim(AuthClaimNames.Role, RoleNames.Customer) == true
+                            && Guid.TryParse(context.Principal.FindFirst("sub")?.Value, out var userId))
+                        {
+                            var users = context.HttpContext.RequestServices
+                                .GetRequiredService<DeBliss.Application.Identity.Ports.IUserRepository>();
+                            var state = await users.GetSessionStateAsync(userId, context.HttpContext.RequestAborted);
+                            var presented = context.Principal.FindFirst(AuthClaimNames.SecurityStamp)?.Value;
+
+                            if (state is not { IsActive: true }
+                                || (state.Value.SecurityStamp is { } current && current != presented))
+                            {
+                                context.Fail("The session ended when the account's password changed.");
+                            }
+                        }
                     },
                 };
             });

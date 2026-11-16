@@ -97,6 +97,13 @@ public static class DependencyInjection
         services.AddSingleton<INotificationProvider, TwilioWhatsAppProvider>();
         services.AddHostedService<ReminderDispatchWorker>();
 
+        // Customer one-time codes (activation, password reset, number change).
+        var otpSender = CustomerOtpSenderOptions.FromConfiguration(configuration);
+        services.AddSingleton(otpSender);
+        services.AddSingleton<DeBliss.Application.Identity.Ports.ICustomerOtpSender>(provider =>
+            otpSender.CreateSender(provider.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>()));
+        services.AddScoped<DeBliss.Application.Identity.Ports.ICustomerVerificationCodeRepository, CustomerVerificationCodeRepository>();
+
         return services;
     }
 }

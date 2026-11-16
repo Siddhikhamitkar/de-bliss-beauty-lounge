@@ -35,6 +35,16 @@ public class AuditMappingTests
             .OrderBy(type => type.Name)
             .ToArray();
 
-        Assert.Equal([typeof(AppointmentStatusHistory), typeof(UserRole)], nonAuditable);
+        // Salary slips, loyalty entries and verification codes are immutable
+        // records that carry their own CreatedAt.
+        Assert.Equal(
+            [
+                typeof(AppointmentStatusHistory),
+                typeof(DeBliss.Domain.Loyalty.CustomerLoyaltyTransaction),
+                typeof(DeBliss.Domain.Customers.CustomerVerificationCode),
+                typeof(DeBliss.Domain.Staffing.SalarySlip),
+                typeof(UserRole),
+            ],
+            nonAuditable);
     }
 }

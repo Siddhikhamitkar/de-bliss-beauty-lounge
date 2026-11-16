@@ -60,6 +60,75 @@ public abstract class ApiTestBase : IDisposable
         client.DefaultRequestHeaders.Add("Cookie", cookie);
     }
 
+    /// <summary>Signs a client in with a mobile number and attaches the session cookie.</summary>
+    private protected static async Task AuthenticateByPhoneAsync(HttpClient client, string phoneNumber, string password)
+    {
+        var response = await client.PostAsJsonAsync("/api/auth/login", new { phoneNumber, password });
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync();
+            throw new InvalidOperationException($"Phone login returned {(int)response.StatusCode}: {errorBody}");
+        }
+
+        AttachSessionCookie(client, response);
+    }
+
+    private protected static void AttachSessionCookie(HttpClient client, HttpResponseMessage response)
+    {
+        var cookie = response.Headers.GetValues("Set-Cookie")
+            .Select(value => value.Split(';')[0])
+            .Single(value => value.StartsWith($"{AuthToken.CookieName}=", StringComparison.Ordinal));
+
+        client.DefaultRequestHeaders.Remove("Cookie");
+        client.DefaultRequestHeaders.Add("Cookie", cookie);
+    }
+
+    /// <summary>
+    /// The real way a customer account comes to exist: request an activation
+    /// code, prove it, set a password. Seeds the CUSTOMER role if needed.
+    /// Returns a client signed in as that customer, plus the account.
+    /// </summary>
+    private protected async Task<(HttpClient Client, global::DeBliss.Application.Identity.Dtos.AuthUserDto User)> ActivateCustomerAsync(
+        string phoneNumber,
+        string password = "Customer#Pass123",
+        string? email = null,
+        string firstName = "Test",
+        string lastName = "Customer")
+    {
+        await Factory.SeedRoleAsync(global::DeBliss.Application.Identity.RoleNames.Customer);
+
+        var client = AnonymousClient;
+        var canonical = global::DeBliss.Domain.Customers.MobileNumber.Normalize(phoneNumber)!;
+
+        (await client.PostAsJsonAsync("/api/public/customer-auth/otp",
+            new { phoneNumber, purpose = "activation" })).EnsureSuccessStatusCode();
+
+        var verify = await client.PostAsJsonAsync("/api/public/customer-auth/otp/verify",
+            new { phoneNumber, purpose = "activation", code = Factory.Otp.LastCodeFor(canonical) });
+        verify.EnsureSuccessStatusCode();
+        var verified = await ReadAsync<global::DeBliss.Application.Identity.Dtos.CustomerCodeVerifiedDto>(verify);
+
+        var activate = await client.PostAsJsonAsync("/api/public/customer-auth/activate", new
+        {
+            verified.VerificationToken,
+            password,
+            firstName,
+            lastName,
+            email,
+        });
+
+        if (!activate.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(
+                $"Activation returned {(int)activate.StatusCode}: {await activate.Content.ReadAsStringAsync()}");
+        }
+
+        AttachSessionCookie(client, activate);
+
+        return (client, await ReadAsync<global::DeBliss.Application.Identity.Dtos.AuthUserDto>(activate));
+    }
+
     private protected static async Task<T> ReadAsync<T>(HttpResponseMessage response)
     {
         var body = await response.Content.ReadAsStringAsync();

@@ -14,12 +14,17 @@ public sealed class AuthController(
     JwtTokenIssuer tokens,
     TokenRevocation revocations) : ControllerBase
 {
-    /// <summary>Signs in with an email and password.</summary>
+    /// <summary>Signs in with an email (or, for customers, a mobile number) and password.</summary>
     /// <remarks>
     /// <para>
-    /// Deliberately anonymous. Every failure — unknown email, wrong password,
-    /// deactivated account — returns the same generic 401 so callers cannot
-    /// probe which addresses exist.
+    /// Send exactly one of <c>email</c> or <c>phoneNumber</c>. Team accounts and
+    /// existing email customers use email; a customer whose account is active and
+    /// whose mobile number is verified may use the number in any accepted format.
+    /// </para>
+    /// <para>
+    /// Deliberately anonymous. Every failure — unknown email or number, wrong
+    /// password, deactivated or not-yet-activated account — returns the same
+    /// generic 401 so callers cannot probe which accounts exist.
     /// </para>
     /// <para>
     /// On success the response sets an HttpOnly, SameSite=Strict, Secure cookie
@@ -30,38 +35,45 @@ public sealed class AuthController(
     /// </remarks>
     [HttpPost("login")]
     [AllowAnonymous]
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting(RateLimitPolicies.SignIn)]
     [ProducesResponseType(typeof(AuthUserDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<AuthUserDto>> Login(
         [FromBody] LoginRequest request,
         CancellationToken cancellationToken)
     {
-        var user = await auth.AuthenticateAsync(
-            request.Email.Trim(),
-            request.Password,
-            cancellationToken);
+        var hasEmail = !string.IsNullOrWhiteSpace(request.Email);
+        var hasPhone = !string.IsNullOrWhiteSpace(request.PhoneNumber);
+
+        if (hasEmail == hasPhone)
+        {
+            return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]>
+            {
+                ["login"] = ["Sign in with either an email address or a mobile number."]
+            }));
+        }
+
+        var user = hasPhone
+            ? await auth.AuthenticateByPhoneAsync(request.PhoneNumber!.Trim(), request.Password, cancellationToken)
+            : await auth.AuthenticateAsync(request.Email!.Trim(), request.Password, cancellationToken);
 
         if (user is null)
         {
             return Unauthorized(new ProblemDetails
             {
                 Title = "Login failed",
-                Detail = "Email or password is incorrect.",
+                Detail = hasPhone
+                    ? "Mobile number or password is incorrect."
+                    : "Email or password is incorrect.",
                 Status = StatusCodes.Status401Unauthorized,
             });
         }
 
-        var token = tokens.Issue(user);
+        var token = tokens.Issue(user, await auth.GetSecurityStampAsync(user.Id, cancellationToken));
 
-        Response.Cookies.Append(AuthToken.CookieName, token, new CookieOptions
-        {
-            HttpOnly = true,
-            Secure = true,
-            SameSite = SameSiteMode.Strict,
-            Path = "/",
-            MaxAge = AuthToken.Lifetime,
-        });
+        AuthCookie.Append(Response, token);
 
         return Ok(user);
     }

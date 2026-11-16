@@ -268,11 +268,9 @@ public sealed class CustomerService(
         }
         else
         {
-            var digits = CustomerPhone.Normalize(phoneNumber);
-
-            if (digits is null || digits.Length < CustomerLimits.MinNormalizedPhoneDigits)
+            if (CustomerPhone.ToCanonical(phoneNumber) is null)
             {
-                errors.Add("phoneNumber", "Enter a valid mobile number.");
+                errors.Add("phoneNumber", CustomerPhone.InvalidMessage);
             }
         }
 
@@ -308,17 +306,19 @@ public sealed class CustomerService(
 
         errors.ThrowIfInvalid();
 
-        if (CustomerPhone.Normalize(phoneNumber) is { } normalizedPhone && !request.AllowDuplicatePhone)
+        // One mobile number identifies one customer (the database enforces it
+        // too). AllowDuplicatePhone no longer overrides this: a second record
+        // under the same number would split history and break mobile sign-in.
+        if (CustomerPhone.ToCanonical(phoneNumber) is { } canonicalPhone)
         {
-            var matches = await customers.GetByNormalizedPhoneAsync(normalizedPhone, excludeId, cancellationToken);
+            var matches = await customers.GetByNormalizedPhoneAsync(canonicalPhone, excludeId, cancellationToken);
             var existing = matches.FirstOrDefault();
 
             if (existing is not null)
             {
                 throw new ConflictException(
                     $"{existing.FirstName} {existing.LastName} already uses this mobile number. " +
-                    "A second record under the same number can split the appointment history between two profiles. " +
-                    "Create the record anyway only if you are sure this is a different person.");
+                    "Each mobile number belongs to one customer — open their profile instead of creating a new one.");
             }
         }
 

@@ -36,6 +36,14 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : I
                     Detail = notFound.Message,
                     Status = StatusCodes.Status404NotFound
                 }),
+            TooManyRequestsException tooMany => (
+                StatusCodes.Status429TooManyRequests,
+                new ProblemDetails
+                {
+                    Title = "Too many requests.",
+                    Detail = tooMany.Message,
+                    Status = StatusCodes.Status429TooManyRequests
+                }),
             ConflictException conflict => (
                 StatusCodes.Status409Conflict,
                 new ProblemDetails
@@ -77,6 +85,12 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : I
         problem.Instance = httpContext.Request.Path;
 
         httpContext.Response.StatusCode = statusCode;
+
+        if (exception is TooManyRequestsException { RetryAfter: var retryAfter })
+        {
+            httpContext.Response.Headers.RetryAfter =
+                ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
 
         // Written against the runtime type, not the ProblemDetails the tuple is
         // declared as: System.Text.Json serializes what the declared type has, so

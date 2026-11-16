@@ -140,22 +140,21 @@ public class CustomerServiceTests
     }
 
     [Fact]
-    public async Task Create_allows_the_duplicate_once_the_caller_confirms_it()
+    public async Task Create_refuses_a_duplicate_mobile_number_even_when_the_caller_confirms_it()
     {
         using var harness = new CustomersHarness();
         await harness.SeedCustomerAsync("Lina", "Mansour", phoneNumber: "+971 50 000 0000");
 
-        var created = await harness.Customers.CreateAsync(Request(
+        // One mobile number identifies one customer: the old "save anyway" override is gone.
+        await Assert.ThrowsAsync<ConflictException>(() => harness.Customers.CreateAsync(Request(
             firstName: "Lina",
             lastName: "Mansour",
-            phoneNumber: "971 5000 00000",
-            allowDuplicatePhone: true));
-
-        Assert.Equal("Mansour", created.LastName);
+            phoneNumber: "050 000 0000",
+            allowDuplicatePhone: true)));
 
         await using var verify = harness.Reopen();
 
-        Assert.Equal(2, await verify.Customers.CountAsync());
+        Assert.Equal(1, await verify.Customers.CountAsync());
     }
 
     [Fact]

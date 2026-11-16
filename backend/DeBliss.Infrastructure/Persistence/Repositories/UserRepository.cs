@@ -22,7 +22,7 @@ public sealed class UserRepository(DeBlissDbContext context) : IUserRepository
         var user = await context.Users
             .AsNoTracking()
             .FirstOrDefaultAsync(
-                each => each.Email.ToLower() == normalized,
+                each => each.Email != null && each.Email.ToLower() == normalized,
                 cancellationToken);
 
         return user is null ? null : await ToReadModelAsync(user, cancellationToken);
@@ -58,6 +58,52 @@ public sealed class UserRepository(DeBlissDbContext context) : IUserRepository
         context.Users.Add(user);
     }
 
+    public async Task<AuthUserReadModel?> FindByVerifiedCustomerPhoneAsync(
+        string canonicalPhone,
+        CancellationToken cancellationToken)
+    {
+        var userId = await context.Customers
+            .AsNoTracking()
+            .Where(customer =>
+                customer.NormalizedPhoneNumber == canonicalPhone
+                && customer.UserId != null
+                && customer.AccountStatus == CustomerAccountStatus.Active
+                && customer.MobileVerifiedAt != null)
+            .Select(customer => customer.UserId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return userId is { } id ? await FindByIdAsync(id, cancellationToken) : null;
+    }
+
+    public Task<User?> GetTrackedAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        return context.Users.FirstOrDefaultAsync(user => user.Id == userId, cancellationToken);
+    }
+
+    public Task<bool> IsEmailTakenAsync(string email, Guid? exceptUserId, CancellationToken cancellationToken)
+    {
+        var normalized = email.Trim().ToLowerInvariant();
+
+        return context.Users.AnyAsync(
+            user => user.Email != null
+                && user.Email.ToLower() == normalized
+                && (exceptUserId == null || user.Id != exceptUserId),
+            cancellationToken);
+    }
+
+    public async Task<(string? SecurityStamp, bool IsActive)?> GetSessionStateAsync(
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        var state = await context.Users
+            .AsNoTracking()
+            .Where(user => user.Id == userId)
+            .Select(user => new { user.SecurityStamp, user.IsActive })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return state is null ? null : (state.SecurityStamp, state.IsActive);
+    }
+
     private async Task<AuthUserReadModel> ToReadModelAsync(
         User user,
         CancellationToken cancellationToken)
@@ -89,6 +135,7 @@ public sealed class UserRepository(DeBlissDbContext context) : IUserRepository
             user.IsActive,
             roleNames,
             staffId,
-            customerId);
+            customerId,
+            user.SecurityStamp);
     }
 }

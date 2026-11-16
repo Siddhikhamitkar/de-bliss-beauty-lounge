@@ -15,7 +15,7 @@ namespace DeBliss.Api.Security;
 /// </summary>
 public sealed class JwtTokenIssuer(IConfiguration configuration, TimeProvider clock)
 {
-    public string Issue(AuthUserDto user)
+    public string Issue(AuthUserDto user, string? securityStamp = null)
     {
         var now = clock.GetUtcNow();
         var expires = now.Add(AuthToken.Lifetime);
@@ -23,11 +23,21 @@ public sealed class JwtTokenIssuer(IConfiguration configuration, TimeProvider cl
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-            new(JwtRegisteredClaimNames.Email, user.Email),
             new(JwtRegisteredClaimNames.GivenName, user.FirstName),
             new(JwtRegisteredClaimNames.FamilyName, user.LastName),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
         };
+
+        // Customers who sign in by mobile number may have no email at all.
+        if (!string.IsNullOrEmpty(user.Email))
+        {
+            claims.Add(new Claim(JwtRegisteredClaimNames.Email, user.Email));
+        }
+
+        if (!string.IsNullOrEmpty(securityStamp))
+        {
+            claims.Add(new Claim(AuthClaimNames.SecurityStamp, securityStamp));
+        }
 
         claims.AddRange(user.Roles.Select(role => new Claim(AuthClaimNames.Role, role)));
 

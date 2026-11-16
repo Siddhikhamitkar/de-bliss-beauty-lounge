@@ -10,7 +10,11 @@ namespace DeBliss.Domain.Identity;
 /// </summary>
 public class User : AuditableEntity
 {
-    public string Email { get; set; } = null!;
+    /// <summary>
+    /// Sign-in email. Required for team accounts; optional for customers, who
+    /// sign in with their verified mobile number instead.
+    /// </summary>
+    public string? Email { get; set; }
 
     public string? PhoneNumber { get; set; }
 
@@ -23,6 +27,13 @@ public class User : AuditableEntity
     public bool IsActive { get; set; } = true;
 
     public DateTimeOffset? LastLoginAt { get; set; }
+
+    /// <summary>
+    /// Changes whenever the password is reset, and is carried in every token
+    /// issued to the user: a token whose stamp no longer matches is refused, so a
+    /// reset signs out every existing session. Null for rows that predate it.
+    /// </summary>
+    public string? SecurityStamp { get; set; }
 
     public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
 

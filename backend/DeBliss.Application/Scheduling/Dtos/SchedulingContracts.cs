@@ -20,7 +20,20 @@ public sealed record SaveAppointmentRequest(
     DateTimeOffset? StartsAt,
     IReadOnlyList<AppointmentServiceLineInput>? Services,
     string? Notes,
-    Guid? ServiceBundleId = null);
+    Guid? ServiceBundleId = null,
+    NewAppointmentCustomerInput? NewCustomer = null);
+
+/// <summary>
+/// A customer typed in at the front desk while booking. The mobile number is the
+/// key: when a customer already holds it, that record is reused (nothing on it is
+/// overwritten); otherwise a new record is created, pending activation. Email is
+/// optional.
+/// </summary>
+public sealed record NewAppointmentCustomerInput(
+    string? FirstName,
+    string? LastName,
+    string? PhoneNumber,
+    string? Email = null);
 
 /// <summary>
 /// Partial schedule change from a calendar drag or resize. Any subset may be

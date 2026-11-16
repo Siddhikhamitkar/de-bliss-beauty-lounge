@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../api/client.ts'
@@ -6,7 +6,6 @@ import type {
   Appointment,
   AppointmentServiceLine,
   Bundle,
-  CustomerProfile,
   CustomerSummary,
   EligibleStaff,
   PagedResult,
@@ -96,26 +95,6 @@ function customer(id: string, firstName: string, lastName: string, phone: string
     isActive: true,
     createdAt: new Date().toISOString(),
     updatedAt: null,
-  }
-}
-
-function customerProfile(summary: CustomerSummary): CustomerProfile {
-  return {
-    ...summary,
-    dateOfBirth: null,
-    gender: null,
-    address: null,
-    whatsAppOptInStatus: 'Unknown',
-    whatsAppOptInDate: null,
-    whatsAppOptOutDate: null,
-    whatsAppOptInSource: null,
-    appointmentSummary: {
-      totalAppointments: 0,
-      completedAppointments: 0,
-      cancelledAppointments: 0,
-      noShowAppointments: 0,
-      lastVisitAt: null,
-    },
   }
 }
 
@@ -281,6 +260,7 @@ describe('BookingModal', () => {
         startsAt: expectedStart.toISOString(),
         services: [{ serviceId: 'svc1', staffId: 's2' }],
         serviceBundleId: null,
+        newCustomer: null,
         notes: 'Prefers quiet corner',
       }),
     )
@@ -313,23 +293,16 @@ describe('BookingModal', () => {
         startsAt: expectedStart.toISOString(),
         services: [{ serviceId: 'svc1', staffId: 's1' }],
         serviceBundleId: null,
+        newCustomer: null,
         notes: null,
       }),
     )
     await waitFor(() => expect(onSaved).toHaveBeenCalled())
   })
 
-  it('parks a duplicate-phone conflict and re-saves with allowDuplicatePhone', async () => {
+  it('sends a new customer with the booking so the server can reuse or create them by mobile number', async () => {
     const user = userEvent.setup()
     const onSaved = vi.fn()
-    vi.mocked(createCustomer)
-      .mockRejectedValueOnce(
-        new ApiError(409, {
-          status: 409,
-          detail: 'A customer with this phone number already exists (Lina Mansour).',
-        }),
-      )
-      .mockResolvedValueOnce(customerProfile(lina))
     render(
       <BookingModal booking={createBooking('s1', 10 * 60)} onClose={() => {}} onSaved={onSaved} />,
     )
@@ -337,25 +310,24 @@ describe('BookingModal', () => {
     await user.click(screen.getByRole('button', { name: 'New customer' }))
     await user.type(screen.getByLabelText('First name'), 'Lina')
     await user.type(screen.getByLabelText('Last name'), 'Mansour')
-    await user.type(screen.getByLabelText('Mobile'), '+971 50 555 0101')
+    await user.type(screen.getByLabelText(/^Mobile/), '+971 50 555 0101')
+    expect(screen.getByText(/already on file, the booking goes to that customer/)).toBeInTheDocument()
     await user.click(await screen.findByRole('button', { name: /Signature Cut/ }))
     await screen.findByLabelText('Staff')
     await user.click(screen.getByRole('button', { name: 'Book appointment' }))
 
-    const warning = await screen.findByRole('dialog', { name: 'Possible duplicate customer' })
-    expect(within(warning).getByText(/already exists/)).toBeInTheDocument()
-    await user.click(within(warning).getByRole('button', { name: 'Save anyway' }))
-
-    await waitFor(() =>
-      expect(createCustomer).toHaveBeenLastCalledWith(
-        expect.objectContaining({ allowDuplicatePhone: true }),
-      ),
-    )
     await waitFor(() =>
       expect(createAppointment).toHaveBeenCalledWith(
-        expect.objectContaining({ customerId: 'c1', walkInCustomerName: null }),
+        expect.objectContaining({
+          customerId: null,
+          walkInCustomerName: null,
+          newCustomer: { firstName: 'Lina', lastName: 'Mansour', phoneNumber: '+971 50 555 0101' },
+        }),
       ),
     )
+    // No separate customer create: no duplicate dialog, no orphan record.
+    expect(createCustomer).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog', { name: 'Possible duplicate customer' })).not.toBeInTheDocument()
     await waitFor(() => expect(onSaved).toHaveBeenCalled())
   })
 
@@ -460,6 +432,7 @@ describe('BookingModal', () => {
           { serviceId: 'svc1', staffId: 's1' },
         ],
         serviceBundleId: 'b1',
+        newCustomer: null,
         notes: null,
       }),
     )
@@ -569,6 +542,7 @@ describe('BookingModal', () => {
           { serviceId: 'svc1', staffId: 's1' },
         ],
         serviceBundleId: 'b1',
+        newCustomer: null,
         notes: null,
       }),
     )

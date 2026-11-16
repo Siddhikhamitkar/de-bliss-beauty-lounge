@@ -16,7 +16,15 @@ public class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         builder.Property(customer => customer.LastName).HasMaxLength(100).IsRequired();
         builder.Property(customer => customer.Email).HasMaxLength(256);
         builder.Property(customer => customer.PhoneNumber).HasMaxLength(30);
+        builder.Property(customer => customer.NormalizedPhoneNumber).HasMaxLength(MobileNumber.MaxLength);
         builder.Property(customer => customer.Gender).HasMaxLength(20);
+
+        // Existing rows and every new front-desk record start pending: only the
+        // owner of the number, proven by a one-time code, turns it Active.
+        builder.Property(customer => customer.AccountStatus)
+            .HasConversion<string>()
+            .HasMaxLength(30)
+            .HasDefaultValue(CustomerAccountStatus.PendingActivation);
         builder.Property(customer => customer.Address).HasMaxLength(500);
 
         // Not unique: duplicates are a real-world data problem the front desk has
@@ -24,6 +32,14 @@ public class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         builder.HasIndex(customer => customer.Email);
         builder.HasIndex(customer => customer.PhoneNumber);
         builder.HasIndex(customer => new { customer.LastName, customer.FirstName });
+
+        // One mobile number, one customer: the identity key behind front-desk
+        // find-or-create and mobile sign-in. Enforced by the database so two
+        // simultaneous bookings for a new number cannot both create a record.
+        // NULL (no readable number) stays legal for legacy rows.
+        builder.HasIndex(customer => customer.NormalizedPhoneNumber)
+            .IsUnique()
+            .HasFilter("[NormalizedPhoneNumber] IS NOT NULL");
 
         builder.HasIndex(customer => customer.IsActive);
 

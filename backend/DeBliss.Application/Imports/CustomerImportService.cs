@@ -100,7 +100,7 @@ public sealed class CustomerImportService(
                 }
 
                 if (row.Status == ImportRowStatus.AlreadyExists
-                    || (row.Status == ImportRowStatus.DuplicateInFile && !importDuplicates))
+                    || row.Status == ImportRowStatus.DuplicateInFile)
                 {
                     skippedExisting++;
                     continue;
@@ -109,7 +109,7 @@ public sealed class CustomerImportService(
                 // The preview judged this row against an earlier database
                 // state; inside the transaction the verdict is re-checked, so
                 // nothing slips between the check and the write.
-                if (!importDuplicates && row.NormalizedPhone is { } phone)
+                if (row.NormalizedPhone is { } phone)
                 {
                     var matches = await customers.GetByNormalizedPhoneAsync(phone, null, cancellationToken);
 
@@ -134,7 +134,7 @@ public sealed class CustomerImportService(
                             row.Gender,
                             row.Address,
                             IsActive: row.Active,
-                            AllowDuplicatePhone: importDuplicates),
+                            AllowDuplicatePhone: false),
                         cancellationToken);
 
                     created++;
@@ -353,9 +353,9 @@ public sealed class CustomerImportService(
         }
         else
         {
-            normalizedPhone = CustomerPhone.Normalize(phone);
+            normalizedPhone = CustomerPhone.ToCanonical(phone);
 
-            if (normalizedPhone is null || normalizedPhone.Length < CustomerLimits.MinNormalizedPhoneDigits)
+            if (normalizedPhone is null)
             {
                 Fail(CustomerColumns.Mobile, "Enter a valid mobile number.");
                 normalizedPhone = null;

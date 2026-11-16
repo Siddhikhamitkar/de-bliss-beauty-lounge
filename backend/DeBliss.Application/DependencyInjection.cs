@@ -41,6 +41,8 @@ public static class DependencyInjection
         services.AddScoped<IOwnerDashboardService, OwnerDashboardService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<ICustomerAccessService, CustomerAccessService>();
+        services.AddScoped<ICustomerAccountService, CustomerAccountService>();
+        services.AddOptions<CustomerOtpOptions>();
         services.AddScoped<ReminderPlanner>();
         services.AddScoped<IReminderDispatchService, ReminderDispatchService>();
         services.AddScoped<IReminderSettingsService, ReminderSettingsService>();

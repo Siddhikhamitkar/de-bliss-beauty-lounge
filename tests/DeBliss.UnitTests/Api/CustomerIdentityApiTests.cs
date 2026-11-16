@@ -1,283 +1,443 @@
 using System.Net;
 using System.Net.Http.Json;
-using System.Text.Json;
 using DeBliss.Application.Identity;
 using DeBliss.Application.Identity.Dtos;
+using DeBliss.Domain.Customers;
+using DeBliss.UnitTests.TestDoubles;
 using Microsoft.EntityFrameworkCore;
 
 namespace DeBliss.UnitTests.Api;
 
 /// <summary>
-/// Customer self-service identity over the real pipeline: registration (role
-/// assignment, input validation, email uniqueness, front-desk linking), customer
-/// login and logout, the token-derived ownership behind /api/customer/me, and
-/// the walls between the customer role and the staff, receptionist and owner
-/// surfaces — with the existing owner sign-in still working alongside.
+/// Customer identity over the real pipeline, built on proving the mobile number
+/// with a one-time code: activation of front-desk records and brand-new sign-ups,
+/// mobile-number sign-in, password reset (which ends old sessions), the move of
+/// existing email customers to mobile sign-in, changing the number, the profile,
+/// the anti-enumeration and rate rules, and the walls between the customer role
+/// and the team surfaces — with team sign-in unchanged alongside.
 /// </summary>
 public sealed class CustomerIdentityApiTests : ApiTestBase
 {
     private const string Password = "Test#Customer123";
-
-    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+    private const string NewPassword = "Brand#NewPass456";
 
     public CustomerIdentityApiTests()
     {
         Factory.SeedRoleAsync(RoleNames.Customer).GetAwaiter().GetResult();
     }
 
-    [Fact]
-    public async Task Registration_creates_a_customer_account_with_only_the_customer_role()
-    {
-        using var client = AnonymousClient;
-
-        var response = await RegisterAsync(client, "new@debliss.test", phoneNumber: "+971 50 123 4567");
-
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-
-        var body = await response.Content.ReadAsStringAsync();
-        Assert.DoesNotContain("password", body, StringComparison.OrdinalIgnoreCase);
-
-        var user = await ReadAsync<AuthUserDto>(response);
-
-        Assert.Equal([RoleNames.Customer], user.Roles);
-        Assert.Null(user.StaffId);
-        Assert.NotNull(user.CustomerId);
-
-        await using var db = Factory.Database.CreateContext();
-        var stored = await db.Users
-            .Include(each => each.UserRoles)
-            .ThenInclude(each => each.Role)
-            .SingleAsync(each => each.Email == "new@debliss.test");
-
-        Assert.Equal([RoleNames.Customer], stored.UserRoles.Select(each => each.Role.Name).ToList());
-        Assert.False(string.IsNullOrEmpty(stored.PasswordHash));
-        Assert.NotEqual(Password, stored.PasswordHash);
-
-        var customer = await db.Customers.SingleAsync(each => each.Id == user.CustomerId);
-
-        Assert.Equal(stored.Id, customer.UserId);
-        Assert.Equal("new@debliss.test", customer.Email);
-    }
+    // ---- Activation ---------------------------------------------------------
 
     [Fact]
-    public async Task Registration_never_honours_a_role_the_client_sends()
+    public async Task A_new_number_activates_into_a_customer_account_with_only_the_customer_role_and_no_email()
     {
         using var client = AnonymousClient;
+        await RequestCodeAsync(client, "050 777 1234", "activation");
 
-        var response = await client.PostAsJsonAsync("/api/public/customers/register", new
+        var verified = await VerifyAsync(client, "050 777 1234", "activation");
+        Assert.True(verified.NeedsProfile);
+
+        var activate = await client.PostAsJsonAsync("/api/public/customer-auth/activate", new
         {
-            firstName = "Sneaky",
-            lastName = "Attempt",
-            email = "sneaky@debliss.test",
+            verified.VerificationToken,
             password = Password,
+            firstName = "Noor",
+            lastName = "Saleh",
             roles = new[] { RoleNames.Owner },
-        }, Json);
+        });
 
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-
-        await using var db = Factory.Database.CreateContext();
-        var stored = await db.Users
-            .Include(each => each.UserRoles)
-            .ThenInclude(each => each.Role)
-            .SingleAsync(each => each.Email == "sneaky@debliss.test");
-
-        Assert.Equal([RoleNames.Customer], stored.UserRoles.Select(each => each.Role.Name).ToList());
-    }
-
-    [Fact]
-    public async Task Registration_adopts_a_single_matching_front_desk_customer()
-    {
-        var seededCustomerId = await Factory.SeedCustomerAsync("Amira", "Haddad", email: "amira@debliss.test");
-        using var client = AnonymousClient;
-
-        var response = await RegisterAsync(client, "amira@debliss.test");
-
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-
-        var user = await ReadAsync<AuthUserDto>(response);
-
-        Assert.Equal(seededCustomerId, user.CustomerId);
-
-        await using var db = Factory.Database.CreateContext();
-        var customer = await db.Customers.SingleAsync(each => each.Id == seededCustomerId);
-
-        // Front-desk data survives; only the portal link is new. No duplicate row.
-        Assert.Equal("Amira", customer.FirstName);
-        Assert.Equal("Haddad", customer.LastName);
-        Assert.NotNull(customer.UserId);
-        Assert.Equal(1, await db.Customers.CountAsync(each => each.Email == "amira@debliss.test"));
-    }
-
-    [Fact]
-    public async Task Registration_with_two_matching_front_desk_records_creates_a_fresh_customer()
-    {
-        var first = await Factory.SeedCustomerAsync("One", "Twin", email: "twin@debliss.test");
-        var second = await Factory.SeedCustomerAsync("Two", "Twin", email: "twin@debliss.test");
-        using var client = AnonymousClient;
-
-        var response = await RegisterAsync(client, "twin@debliss.test");
-
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-
-        var user = await ReadAsync<AuthUserDto>(response);
-
-        Assert.NotNull(user.CustomerId);
-        Assert.NotEqual(first, user.CustomerId);
-        Assert.NotEqual(second, user.CustomerId);
-
-        await using var db = Factory.Database.CreateContext();
-
-        Assert.Null((await db.Customers.SingleAsync(each => each.Id == first)).UserId);
-        Assert.Null((await db.Customers.SingleAsync(each => each.Id == second)).UserId);
-    }
-
-    [Fact]
-    public async Task Registration_with_an_existing_account_conflicts()
-    {
-        using var client = AnonymousClient;
-        await RegisterAsync(client, "dupe@debliss.test");
-
-        var response = await RegisterAsync(client, "dupe@debliss.test");
-
-        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-
-        var problem = await ReadAsync<Problem>(response);
-
-        Assert.Equal("An account with this email already exists.", problem.Detail);
-    }
-
-    [Fact]
-    public async Task Registration_with_a_mobile_number_already_registered_conflicts()
-    {
-        using var client = AnonymousClient;
-        await RegisterAsync(client, "first@debliss.test", phoneNumber: "+971 50 777 8888");
-
-        // Same digits, different formatting — the comparison ignores how the
-        // number was written down.
-        var response = await RegisterAsync(client, "second@debliss.test", phoneNumber: "971-50-777-8888");
-
-        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-
-        var problem = await ReadAsync<Problem>(response);
-
-        Assert.Equal("An account with this mobile number already exists.", problem.Detail);
-
-        await using var db = Factory.Database.CreateContext();
-
-        Assert.Equal(
-            1,
-            await db.Users.CountAsync(each => each.Email == "first@debliss.test" || each.Email == "second@debliss.test"));
-    }
-
-    [Fact]
-    public async Task A_front_desk_phone_number_alone_is_not_an_existing_account()
-    {
-        // The salon already holds this number for a walk-in who never signed
-        // up. That record is not an account, so registering must succeed —
-        // with a different email it cannot be adopted, so it becomes a fresh
-        // linked customer beside the front-desk one.
-        await Factory.SeedCustomerAsync("Front", "Desk", phoneNumber: "+971 50 555 6666");
-        using var client = AnonymousClient;
-
-        var response = await RegisterAsync(client, "walkin@debliss.test", phoneNumber: "+971 50 555 6666");
-
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task Registration_adopts_a_front_desk_record_even_when_it_shares_the_mobile_number()
-    {
-        var seededCustomerId = await Factory.SeedCustomerAsync(
-            "Adopt",
-            "Me",
-            phoneNumber: "+971 52 444 5555",
-            email: "adopt@debliss.test");
-        using var client = AnonymousClient;
-
-        var response = await RegisterAsync(client, "adopt@debliss.test", phoneNumber: "+971 52 444 5555");
-
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-
-        var user = await ReadAsync<AuthUserDto>(response);
-
-        Assert.Equal(seededCustomerId, user.CustomerId);
-    }
-
-    [Fact]
-    public async Task Registration_rejects_invalid_input()
-    {
-        using var client = AnonymousClient;
-
-        var response = await client.PostAsJsonAsync("/api/public/customers/register", new
-        {
-            email = "not-an-email",
-            password = "short",
-        }, Json);
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-
-        var problem = await ReadAsync<ValidationProblem>(response);
-
-        Assert.NotEmpty(problem.Errors);
-    }
-
-    [Fact]
-    public async Task Registration_rejects_an_unusable_mobile_number()
-    {
-        using var client = AnonymousClient;
-
-        var response = await RegisterAsync(client, "phone@debliss.test", phoneNumber: "12");
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-
-        var problem = await ReadAsync<ValidationProblem>(response);
-
-        Assert.Contains(
-            problem.Errors,
-            pair => pair.Key.Equals("phoneNumber", StringComparison.OrdinalIgnoreCase));
-    }
-
-    [Fact]
-    public async Task A_registered_customer_can_log_in_and_receive_the_customer_link()
-    {
-        using var client = AnonymousClient;
-        var registered = await RegisterSuccessfullyAsync(client, "login@debliss.test");
-
-        using var loginClient = AnonymousClient;
-        var login = await loginClient.PostAsJsonAsync("/api/auth/login", new
-        {
-            email = "login@debliss.test",
-            password = Password,
-        }, Json);
-
-        Assert.Equal(HttpStatusCode.OK, login.StatusCode);
-
-        var user = await ReadAsync<AuthUserDto>(login);
+        Assert.Equal(HttpStatusCode.OK, activate.StatusCode);
+        var user = await ReadAsync<AuthUserDto>(activate);
 
         Assert.Equal([RoleNames.Customer], user.Roles);
-        Assert.Equal(registered.CustomerId, user.CustomerId);
+        Assert.Null(user.Email);
+        Assert.NotNull(user.CustomerId);
+
+        await using var db = Factory.Database.CreateContext();
+        var customer = await db.Customers.SingleAsync(row => row.Id == user.CustomerId);
+        Assert.Equal("+971507771234", customer.NormalizedPhoneNumber);
+        Assert.Equal(CustomerAccountStatus.Active, customer.AccountStatus);
+        Assert.NotNull(customer.MobileVerifiedAt);
+        Assert.Null(customer.Email);
+
+        var roles = await db.UserRoles.Where(row => row.UserId == user.Id).Select(row => row.Role.Name).ToListAsync();
+        Assert.Equal([RoleNames.Customer], roles);
+
+        using var phoneLogin = AnonymousClient;
+        await AuthenticateByPhoneAsync(phoneLogin, "+971 50 777 1234", Password);
+        Assert.Equal(HttpStatusCode.OK, (await phoneLogin.GetAsync("/api/customer/me")).StatusCode);
     }
 
     [Fact]
-    public async Task Me_returns_the_signed_in_customer_s_own_profile()
+    public async Task A_new_number_needs_a_name_to_activate()
     {
         using var client = AnonymousClient;
-        await RegisterAsync(client, "me@debliss.test", phoneNumber: "+971 55 987 6543");
-        await AuthenticateAsync(client, "me@debliss.test", Password);
+        await RequestCodeAsync(client, "+971 50 777 2222", "activation");
+        var verified = await VerifyAsync(client, "+971 50 777 2222", "activation");
 
-        var response = await client.GetAsync("/api/customer/me");
+        var activate = await client.PostAsJsonAsync("/api/public/customer-auth/activate", new
+        {
+            verified.VerificationToken,
+            password = Password,
+        });
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, activate.StatusCode);
+        var problem = await ReadAsync<ValidationProblem>(activate);
+        Assert.Contains("firstName", problem.Errors.Keys);
+        Assert.Contains("lastName", problem.Errors.Keys);
+    }
 
-        var body = await response.Content.ReadAsStringAsync();
-        Assert.DoesNotContain("password", body, StringComparison.OrdinalIgnoreCase);
+    [Fact]
+    public async Task A_front_desk_customer_activates_their_existing_record_and_sees_their_history()
+    {
+        // Created at the desk with a local-format number; history already exists.
+        var customerId = await Factory.SeedCustomerAsync("Huda", "Falasi", phoneNumber: "0501234561");
+        var categoryId = await Factory.SeedCategoryAsync("Hair");
+        var serviceId = await Factory.SeedServiceAsync(categoryId, "Signature Cut", 150m);
+        await Factory.SeedCustomerAppointmentAsync(
+            customerId, DateTimeOffset.UtcNow.AddDays(-7), lines: [(serviceId, null, "Signature Cut")]);
 
-        var profile = await ReadAsync<CustomerSelfDto>(response);
+        using var client = AnonymousClient;
+        await RequestCodeAsync(client, "+971 50 123 4561", "activation");
+        var verified = await VerifyAsync(client, "+971 50 123 4561", "activation");
+        Assert.False(verified.NeedsProfile);
 
-        Assert.Equal("Test", profile.FirstName);
-        Assert.Equal("Customer", profile.LastName);
-        Assert.Equal("me@debliss.test", profile.Email);
-        Assert.Equal("+971 55 987 6543", profile.PhoneNumber);
+        var activate = await client.PostAsJsonAsync("/api/public/customer-auth/activate", new
+        {
+            verified.VerificationToken,
+            password = Password,
+        });
+
+        Assert.Equal(HttpStatusCode.OK, activate.StatusCode);
+        var user = await ReadAsync<AuthUserDto>(activate);
+        Assert.Equal(customerId, user.CustomerId);
+
+        await using (var db = Factory.Database.CreateContext())
+        {
+            Assert.Equal(1, await db.Customers.CountAsync());
+        }
+
+        using var signedIn = AnonymousClient;
+        await AuthenticateByPhoneAsync(signedIn, "050 123 4561", Password);
+
+        var history = await signedIn.GetAsync("/api/customer/appointments");
+        Assert.Equal(HttpStatusCode.OK, history.StatusCode);
+        Assert.Contains("Signature Cut", await history.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task A_pending_front_desk_customer_cannot_sign_in_by_phone_before_activating()
+    {
+        await Factory.SeedCustomerAsync("Pending", "Guest", phoneNumber: "+971 50 444 5555");
+
+        using var client = AnonymousClient;
+        var login = await client.PostAsJsonAsync("/api/auth/login", new { phoneNumber = "+971 50 444 5555", password = Password });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, login.StatusCode);
+    }
+
+    [Fact]
+    public async Task Activating_an_already_active_account_conflicts_once_the_number_is_proven()
+    {
+        // An account that is already active (here: an existing email customer).
+        await SeedLegacyEmailCustomerAsync("active@debliss.test", "+971 50 888 1111");
+
+        using var client = AnonymousClient;
+        await RequestCodeAsync(client, "+971 50 888 1111", "activation");
+        var verified = await VerifyAsync(client, "+971 50 888 1111", "activation");
+
+        var again = await client.PostAsJsonAsync("/api/public/customer-auth/activate", new
+        {
+            verified.VerificationToken,
+            password = NewPassword,
+        });
+
+        Assert.Equal(HttpStatusCode.Conflict, again.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_verification_token_can_be_spent_only_once()
+    {
+        using var client = AnonymousClient;
+        await RequestCodeAsync(client, "+971 50 999 0000", "activation");
+        var verified = await VerifyAsync(client, "+971 50 999 0000", "activation");
+
+        var body = new { verified.VerificationToken, password = Password, firstName = "One", lastName = "Time" };
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/api/public/customer-auth/activate", body)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync("/api/public/customer-auth/activate", body)).StatusCode);
+    }
+
+    // ---- Codes: enumeration, attempts, cooldown ------------------------------
+
+    [Fact]
+    public async Task A_code_request_answers_the_same_whether_or_not_the_number_has_an_account()
+    {
+        await ActivateCustomerAsync("+971 50 100 2000", Password);
+
+        using var client = AnonymousClient;
+        var known = await client.PostAsJsonAsync("/api/public/customer-auth/otp",
+            new { phoneNumber = "+971 50 100 2000", purpose = "password-reset" });
+        var unknown = await client.PostAsJsonAsync("/api/public/customer-auth/otp",
+            new { phoneNumber = "+971 50 100 2999", purpose = "password-reset" });
+
+        Assert.Equal(HttpStatusCode.Accepted, known.StatusCode);
+        Assert.Equal(known.StatusCode, unknown.StatusCode);
+        Assert.Equal(await known.Content.ReadAsStringAsync(), await unknown.Content.ReadAsStringAsync());
+
+        // Only the real account was actually messaged.
+        Assert.Equal(0, Factory.Otp.CountFor("+971501002999"));
+
+        // ...and the cooldown applies identically to both.
+        var knownAgain = await client.PostAsJsonAsync("/api/public/customer-auth/otp",
+            new { phoneNumber = "+971 50 100 2000", purpose = "password-reset" });
+        var unknownAgain = await client.PostAsJsonAsync("/api/public/customer-auth/otp",
+            new { phoneNumber = "+971 50 100 2999", purpose = "password-reset" });
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, knownAgain.StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, unknownAgain.StatusCode);
+        Assert.NotNull(unknownAgain.Headers.RetryAfter);
+    }
+
+    [Fact]
+    public async Task A_wrong_code_is_refused_and_too_many_wrong_codes_kill_it()
+    {
+        using var client = AnonymousClient;
+        await RequestCodeAsync(client, "+971 50 321 0000", "activation");
+        var realCode = Factory.Otp.LastCodeFor("+971503210000")!;
+        var wrong = realCode == "000000" ? "111111" : "000000";
+
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            var response = await client.PostAsJsonAsync("/api/public/customer-auth/otp/verify",
+                new { phoneNumber = "+971 50 321 0000", purpose = "activation", code = wrong });
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
+        // The right code no longer works: the attempts are used up.
+        var late = await client.PostAsJsonAsync("/api/public/customer-auth/otp/verify",
+            new { phoneNumber = "+971 50 321 0000", purpose = "activation", code = realCode });
+
+        Assert.Equal(HttpStatusCode.BadRequest, late.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_code_for_one_purpose_cannot_be_used_for_another()
+    {
+        await ActivateCustomerAsync("+971 50 654 0000", Password);
+
+        using var client = AnonymousClient;
+        await RequestCodeAsync(client, "+971 50 654 0000", "password-reset");
+
+        var response = await client.PostAsJsonAsync("/api/public/customer-auth/otp/verify", new
+        {
+            phoneNumber = "+971 50 654 0000",
+            purpose = "activation",
+            code = Factory.Otp.LastCodeFor("+971506540000"),
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task An_unreadable_number_is_a_validation_error()
+    {
+        using var client = AnonymousClient;
+        var response = await client.PostAsJsonAsync("/api/public/customer-auth/otp",
+            new { phoneNumber = "12", purpose = "activation" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("phoneNumber", (await ReadAsync<ValidationProblem>(response)).Errors.Keys);
+    }
+
+    // ---- Sign-in ------------------------------------------------------------
+
+    [Fact]
+    public async Task Sign_in_takes_exactly_one_identifier()
+    {
+        using var client = AnonymousClient;
+
+        var neither = await client.PostAsJsonAsync("/api/auth/login", new { password = Password });
+        var both = await client.PostAsJsonAsync("/api/auth/login",
+            new { email = "a@debliss.test", phoneNumber = "+971 50 000 0000", password = Password });
+
+        Assert.Equal(HttpStatusCode.BadRequest, neither.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, both.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_wrong_password_and_an_unknown_number_fail_identically()
+    {
+        await ActivateCustomerAsync("+971 50 200 3000", Password);
+
+        using var client = AnonymousClient;
+        var wrongPassword = await client.PostAsJsonAsync("/api/auth/login", new { phoneNumber = "+971 50 200 3000", password = "nope-nope" });
+        var unknown = await client.PostAsJsonAsync("/api/auth/login", new { phoneNumber = "+971 50 200 3999", password = Password });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, wrongPassword.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, unknown.StatusCode);
+        Assert.Equal(
+            (await ReadAsync<Problem>(wrongPassword)).Detail,
+            (await ReadAsync<Problem>(unknown)).Detail);
+    }
+
+    [Fact]
+    public async Task A_team_account_cannot_sign_in_by_mobile_number()
+    {
+        // The owner has no customer record, so a number cannot reach it.
+        using var client = AnonymousClient;
+        var login = await client.PostAsJsonAsync("/api/auth/login",
+            new { phoneNumber = "+971 50 000 0000", password = DeBlissApiFactory.DefaultUserPassword });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, login.StatusCode);
+    }
+
+    // ---- Password reset -----------------------------------------------------
+
+    [Fact]
+    public async Task A_password_reset_sets_the_new_password_and_ends_existing_sessions()
+    {
+        var (session, _) = await ActivateCustomerAsync("+971 50 300 4000", Password);
+        Assert.Equal(HttpStatusCode.OK, (await session.GetAsync("/api/customer/me")).StatusCode);
+
+        using var client = AnonymousClient;
+        await RequestCodeAsync(client, "+971 50 300 4000", "password-reset");
+        var verified = await VerifyAsync(client, "+971 50 300 4000", "password-reset");
+
+        var reset = await client.PostAsJsonAsync("/api/public/customer-auth/password/reset",
+            new { verified.VerificationToken, password = NewPassword });
+
+        Assert.Equal(HttpStatusCode.NoContent, reset.StatusCode);
+
+        // The session from before the reset is over.
+        Assert.Equal(HttpStatusCode.Unauthorized, (await session.GetAsync("/api/customer/me")).StatusCode);
+
+        using var oldPassword = AnonymousClient;
+        Assert.Equal(HttpStatusCode.Unauthorized,
+            (await oldPassword.PostAsJsonAsync("/api/auth/login", new { phoneNumber = "+971 50 300 4000", password = Password })).StatusCode);
+
+        using var newPassword = AnonymousClient;
+        await AuthenticateByPhoneAsync(newPassword, "+971 50 300 4000", NewPassword);
+        Assert.Equal(HttpStatusCode.OK, (await newPassword.GetAsync("/api/customer/me")).StatusCode);
+        session.Dispose();
+    }
+
+    [Fact]
+    public async Task An_existing_email_customer_keeps_email_sign_in_and_moves_to_mobile_sign_in_by_proving_the_number()
+    {
+        // An account from before mobile sign-in: email login, number on file but never verified.
+        var userId = await SeedLegacyEmailCustomerAsync("legacy@debliss.test", "+971 50 123 4567");
+
+        using var email = AnonymousClient;
+        await AuthenticateAsync(email, "legacy@debliss.test", Password);
+        Assert.Equal(HttpStatusCode.OK, (await email.GetAsync("/api/customer/me")).StatusCode);
+
+        using var phoneBefore = AnonymousClient;
+        Assert.Equal(HttpStatusCode.Unauthorized,
+            (await phoneBefore.PostAsJsonAsync("/api/auth/login", new { phoneNumber = "0501234567", password = Password })).StatusCode);
+
+        // Forgot password by mobile proves the number.
+        using var client = AnonymousClient;
+        await RequestCodeAsync(client, "0501234567", "password-reset");
+        var verified = await VerifyAsync(client, "0501234567", "password-reset");
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync(
+            "/api/public/customer-auth/password/reset", new { verified.VerificationToken, password = NewPassword })).StatusCode);
+
+        using var phoneAfter = AnonymousClient;
+        await AuthenticateByPhoneAsync(phoneAfter, "+971 50 123 4567", NewPassword);
+
+        using var emailAfter = AnonymousClient;
+        await AuthenticateAsync(emailAfter, "legacy@debliss.test", NewPassword);
+
+        var me = await ReadAsync<AuthUserDto>(await emailAfter.GetAsync("/api/auth/me"));
+        Assert.Equal(userId, me.Id);
+    }
+
+    // ---- Profile ------------------------------------------------------------
+
+    [Fact]
+    public async Task A_customer_can_add_and_change_an_optional_email()
+    {
+        var (client, user) = await ActivateCustomerAsync("+971 50 400 5000", Password);
+
+        var update = await client.PutAsJsonAsync("/api/customer/me",
+            new { firstName = "Lina", lastName = "Haddad", email = "lina@debliss.test" });
+
+        Assert.Equal(HttpStatusCode.OK, update.StatusCode);
+        var profile = await ReadAsync<CustomerSelfDto>(update);
+        Assert.Equal("lina@debliss.test", profile.Email);
+        Assert.Equal("Lina", profile.FirstName);
+        Assert.True(profile.MobileVerified);
+
+        // ...and can sign in with it.
+        using var byEmail = AnonymousClient;
+        await AuthenticateAsync(byEmail, "lina@debliss.test", Password);
+
+        var cleared = await client.PutAsJsonAsync("/api/customer/me", new { firstName = "Lina", lastName = "Haddad", email = (string?)null });
+        Assert.Null((await ReadAsync<CustomerSelfDto>(cleared)).Email);
+        Assert.Equal(user.CustomerId, (await ReadAsync<CustomerSelfDto>(await client.GetAsync("/api/customer/me"))).Id);
+        client.Dispose();
+    }
+
+    [Fact]
+    public async Task Changing_the_mobile_number_needs_the_code_sent_to_the_new_number()
+    {
+        var (client, _) = await ActivateCustomerAsync("+971 50 500 6000", Password);
+
+        Assert.Equal(HttpStatusCode.Accepted,
+            (await client.PostAsJsonAsync("/api/customer/me/phone/otp", new { phoneNumber = "+971 55 500 6000" })).StatusCode);
+
+        // Nothing changes on a wrong code.
+        var wrong = await client.PostAsJsonAsync("/api/customer/me/phone/verify",
+            new { phoneNumber = "+971 55 500 6000", code = "000000" == Factory.Otp.LastCodeFor("+971555006000") ? "111111" : "000000" });
+        Assert.Equal(HttpStatusCode.BadRequest, wrong.StatusCode);
+
+        var confirm = await client.PostAsJsonAsync("/api/customer/me/phone/verify",
+            new { phoneNumber = "+971 55 500 6000", code = Factory.Otp.LastCodeFor("+971555006000") });
+
+        Assert.Equal(HttpStatusCode.OK, confirm.StatusCode);
+        Assert.Equal("+971555006000", (await ReadAsync<CustomerSelfDto>(confirm)).PhoneNumber);
+
+        using var newNumber = AnonymousClient;
+        await AuthenticateByPhoneAsync(newNumber, "055 500 6000", Password);
+
+        using var oldNumber = AnonymousClient;
+        Assert.Equal(HttpStatusCode.Unauthorized,
+            (await oldNumber.PostAsJsonAsync("/api/auth/login", new { phoneNumber = "+971 50 500 6000", password = Password })).StatusCode);
+        client.Dispose();
+    }
+
+    [Fact]
+    public async Task A_number_that_belongs_to_another_customer_cannot_be_taken()
+    {
+        await Factory.SeedCustomerAsync("Someone", "Else", phoneNumber: "+971 56 111 2222");
+        var (client, _) = await ActivateCustomerAsync("+971 50 600 7000", Password);
+
+        var response = await client.PostAsJsonAsync("/api/customer/me/phone/otp", new { phoneNumber = "056 111 2222" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(0, Factory.Otp.CountFor("+971561112222"));
+        client.Dispose();
+    }
+
+    // ---- Retired and unchanged surfaces --------------------------------------
+
+    [Fact]
+    public async Task The_unverified_email_registration_is_retired()
+    {
+        using var client = AnonymousClient;
+        var response = await client.PostAsJsonAsync("/api/public/customers/register", new
+        {
+            firstName = "Old",
+            lastName = "Way",
+            email = "old@debliss.test",
+            password = Password,
+            phoneNumber = "+971 50 700 8000",
+        });
+
+        Assert.Equal(HttpStatusCode.Gone, response.StatusCode);
+
+        await using var db = Factory.Database.CreateContext();
+        Assert.False(await db.Customers.AnyAsync());
     }
 
     [Fact]
@@ -285,9 +445,7 @@ public sealed class CustomerIdentityApiTests : ApiTestBase
     {
         using var client = AnonymousClient;
 
-        var response = await client.GetAsync("/api/customer/me");
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/customer/me")).StatusCode);
     }
 
     [Fact]
@@ -295,121 +453,93 @@ public sealed class CustomerIdentityApiTests : ApiTestBase
     {
         // The base client is signed in as the owner, whose token carries no
         // customer link — the policy must refuse, not serve an empty view.
-        var response = await Client.GetAsync("/api/customer/me");
-
-        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await Client.GetAsync("/api/customer/me")).StatusCode);
     }
 
     [Fact]
     public async Task A_customer_cannot_reach_owner_operational_or_staff_surfaces()
     {
-        using var client = AnonymousClient;
-        await RegisterAsync(client, "walled@debliss.test");
-        await AuthenticateAsync(client, "walled@debliss.test", Password);
+        var (client, _) = await ActivateCustomerAsync("+971 50 800 9000", Password);
 
-        var owner = await client.GetAsync("/api/owner/workspace");
-        var operational = await client.GetAsync("/api/dashboard/receptionist");
-        var frontDesk = await client.GetAsync("/api/customers");
-        var staffSelf = await client.GetAsync("/api/staff/me");
-
-        Assert.Equal(HttpStatusCode.Forbidden, owner.StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, operational.StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, frontDesk.StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, staffSelf.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/owner/workspace")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/dashboard/receptionist")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/customers")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/staff/me")).StatusCode);
+        client.Dispose();
     }
 
     [Fact]
     public async Task Me_always_resolves_the_calling_customer_never_one_named_elsewhere()
     {
-        using var clientA = AnonymousClient;
-        var a = await RegisterSuccessfullyAsync(clientA, "a@debliss.test", firstName: "Alice", lastName: "One");
-        await AuthenticateAsync(clientA, "a@debliss.test", Password);
+        var (clientA, a) = await ActivateCustomerAsync("+971 50 910 0001", Password, firstName: "Alice", lastName: "One");
+        var (clientB, b) = await ActivateCustomerAsync("+971 50 910 0002", Password, firstName: "Bella", lastName: "Two");
 
-        using var clientB = AnonymousClient;
-        var b = await RegisterSuccessfullyAsync(clientB, "b@debliss.test", firstName: "Bella", lastName: "Two");
-        await AuthenticateAsync(clientB, "b@debliss.test", Password);
-
-        var mine = await clientA.GetAsync("/api/customer/me");
-
-        Assert.Equal(HttpStatusCode.OK, mine.StatusCode);
-
-        var profile = await ReadAsync<CustomerSelfDto>(mine);
+        var profile = await ReadAsync<CustomerSelfDto>(await clientA.GetAsync("/api/customer/me"));
 
         Assert.Equal(a.CustomerId, profile.Id);
         Assert.NotEqual(b.CustomerId, profile.Id);
-
-        // The staff front-desk route to another customer's record stays closed.
-        var frontDesk = await clientA.GetAsync($"/api/customers/{b.CustomerId}");
-
-        Assert.Equal(HttpStatusCode.Forbidden, frontDesk.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await clientA.GetAsync($"/api/customers/{b.CustomerId}")).StatusCode);
+        clientA.Dispose();
+        clientB.Dispose();
     }
 
     [Fact]
     public async Task Logout_invalidates_a_customer_session()
     {
-        using var client = AnonymousClient;
-        await RegisterAsync(client, "out@debliss.test");
-        await AuthenticateAsync(client, "out@debliss.test", Password);
+        var (client, _) = await ActivateCustomerAsync("+971 50 920 0000", Password);
 
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/customer/me")).StatusCode);
-
-        var logout = await client.PostAsync("/api/auth/logout", null);
-
-        Assert.Equal(HttpStatusCode.NoContent, logout.StatusCode);
-
-        // The client still replays its stored cookie header, but the token it
-        // carries is revoked, so the surface must refuse.
-        var after = await client.GetAsync("/api/customer/me");
-
-        Assert.Equal(HttpStatusCode.Unauthorized, after.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync("/api/auth/logout", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/customer/me")).StatusCode);
+        client.Dispose();
     }
 
     [Fact]
-    public async Task Existing_staff_sign_in_keeps_working_alongside_customer_accounts()
+    public async Task Team_sign_in_keeps_working_alongside_customer_accounts()
     {
-        using var client = AnonymousClient;
-        await RegisterAsync(client, "alongside@debliss.test");
+        await ActivateCustomerAsync("+971 50 930 0000", Password);
+        await Factory.SeedUserAsync("front@debliss.test", "Front#Desk123", RoleNames.Receptionist);
 
-        // The owner session predates the customer account and still reaches the
-        // front desk unchanged afterwards.
-        var response = await Client.GetAsync("/api/customers");
+        // The owner session is untouched by customer activity...
+        Assert.Equal(HttpStatusCode.OK, (await Client.GetAsync("/api/customers")).StatusCode);
 
+        // ...and a fresh team sign-in by email still works.
+        using var receptionist = AnonymousClient;
+        await AuthenticateAsync(receptionist, "front@debliss.test", "Front#Desk123");
+        Assert.Equal(HttpStatusCode.OK, (await receptionist.GetAsync("/api/dashboard/receptionist")).StatusCode);
+    }
+
+    // ---- Helpers ------------------------------------------------------------
+
+    private static async Task RequestCodeAsync(HttpClient client, string phoneNumber, string purpose)
+    {
+        var response = await client.PostAsJsonAsync("/api/public/customer-auth/otp", new { phoneNumber, purpose });
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+    }
+
+    private async Task<CustomerCodeVerifiedDto> VerifyAsync(HttpClient client, string phoneNumber, string purpose)
+    {
+        var code = Factory.Otp.LastCodeFor(MobileNumber.Normalize(phoneNumber)!)
+            ?? throw new InvalidOperationException($"No code was sent to {phoneNumber}.");
+
+        var response = await client.PostAsJsonAsync("/api/public/customer-auth/otp/verify", new { phoneNumber, purpose, code });
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        return await ReadAsync<CustomerCodeVerifiedDto>(response);
     }
 
-    private static Task<HttpResponseMessage> RegisterAsync(
-        HttpClient client,
-        string email,
-        string? phoneNumber = null,
-        string firstName = "Test",
-        string lastName = "Customer")
+    /// <summary>A customer account as it existed before mobile sign-in: email login, number unverified.</summary>
+    private async Task<Guid> SeedLegacyEmailCustomerAsync(string email, string phoneNumber)
     {
-        return client.PostAsJsonAsync("/api/public/customers/register", new
-        {
-            firstName,
-            lastName,
-            email,
-            password = Password,
-            phoneNumber,
-        }, Json);
-    }
+        await using var db = Factory.Database.CreateContext();
+        var userId = await IdentitySeed.UserAsync(db, email, Password, RoleNames.Customer, "Legacy", "Customer");
+        var customerId = await CustomerSeed.CustomerAsync(db, "Legacy", "Customer", phoneNumber, email);
 
-    private static async Task<AuthUserDto> RegisterSuccessfullyAsync(
-        HttpClient client,
-        string email,
-        string? phoneNumber = null,
-        string firstName = "Test",
-        string lastName = "Customer")
-    {
-        var response = await RegisterAsync(client, email, phoneNumber, firstName, lastName);
+        var customer = await db.Customers.SingleAsync(row => row.Id == customerId);
+        customer.UserId = userId;
+        customer.AccountStatus = CustomerAccountStatus.Active;
+        await db.SaveChangesAsync();
 
-        if (!response.IsSuccessStatusCode)
-        {
-            var errorBody = await response.Content.ReadAsStringAsync();
-            throw new InvalidOperationException(
-                $"Registration returned {(int)response.StatusCode}: {errorBody}");
-        }
-
-        return await ReadAsync<AuthUserDto>(response);
+        return userId;
     }
 }

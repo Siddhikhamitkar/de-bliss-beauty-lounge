@@ -110,6 +110,8 @@ internal sealed class LoyaltyHarness
         public Task<Customer?> FindLinkableByEmailAsync(string email, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<(IReadOnlyList<Customer> Items, int TotalCount)> SearchAsync(CustomerQuery query, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<Customer>> GetByNormalizedPhoneAsync(string normalizedPhone, Guid? excludeId, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<Customer?> FindByCanonicalPhoneAsync(string canonicalPhone, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<(Customer Customer, bool Created)> AddOrGetByPhoneAsync(Customer candidate, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<CustomerNote?> GetNoteAsync(Guid customerId, Guid noteId, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<CustomerNote>> ListNotesAsync(Guid customerId, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<Appointment>> ListAppointmentsAsync(Guid customerId, CancellationToken ct = default) => throw new NotSupportedException();

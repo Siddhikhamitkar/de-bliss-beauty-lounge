@@ -442,8 +442,8 @@ export interface CustomerAppointmentItem {
 /**
  * Payload for creating and editing a customer. `isActive` is omitted (null) by
  * the compact "+ New Customer" form the future appointment screen will post.
- * `allowDuplicatePhone` is the second step of the duplicate warning: the first
- * save without it comes back 409, and the client asks the user before retrying.
+ * `allowDuplicatePhone` is no longer honoured: one mobile number belongs to one
+ * customer, so a duplicate is always refused with 409 naming the existing one.
  */
 export interface SaveCustomerRequest {
   firstName: string | null
@@ -515,6 +515,19 @@ export interface SaveAppointmentRequest {
   services: AppointmentServiceLineInput[]
   notes: string | null
   serviceBundleId?: string | null
+  /**
+   * A customer typed in at the desk (instead of customerId). The server matches
+   * on the mobile number: an existing customer with it gets the booking,
+   * otherwise a new record is created. Email is optional.
+   */
+  newCustomer?: NewAppointmentCustomer | null
+}
+
+export interface NewAppointmentCustomer {
+  firstName: string
+  lastName: string
+  phoneNumber: string
+  email?: string | null
 }
 
 /** Partial schedule change from a calendar drag or resize; any subset may be sent. */

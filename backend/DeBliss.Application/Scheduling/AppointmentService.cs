@@ -1,6 +1,8 @@
 using DeBliss.Application.Common.Exceptions;
 using DeBliss.Application.Common.Interfaces;
 using DeBliss.Application.Customers.Ports;
+using DeBliss.Application.Customers;
+using DeBliss.Domain.Customers;
 using DeBliss.Application.Notifications;
 using DeBliss.Application.Scheduling.Dtos;
 using DeBliss.Application.Scheduling.Ports;
@@ -66,11 +68,15 @@ public sealed class AppointmentService(
     {
         var (start, lines, notes, bundle) = await ValidateBookingAsync(request, excludeId: null, cancellationToken);
 
+        // Only after the booking itself is known to be valid, so a refused
+        // booking never leaves a new customer record behind.
+        var customerId = await ResolveCustomerAsync(request, cancellationToken);
+
         var appointment = new Appointment
         {
-            CustomerId = request.CustomerId,
-            WalkInCustomerName = request.CustomerId is null ? request.WalkInCustomerName?.Trim() : null,
-            WalkInCustomerPhone = request.CustomerId is null ? request.WalkInCustomerPhone?.Trim() : null,
+            CustomerId = customerId,
+            WalkInCustomerName = customerId is null ? request.WalkInCustomerName?.Trim() : null,
+            WalkInCustomerPhone = customerId is null ? request.WalkInCustomerPhone?.Trim() : null,
             StartsAt = start,
             EndsAt = start.AddMinutes(lines.Sum(line => line.Service.DurationMinutes)),
             Status = AppointmentStatus.Confirmed,
@@ -112,9 +118,11 @@ public sealed class AppointmentService(
 
         var (start, lines, notes, bundle) = await ValidateBookingAsync(request, excludeId: id, cancellationToken);
 
-        appointment.CustomerId = request.CustomerId;
-        appointment.WalkInCustomerName = request.CustomerId is null ? request.WalkInCustomerName?.Trim() : null;
-        appointment.WalkInCustomerPhone = request.CustomerId is null ? request.WalkInCustomerPhone?.Trim() : null;
+        var customerId = await ResolveCustomerAsync(request, cancellationToken);
+
+        appointment.CustomerId = customerId;
+        appointment.WalkInCustomerName = customerId is null ? request.WalkInCustomerName?.Trim() : null;
+        appointment.WalkInCustomerPhone = customerId is null ? request.WalkInCustomerPhone?.Trim() : null;
         appointment.StartsAt = start;
         appointment.EndsAt = start.AddMinutes(lines.Sum(line => line.Service.DurationMinutes));
         appointment.Notes = notes;
@@ -332,7 +340,9 @@ public sealed class AppointmentService(
     {
         var errors = new ValidationErrorBuilder();
 
-        if (request.CustomerId is null && string.IsNullOrWhiteSpace(request.WalkInCustomerName))
+        if (request.CustomerId is null
+            && request.NewCustomer is null
+            && string.IsNullOrWhiteSpace(request.WalkInCustomerName))
         {
             errors.Add("customerId", "Choose a customer or enter a walk-in name.");
         }
@@ -340,6 +350,49 @@ public sealed class AppointmentService(
         if (request.CustomerId is not null && !string.IsNullOrWhiteSpace(request.WalkInCustomerName))
         {
             errors.Add("customerId", "Choose either a customer or a walk-in name, not both.");
+        }
+
+        if (request.NewCustomer is { } newCustomer)
+        {
+            if (request.CustomerId is not null || !string.IsNullOrWhiteSpace(request.WalkInCustomerName))
+            {
+                errors.Add("customerId", "Choose an existing customer, a new customer or a walk-in — only one.");
+            }
+
+            if (string.IsNullOrWhiteSpace(newCustomer.FirstName))
+            {
+                errors.Add("firstName", "First name is required.");
+            }
+            else if (newCustomer.FirstName.Trim().Length > CustomerLimits.NameMaxLength)
+            {
+                errors.Add("firstName", $"First name must be {CustomerLimits.NameMaxLength} characters or fewer.");
+            }
+
+            if (string.IsNullOrWhiteSpace(newCustomer.LastName))
+            {
+                errors.Add("lastName", "Last name is required.");
+            }
+            else if (newCustomer.LastName.Trim().Length > CustomerLimits.NameMaxLength)
+            {
+                errors.Add("lastName", $"Last name must be {CustomerLimits.NameMaxLength} characters or fewer.");
+            }
+
+            if (string.IsNullOrWhiteSpace(newCustomer.PhoneNumber))
+            {
+                errors.Add("phoneNumber", "Mobile number is required.");
+            }
+            else if (newCustomer.PhoneNumber.Length > CustomerLimits.PhoneMaxLength
+                || CustomerPhone.ToCanonical(newCustomer.PhoneNumber) is null)
+            {
+                errors.Add("phoneNumber", CustomerPhone.InvalidMessage);
+            }
+
+            if (!string.IsNullOrWhiteSpace(newCustomer.Email)
+                && (newCustomer.Email.Trim().Length > CustomerLimits.EmailMaxLength
+                    || !System.Net.Mail.MailAddress.TryCreate(newCustomer.Email.Trim(), out _)))
+            {
+                errors.Add("email", "Enter a valid email address.");
+            }
         }
 
         if (request.WalkInCustomerName?.Length > SchedulingLimits.WalkInNameMaxLength)
@@ -500,6 +553,63 @@ public sealed class AppointmentService(
             }
         }
     }
+
+    /// <summary>
+    /// The customer the booking belongs to. A chosen customer is used as is. A
+    /// customer typed in at the desk, or a walk-in who left a readable mobile
+    /// number, is matched on that number: an existing record is reused untouched,
+    /// otherwise a new one is created (pending activation, email optional). The
+    /// unique mobile-number index makes this safe when two bookings for the same
+    /// new number arrive at once — both land on the one record that wins.
+    /// A walk-in with no number stays an anonymous walk-in.
+    /// </summary>
+    private async Task<Guid?> ResolveCustomerAsync(SaveAppointmentRequest request, CancellationToken cancellationToken)
+    {
+        if (request.CustomerId is { } chosen)
+        {
+            return chosen;
+        }
+
+        Customer candidate;
+
+        if (request.NewCustomer is { } typed)
+        {
+            candidate = new Customer
+            {
+                Id = Guid.NewGuid(),
+                FirstName = typed.FirstName!.Trim(),
+                LastName = typed.LastName!.Trim(),
+                PhoneNumber = typed.PhoneNumber!.Trim(),
+                Email = string.IsNullOrWhiteSpace(typed.Email) ? null : typed.Email.Trim(),
+            };
+        }
+        else if (CustomerPhone.ToCanonical(request.WalkInCustomerPhone) is not null
+            && !string.IsNullOrWhiteSpace(request.WalkInCustomerName))
+        {
+            var name = request.WalkInCustomerName.Trim();
+            var split = name.IndexOf(' ');
+
+            candidate = new Customer
+            {
+                Id = Guid.NewGuid(),
+                FirstName = Clip(split < 0 ? name : name[..split]),
+                LastName = Clip(split < 0 ? string.Empty : name[(split + 1)..].Trim()),
+                PhoneNumber = request.WalkInCustomerPhone!.Trim(),
+                IsWalkIn = true,
+            };
+        }
+        else
+        {
+            return null;
+        }
+
+        var (customer, _) = await customers.AddOrGetByPhoneAsync(candidate, cancellationToken);
+
+        return customer.Id;
+    }
+
+    private static string Clip(string value) =>
+        value.Length <= CustomerLimits.NameMaxLength ? value : value[..CustomerLimits.NameMaxLength];
 
     private static void AddLines(Appointment appointment, IReadOnlyList<ValidatedLine> lines)
     {

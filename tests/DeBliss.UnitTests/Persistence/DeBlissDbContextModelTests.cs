@@ -50,7 +50,9 @@ public class DeBlissDbContextModelTests
     [Fact]
     public void The_model_maps_exactly_the_core_entities()
     {
-        Assert.Equal(28, TestModel.Model.GetEntityTypes().Count());
+        // The core entities above plus SalarySlip, LoyaltySettings,
+        // CustomerLoyaltyTransaction and CustomerVerificationCode.
+        Assert.Equal(32, TestModel.Model.GetEntityTypes().Count());
     }
 
     [Theory]

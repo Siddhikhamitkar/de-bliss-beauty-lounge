@@ -107,16 +107,21 @@ internal sealed class RemindersHarness : IDisposable
         return await dispatcher.ProcessDueAsync();
     }
 
+    private int _phoneSequence;
+
     /// <summary>A separate context, so assertions read what was actually written.</summary>
     public DeBlissDbContext Reopen() => Database.CreateContext();
 
     public async Task<Guid> SeedCustomerAsync(
         string firstName = "Sara",
         string lastName = "Haddad",
-        string? phoneNumber = "+971 50 000 0001",
+        string? phoneNumber = null,
         WhatsAppOptInStatus optInStatus = WhatsAppOptInStatus.OptedIn)
     {
         await using var context = Reopen();
+        // Each seeded customer gets its own number (one number, one customer);
+        // the first is +971 50 000 0001, which the dispatch tests rely on.
+        phoneNumber ??= $"+971 50 {++_phoneSequence:000 0000}";
         var id = await CustomerSeed.CustomerAsync(context, firstName, lastName, phoneNumber);
         await ReminderSeed.SetOptInAsync(context, id, optInStatus);
         Context.ChangeTracker.Clear();

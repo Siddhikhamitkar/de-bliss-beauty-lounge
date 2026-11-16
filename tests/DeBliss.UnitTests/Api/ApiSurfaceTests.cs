@@ -159,7 +159,14 @@ public sealed class ApiSurfaceTests : ApiTestBase
         ["GET api/public/services"] = [Anonymous],
         ["GET api/public/availability"] = [Anonymous],
         ["POST api/public/customers/register"] = [Anonymous],
+        ["POST api/public/customer-auth/otp"] = [Anonymous],
+        ["POST api/public/customer-auth/otp/verify"] = [Anonymous],
+        ["POST api/public/customer-auth/activate"] = [Anonymous],
+        ["POST api/public/customer-auth/password/reset"] = [Anonymous],
         ["GET api/customer/me"] = [CustomerSelf],
+        ["PUT api/customer/me"] = [CustomerSelf],
+        ["POST api/customer/me/phone/otp"] = [CustomerSelf],
+        ["POST api/customer/me/phone/verify"] = [CustomerSelf],
         ["POST api/customer/appointments"] = [CustomerSelf],
         ["GET api/customer/appointments"] = [CustomerSelf]
     };

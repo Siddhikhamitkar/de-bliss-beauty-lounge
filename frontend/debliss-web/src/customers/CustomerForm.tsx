@@ -4,7 +4,6 @@ import { ApiError, describeFailure } from '../api/client.ts'
 import { createCustomer, createCustomerNote, getCustomer, updateCustomer } from '../api/customers.ts'
 import type { CustomerProfile, SaveCustomerRequest } from '../api/contracts.ts'
 import { useAsync } from '../useAsync.ts'
-import { ConfirmationDialog } from '../components/ConfirmationDialog.tsx'
 import { FieldErrors } from '../components/FieldErrors.tsx'
 
 interface CustomerEditorProps {
@@ -121,12 +120,11 @@ export function CustomerForm({ initial, onSaved, onCancel }: CustomerFormProps) 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({})
   const [failure, setFailure] = useState<string>()
   const [isSaving, setIsSaving] = useState(false)
-  const [duplicateWarning, setDuplicateWarning] = useState<string>()
 
   const update = (field: keyof Draft) => (event: { target: { value: string } }) =>
     setDraft(current => ({ ...current, [field]: event.target.value }))
 
-  async function save(allowDuplicatePhone: boolean): Promise<void> {
+  async function save(): Promise<void> {
     // Blank optional fields are sent as empty strings; the server trims and
     // stores NULL, so the client does not need a second normalization rule.
     // An empty date box likewise arrives as null.
@@ -139,7 +137,7 @@ export function CustomerForm({ initial, onSaved, onCancel }: CustomerFormProps) 
       gender: draft.gender,
       address: draft.address,
       isActive: draft.isActive,
-      allowDuplicatePhone,
+      allowDuplicatePhone: false,
     }
 
     setIsSaving(true)
@@ -162,10 +160,10 @@ export function CustomerForm({ initial, onSaved, onCancel }: CustomerFormProps) 
       }
       onSaved()
     } catch (error) {
-      // The API names the existing customer in the 409 detail; park that
-      // message in a dialog and let the user decide whether to save anyway.
+      // A 409 names the customer who already has this mobile number; each
+      // number belongs to one customer, so the receptionist opens that profile.
       if (error instanceof ApiError && error.status === 409) {
-        setDuplicateWarning(error.message)
+        setFieldErrors({ phoneNumber: [error.message] })
       } else if (error instanceof ApiError && Object.keys(error.errors).length > 0) {
         setFieldErrors(error.errors)
       } else {
@@ -180,8 +178,7 @@ export function CustomerForm({ initial, onSaved, onCancel }: CustomerFormProps) 
     event.preventDefault()
     setFailure(undefined)
     setFieldErrors({})
-    setDuplicateWarning(undefined)
-    void save(false)
+    void save()
   }
 
   return (
@@ -299,20 +296,6 @@ export function CustomerForm({ initial, onSaved, onCancel }: CustomerFormProps) 
         </div>
       </form>
 
-      {duplicateWarning !== undefined && (
-        <ConfirmationDialog
-          title="Possible duplicate customer"
-          confirmLabel="Save anyway"
-          busy={isSaving}
-          onConfirm={() => {
-            setDuplicateWarning(undefined)
-            void save(true)
-          }}
-          onCancel={() => setDuplicateWarning(undefined)}
-        >
-          <p>{duplicateWarning}</p>
-        </ConfirmationDialog>
-      )}
     </section>
   )
 }

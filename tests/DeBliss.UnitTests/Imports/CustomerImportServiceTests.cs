@@ -169,7 +169,7 @@ public class CustomerImportServiceTests
     }
 
     [Fact]
-    public async Task Importing_duplicates_requires_the_explicit_opt_in()
+    public async Task A_mobile_number_repeated_in_the_file_is_imported_once_even_with_the_duplicates_opt_in()
     {
         using var harness = new ImportHarness();
 
@@ -180,8 +180,8 @@ public class CustomerImportServiceTests
         var result = await harness.CustomerImports.ExecuteAsync(harness.Stream(file), "customers.xlsx", harness.Actor, importDuplicates: true);
 
         Assert.True(result.Succeeded);
-        Assert.Equal(2, result.Created);
-        Assert.Equal(2, await harness.CustomerCountAsync());
+        Assert.Equal(1, result.Created);
+        Assert.Equal(1, await harness.CustomerCountAsync());
     }
 
     [Fact]
@@ -324,15 +324,13 @@ public class CustomerImportServiceTests
             new object?[] { "Amelia", "Fernandes", "+91 98765 43210" },
             new object?[] { "Rahul", "Mehta", "+91 98123 45678" });
 
-        // With the duplicates opt-in the rows go straight to the write, so the
-        // fault lands inside the first row's SaveChangesAsync — after its
-        // attempted++ but before any second row is attempted.
+        // The fault lands inside the transaction, at the first row's re-check
+        // of its mobile number — before any row is written.
         var result = await imports.ExecuteAsync(
             harness.Stream(file), "customers.xlsx", harness.Actor, importDuplicates: true, source.Token);
 
         Assert.False(result.Succeeded);
         Assert.Equal(0, result.Created);
-        Assert.Equal(1, result.Failed);
         Assert.Contains("nothing was saved", result.Message);
         Assert.Equal(0, await harness.CustomerCountAsync());
     }

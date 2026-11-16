@@ -2,12 +2,19 @@ using System.ComponentModel.DataAnnotations;
 
 namespace DeBliss.Application.Identity.Dtos;
 
+/// <summary>
+/// Sign-in with exactly one identifier: <see cref="Email"/> (team accounts and
+/// existing email customers) or <see cref="PhoneNumber"/> (customers with a
+/// verified mobile number).
+/// </summary>
 public sealed record LoginRequest
 {
-    [Required]
     [EmailAddress]
     [MaxLength(256)]
-    public required string Email { get; init; }
+    public string? Email { get; init; }
+
+    [MaxLength(30)]
+    public string? PhoneNumber { get; init; }
 
     [Required]
     [MaxLength(200)]

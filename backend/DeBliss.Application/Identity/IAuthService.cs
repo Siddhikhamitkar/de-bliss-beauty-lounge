@@ -15,6 +15,19 @@ public interface IAuthService
         string password,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Customer sign-in with a mobile number in any accepted format. Only a
+    /// customer whose account is active and whose number is verified can sign in
+    /// this way; every failure returns <c>null</c>, indistinguishably.
+    /// </summary>
+    Task<AuthUserDto?> AuthenticateByPhoneAsync(
+        string phoneNumber,
+        string password,
+        CancellationToken cancellationToken);
+
+    /// <summary>The user's current security stamp, embedded in issued tokens.</summary>
+    Task<string?> GetSecurityStampAsync(Guid userId, CancellationToken cancellationToken);
+
     /// <summary>The safe user view for a known id, or <c>null</c> if the user is gone.</summary>
     Task<AuthUserDto?> GetUserAsync(Guid userId, CancellationToken cancellationToken);
 }

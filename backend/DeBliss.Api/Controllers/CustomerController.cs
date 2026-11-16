@@ -19,6 +19,7 @@ namespace DeBliss.Api.Controllers;
 [Authorize(Policy = AuthPolicies.CustomerSelf)]
 public sealed class CustomerController(
     ICustomerAccessService customerAccess,
+    ICustomerAccountService accounts,
     ICustomerBookingService bookings) : ControllerBase
 {
     /// <summary>The signed-in customer's own profile.</summary>
@@ -30,6 +31,50 @@ public sealed class CustomerController(
         var customerId = CustomerSelfIdentity.Resolve(User);
 
         return Ok(await customerAccess.GetProfileAsync(customerId, cancellationToken));
+    }
+
+    /// <summary>Updates the customer's name and optional email. The mobile number changes only through <c>me/phone</c>.</summary>
+    [HttpPut("me")]
+    [ProducesResponseType(typeof(CustomerSelfDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<CustomerSelfDto>> UpdateMe(
+        [FromBody] UpdateCustomerProfileRequest request,
+        CancellationToken cancellationToken)
+    {
+        var customerId = CustomerSelfIdentity.Resolve(User);
+
+        return Ok(await accounts.UpdateProfileAsync(customerId, request, cancellationToken));
+    }
+
+    /// <summary>Sends a one-time code to a new mobile number the customer wants to switch to.</summary>
+    [HttpPost("me/phone/otp")]
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting(RateLimitPolicies.CustomerCodes)]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<IActionResult> RequestPhoneChange(
+        [FromBody] RequestMobileChangeRequest request,
+        CancellationToken cancellationToken)
+    {
+        var customerId = CustomerSelfIdentity.Resolve(User);
+
+        await accounts.RequestMobileChangeAsync(customerId, request, cancellationToken);
+
+        return Accepted();
+    }
+
+    /// <summary>Confirms the new mobile number with the code sent to it, and switches to it.</summary>
+    [HttpPost("me/phone/verify")]
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting(RateLimitPolicies.CustomerCodes)]
+    [ProducesResponseType(typeof(CustomerSelfDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<CustomerSelfDto>> ConfirmPhoneChange(
+        [FromBody] ConfirmMobileChangeRequest request,
+        CancellationToken cancellationToken)
+    {
+        var customerId = CustomerSelfIdentity.Resolve(User);
+
+        return Ok(await accounts.ConfirmMobileChangeAsync(customerId, request, cancellationToken));
     }
 
     /// <summary>

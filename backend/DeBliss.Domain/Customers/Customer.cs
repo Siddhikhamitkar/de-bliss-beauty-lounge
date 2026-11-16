@@ -13,7 +13,25 @@ public class Customer : AuditableEntity
 
     public string? Email { get; set; }
 
+    /// <summary>The mobile number as entered, kept for display.</summary>
     public string? PhoneNumber { get; set; }
+
+    /// <summary>
+    /// <see cref="PhoneNumber"/> in E.164 form (<see cref="MobileNumber"/>), derived
+    /// on every save — never set it directly. Unique across customers, so one
+    /// mobile number identifies exactly one customer record.
+    /// </summary>
+    public string? NormalizedPhoneNumber { get; set; }
+
+    /// <summary>Whether the customer can sign in to the customer app yet.</summary>
+    public CustomerAccountStatus AccountStatus { get; set; } = CustomerAccountStatus.PendingActivation;
+
+    /// <summary>
+    /// When the customer last proved they own <see cref="PhoneNumber"/> with a
+    /// one-time code. Mobile-number sign-in requires it; it is cleared whenever
+    /// the number changes without such proof.
+    /// </summary>
+    public DateTimeOffset? MobileVerifiedAt { get; set; }
 
     public DateOnly? DateOfBirth { get; set; }
 

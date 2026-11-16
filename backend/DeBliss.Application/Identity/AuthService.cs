@@ -24,8 +24,47 @@ public sealed class AuthService(
     {
         var user = await users.FindByEmailAsync(email, cancellationToken);
 
+        return await VerifyAsync(user, password, cancellationToken);
+    }
+
+    public async Task<AuthUserDto?> AuthenticateByPhoneAsync(
+        string phoneNumber,
+        string password,
+        CancellationToken cancellationToken)
+    {
+        var canonical = Customers.CustomerPhone.ToCanonical(phoneNumber);
+
+        var user = canonical is null
+            ? null
+            : await users.FindByVerifiedCustomerPhoneAsync(canonical, cancellationToken);
+
+        // Mobile sign-in is a customer feature only: a team login that happens
+        // to share a number never authenticates this way.
+        if (user is not null && !user.RoleNames.Contains(RoleNames.Customer))
+        {
+            user = null;
+        }
+
+        return await VerifyAsync(user, password, cancellationToken);
+    }
+
+    public async Task<string?> GetSecurityStampAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        var state = await users.GetSessionStateAsync(userId, cancellationToken);
+
+        return state?.SecurityStamp;
+    }
+
+    private async Task<AuthUserDto?> VerifyAsync(
+        AuthUserReadModel? user,
+        string password,
+        CancellationToken cancellationToken)
+    {
         if (user is null || !user.IsActive || string.IsNullOrEmpty(user.PasswordHash))
         {
+            // Spend the same hashing work as a real check, so response time does
+            // not reveal whether the account exists.
+            _hasher.VerifyHashedPassword(TimingDummy.User, TimingDummy.Hash, password);
             return null;
         }
 
@@ -51,6 +90,14 @@ public sealed class AuthService(
         var user = await users.FindByIdAsync(userId, cancellationToken);
 
         return user is null ? null : ToDto(user);
+    }
+
+    private static class TimingDummy
+    {
+        public static readonly AuthUserReadModel User =
+            new(Guid.Empty, string.Empty, string.Empty, null, null, false, [], null, null);
+
+        public static readonly string Hash = HashPassword(Guid.NewGuid().ToString());
     }
 
     /// <summary>Hashing helper for seeders/tests — the only other caller of the hasher besides verification.</summary>

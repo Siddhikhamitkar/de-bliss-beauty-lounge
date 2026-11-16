@@ -136,7 +136,7 @@ public sealed class CustomersApiTests : ApiTestBase
     }
 
     [Fact]
-    public async Task Create_warns_on_a_duplicate_phone_then_allows_it_once_confirmed()
+    public async Task Create_refuses_a_mobile_number_another_customer_already_has_even_when_confirmed()
     {
         await Factory.SeedCustomerAsync("Lina", "Mansour", phoneNumber: "+971 50 000 0000");
 
@@ -155,7 +155,7 @@ public sealed class CustomersApiTests : ApiTestBase
             BaseUrl,
             SaveRequest(firstName: "Lina", lastName: "Mansour", phoneNumber: "971500000000", allowDuplicatePhone: true));
 
-        Assert.Equal(HttpStatusCode.Created, confirmed.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, confirmed.StatusCode);
     }
 
     [Fact]
