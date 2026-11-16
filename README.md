@@ -319,6 +319,20 @@ The string lives in `appsettings.Development.json` only. The base
 unless `ConnectionStrings__DeBlissDb` is supplied through an environment
 variable or user secrets.
 
+To run the API locally against the hosted Azure SQL database instead, keep the
+password out of the repo and put the string in user secrets (they override
+`appsettings.Development.json`), and turn off the startup demo seeding so the
+dev sign-ins are never written there:
+
+```bash
+cd backend/DeBliss.Api
+dotnet user-secrets set "ConnectionStrings:DeBlissDb" "Server=tcp:sql-debliss-prod.database.windows.net,1433;Initial Catalog=DeBlissDb;User ID=deblissadmin;Password=<password>;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
+dotnet user-secrets set "DevData:SeedOnStartup" "false"
+```
+
+`dotnet user-secrets remove "ConnectionStrings:DeBlissDb"` switches back to the
+local database. The Azure SQL firewall must allow your IP.
+
 Migrations are never applied automatically at startup — run them explicitly.
 The EF Core tools are pointed at Infrastructure as *both* the project and the
 startup project, which keeps design-time tooling out of the API's dependency

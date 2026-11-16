@@ -4,6 +4,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Local secrets (e.g. the Azure SQL connection string) live outside the repo: dotnet user-secrets. -->
+    <UserSecretsId>debliss-api-7c3e9a14-5b2d-4f8e-9a61-2d0c4b7e8f15</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>

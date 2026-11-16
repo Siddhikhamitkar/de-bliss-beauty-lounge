@@ -40,8 +40,14 @@ if (app.Environment.IsDevelopment())
 
     // Demo scenario for the calendar workspace: only in Development and only
     // while the staff table is empty, so production data is never overwritten.
-    await DevDataSeeder.SeedAsync(app);
-    await DevAuthSeeder.SeedAsync(app);
+    // DevData:SeedOnStartup=false turns this off when a Development run points
+    // at a shared/hosted database (e.g. Azure SQL), so the demo data and the
+    // well-known dev sign-ins can never be written there.
+    if (app.Configuration.GetValue("DevData:SeedOnStartup", true))
+    {
+        await DevDataSeeder.SeedAsync(app);
+        await DevAuthSeeder.SeedAsync(app);
+    }
 }
 
 app.UseHttpsRedirection();
